@@ -45,8 +45,8 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
   };
 
   const recallCmdSuffix = WAKE_WORDS.HEGGLES_REPLAY_THAT.substring(WAKE_WORDS.HEGGLES_BASE.length);
-  const addShopCmdSuffix = WAKE_WORDS.HEGGLES_ADD_TO_SHOPPING_LIST_PREFIX.substring(WAKE_WORDS.HEGGLES_BASE.length);
-  const addToDoCmdSuffix = WAKE_WORDS.HEGGLES_ADD_TO_TODO_LIST_PREFIX.substring(WAKE_WORDS.HEGGLES_BASE.length);
+  const addShopCmdSuffix = WAKE_WORDS.ADD_TO_SHOPPING_LIST_FULL_PREFIX_REGEX_PART;
+  const addToDoCmdSuffix = WAKE_WORDS.ADD_TO_TODO_LIST_FULL_PREFIX_REGEX_PART;
   const setBufferCmdSuffix = WAKE_WORDS.HEGGLES_SET_BUFFER.substring(WAKE_WORDS.HEGGLES_BASE.length);
   const turnOnCmdSuffix = WAKE_WORDS.HEGGLES_TURN_ON.substring(WAKE_WORDS.HEGGLES_BASE.length);
   const turnOffCmdSuffix = WAKE_WORDS.HEGGLES_TURN_OFF.substring(WAKE_WORDS.HEGGLES_BASE.length);
@@ -56,10 +56,10 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
 
   return (
     <Card className="w-full shadow-lg">
-      <Accordion type="single" collapsible defaultValue={isListening ? "voice-commands-panel" : undefined}>
+      <Accordion type="single" collapsible>
         <AccordionItem value="voice-commands-panel" className="border-b-0">
-          <CardHeader className="p-4"> {/* Reduced padding for a tighter header */}
-            <AccordionTrigger className="p-0 hover:no-underline"> {/* Remove default padding and underline */}
+          <CardHeader className="p-4">
+            <AccordionTrigger className="p-0 hover:no-underline">
               <div className="flex flex-row justify-between items-center w-full">
                 <div className="flex items-center">
                   {isListening ? <Mic className="mr-2 h-6 w-6 text-primary animate-pulse" /> : <MicOff className="mr-2 h-6 w-6 text-muted-foreground" />}
@@ -67,12 +67,8 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
                     Voice Commands.
                   </CardTitle>
                 </div>
-                {/* The ChevronDown icon is automatically added by AccordionTrigger, 
-                    but we can add our own if we want more control or to replace it.
-                    For now, let's rely on the default. If it looks odd, we can hide it and add our own. */}
               </div>
             </AccordionTrigger>
-             {/* Switch moved outside AccordionTrigger but still visually part of header */}
             <div className="flex items-center justify-between space-x-2 pt-3">
                 <Label htmlFor="listening-mode-switch" className="text-base font-medium">
                     {isListening ? "Listening Active" : "Listening Inactive"}
@@ -86,7 +82,7 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
             </div>
           </CardHeader>
           <AccordionContent>
-            <CardContent className="pt-0 pb-4 px-4 space-y-4"> {/* Adjusted padding */}
+            <CardContent className="pt-0 pb-4 px-4 space-y-4">
               {showWarning && (
                 <div className="flex items-center p-3 border border-yellow-400 bg-yellow-50 text-yellow-700 rounded-md text-sm">
                   <AlertTriangle className="h-5 w-5 mr-2" />
@@ -99,15 +95,15 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
                   <Info className="h-5 w-5 mr-2 mt-0.5 shrink-0 text-primary" />
                   <div>
                       Most voice commands starting with '<strong>Heggles</strong>' will populate the input area on the dashboard. Click the <Brain className="inline-block h-3 w-3 mx-0.5"/> icon to process the populated text.
-                      The "Conceptual Buffer Time" (used by certain commands if ever re-enabled) can be configured on the <Button variant="link" asChild className="p-0 h-auto text-sm text-muted-foreground underline"><a href="/settings">Settings page</a></Button>.
+                      The "Conceptual Buffer Time" (used by the &quot;<strong>Heggles</strong>{recallCmdSuffix}&quot; voice command) can be configured on the <Button variant="link" asChild className="p-0 h-auto text-sm text-muted-foreground underline"><a href="/settings">Settings page</a></Button>.
                       <ul className="list-disc pl-5 mt-1 space-y-0.5">
                         <li>Toggle listening: <q><strong>Heggles</strong>{turnOnCmdSuffix}</q> / <q><strong>Heggles</strong>{turnOffCmdSuffix}</q>. (Immediate action)</li>
-                        <li>Recall & Record: <q><strong>Heggles</strong>{recallCmdSuffix}</q>. (Triggers {recordingDurationSeconds}s live audio recording & transcription, then AI processing of that transcript.)</li>
-                        <li>Add to shopping list: <q><strong>Heggles</strong>{addShopCmdSuffix} [item] to my shopping list</q>. (Populates input for <Brain className="inline-block h-3 w-3 mx-0.5"/> processing)</li>
-                        <li>Add to to-do list: <q><strong>Heggles</strong>{addToDoCmdSuffix} [task] to my to do list</q>. (Populates input for <Brain className="inline-block h-3 w-3 mx-0.5"/> processing)</li>
+                        <li>Recall thought from buffer: <q><strong>Heggles</strong>{recallCmdSuffix}</q>. (Populates input with simulated buffer text for <Brain className="inline-block h-3 w-3 mx-0.5"/> processing)</li>
+                        <li>Add to shopping list: <q><strong>Heggles</strong> {addShopCmdSuffix} [item] to my shopping list</q>. (Populates input for <Brain className="inline-block h-3 w-3 mx-0.5"/> processing & confirmation)</li>
+                        <li>Add to to-do list: <q><strong>Heggles</strong> {addToDoCmdSuffix} [task] to my to do list</q>. (Populates input for <Brain className="inline-block h-3 w-3 mx-0.5"/> processing & confirmation)</li>
                         <li>Set buffer: <q><strong>Heggles</strong>{setBufferCmdSuffix} [e.g., 5 minutes / always on]</q>. (Immediate action, updates setting on Settings page)</li>
-                        <li>Delete item: <q><strong>Heggles</strong>{deleteItemSuffix} [item/item number X] from [shopping list/to do list]</q>. (Populates input for <Brain className="inline-block h-3 w-3 mx-0.5"/> processing)</li>
-                        <li>The dashboard <Mic className="inline-block h-3 w-3 mx-0.5"/> icon button (in Input & Recall card) is for direct dictation into the input area, then use <Brain className="inline-block h-3 w-3 mx-0.5"/> to process.</li>
+                        <li>Delete item: <q><strong>Heggles</strong> {deleteItemSuffix} [item/item number X] from [shopping list/to do list]</q>. (Populates input for <Brain className="inline-block h-3 w-3 mx-0.5"/> processing)</li>
+                        <li>The <Mic className="inline-block h-3 w-3 mx-0.5 text-primary"/> icon button (in Input & Recall card) is for direct dictation into the input area; then use <Brain className="inline-block h-3 w-3 mx-0.5"/> to process.</li>
                         <li>The <PlayCircle className="inline-block h-3 w-3 mx-0.5 text-green-500"/>/<StopCircle className="inline-block h-3 w-3 mx-0.5 text-red-500"/> button (header) is for continuous recording; its transcript populates the input area when stopped, then use <Brain className="inline-block h-3 w-3 mx-0.5"/> to process.</li>
                       </ul>
                   </div>
