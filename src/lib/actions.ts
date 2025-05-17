@@ -6,14 +6,13 @@ import { summarizeAudio } from "@/ai/flows/summarize-audio";
 import { extractKeywords } from "@/ai/flows/extract-keywords";
 import { suggestCategory } from "@/ai/flows/suggest-category";
 import { refineThought } from "@/ai/flows/refine-thought";
-import { ACTUAL_RECORDING_SIMULATED_TRANSCRIPTION } from "@/lib/constants";
 
 // Process text-based thoughts (e.g., manual input)
 export async function processTextThought(
   rawText: string
 ): Promise<Omit<Thought, "id" | "timestamp">> {
   try {
-    const transcription = rawText;
+    const transcription = rawText; // Use the provided text directly as the transcription
 
     const summaryResult = await summarizeAudio({ transcription });
     const keywordsResult = await extractKeywords({ text: transcription });
@@ -29,30 +28,37 @@ export async function processTextThought(
   }
 }
 
-// Process recorded audio data (simulates STT for now)
+// Process recorded audio data by using the live transcription provided from the client
 export async function processRecordedAudio(
-  audioDataUrl: string // In a real scenario, this might be sent to an STT service
+  audioDataUrl: string, // Kept for potential future use (e.g. playback) but not for STT here
+  transcription: string // This is the live transcription from the 10s recording period
 ): Promise<Omit<Thought, "id" | "timestamp">> {
   try {
-    // Simulate Speech-to-Text: In a real app, you'd send audioDataUrl to an STT API.
-    // For now, we use a placeholder transcription.
-    const transcription = ACTUAL_RECORDING_SIMULATED_TRANSCRIPTION;
+    // Log receipt of audio data for debugging, but it's not sent to STT service here
     console.log("Processing recorded audio - Data URL received (first 100 chars):", audioDataUrl.substring(0,100));
+    console.log("Processing recorded audio - Using provided live transcription:", transcription);
 
+    if (!transcription || transcription.trim() === "") {
+      // Handle cases where the live transcription might be empty
+      // You could return a default thought, or specific message
+      return {
+        originalText: "[No speech detected during recording]",
+        summary: "No speech was detected during the recording.",
+        keywords: [],
+      };
+    }
 
-    const summaryResult = await summarizeAudio({ transcription });
-    const keywordsResult = await extractKeywords({ text: transcription });
+    const summaryResult = await summarizeAudio({ transcription }); // Use the live transcription
+    const keywordsResult = await extractKeywords({ text: transcription }); // Use the live transcription
     
     return {
-      originalText: transcription, // This will be the placeholder text
+      originalText: transcription, // This is the key change - using the live transcription
       summary: summaryResult.summary,
       keywords: keywordsResult.keywords,
-      // Optionally, you could store the audioDataUrl or a reference if needed later
-      // audioSource: "recorded_snippet", // Example metadata
     };
   } catch (error) {
-    console.error("Error processing recorded audio:", error);
-    throw new Error("Failed to process recorded audio with AI.");
+    console.error("Error processing recorded audio with live transcription:", error);
+    throw new Error("Failed to process recorded audio with AI using live transcription.");
   }
 }
 
