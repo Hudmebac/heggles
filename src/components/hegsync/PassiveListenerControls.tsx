@@ -22,23 +22,30 @@ interface PassiveListenerControlsProps {
 
 export function PassiveListenerControls({ isListening, onToggleListening }: PassiveListenerControlsProps) {
   const [showWarning, setShowWarning] = useState(false);
+  const [isAccordionOpen, setIsAccordionOpen] = useState(false);
+
 
   useEffect(() => {
     let timerId: NodeJS.Timeout | undefined;
     if (isListening) {
       setShowWarning(true);
+      // If listening is active, default the accordion to open to show the warning.
+      // Only do this if it's not already open to avoid forcing it open on every re-render.
+      if (!isAccordionOpen) setIsAccordionOpen(true); 
       timerId = setTimeout(() => {
         setShowWarning(false);
       }, 5000);
     } else {
       setShowWarning(false);
+      // Optionally close accordion when listening is turned off
+      // setIsAccordionOpen(false); 
     }
     return () => {
       if (timerId) {
         clearTimeout(timerId);
       }
     };
-  }, [isListening]);
+  }, [isListening, isAccordionOpen]);
 
   const handleToggleSwitch = (checked: boolean) => {
     onToggleListening(checked);
@@ -56,7 +63,12 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
 
   return (
     <Card className="w-full shadow-lg">
-      <Accordion type="single" collapsible>
+      <Accordion 
+        type="single" 
+        collapsible 
+        value={isAccordionOpen ? "voice-commands-panel" : ""}
+        onValueChange={(value) => setIsAccordionOpen(value === "voice-commands-panel")}
+      >
         <AccordionItem value="voice-commands-panel" className="border-b-0">
           <CardHeader className="p-4">
             <AccordionTrigger className="p-0 hover:no-underline">
@@ -95,15 +107,15 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
                   <Info className="h-5 w-5 mr-2 mt-0.5 shrink-0 text-primary" />
                   <div>
                       Most voice commands starting with '<strong>Heggles</strong>' will populate the input area on the dashboard. Click the <Brain className="inline-block h-3 w-3 mx-0.5"/> icon to process the populated text.
-                      The "Conceptual Buffer Time" (used by the &quot;<strong>Heggles</strong>{recallCmdSuffix}&quot; voice command) can be configured on the <Button variant="link" asChild className="p-0 h-auto text-sm text-muted-foreground underline"><a href="/settings">Settings page</a></Button>.
+                      The "Conceptual Buffer Time" (used by voice command '<strong>Heggles</strong>{setBufferCmdSuffix} [duration]') can be configured on the <Button variant="link" asChild className="p-0 h-auto text-sm text-muted-foreground underline"><a href="/settings">Settings page</a></Button>.
                       <ul className="list-disc pl-5 mt-1 space-y-0.5">
                         <li>Toggle listening: <q><strong>Heggles</strong>{turnOnCmdSuffix}</q> / <q><strong>Heggles</strong>{turnOffCmdSuffix}</q>. (Immediate action)</li>
-                        <li>Recall thought from buffer: <q><strong>Heggles</strong>{recallCmdSuffix}</q>. (Populates input with simulated buffer text for <Brain className="inline-block h-3 w-3 mx-0.5"/> processing)</li>
+                        <li>If "<strong>Heggles</strong>{recallCmdSuffix}" populates the input, clicking <Brain className="inline-block h-3 w-3 mx-0.5"/> triggers a {recordingDurationSeconds}-second live audio recording & transcription for processing.</li>
                         <li>Add to shopping list: <q><strong>Heggles</strong> {addShopCmdSuffix} [item] to my shopping list</q>. (Populates input for <Brain className="inline-block h-3 w-3 mx-0.5"/> processing & confirmation)</li>
                         <li>Add to to-do list: <q><strong>Heggles</strong> {addToDoCmdSuffix} [task] to my to do list</q>. (Populates input for <Brain className="inline-block h-3 w-3 mx-0.5"/> processing & confirmation)</li>
                         <li>Set buffer: <q><strong>Heggles</strong>{setBufferCmdSuffix} [e.g., 5 minutes / always on]</q>. (Immediate action, updates setting on Settings page)</li>
                         <li>Delete item: <q><strong>Heggles</strong> {deleteItemSuffix} [item/item number X] from [shopping list/to do list]</q>. (Populates input for <Brain className="inline-block h-3 w-3 mx-0.5"/> processing)</li>
-                        <li>The <Mic className="inline-block h-3 w-3 mx-0.5 text-primary"/> icon button (in Input & Recall card) is for direct dictation into the input area; then use <Brain className="inline-block h-3 w-3 mx-0.5"/> to process.</li>
+                        <li>The <Mic className="inline-block h-3 w-3 mx-0.5 text-primary"/> icon button (in Input & Recall card) is for direct dictation into the input area (stops on pause or "<strong>Heggles</strong> end/stop"); then use <Brain className="inline-block h-3 w-3 mx-0.5"/> to process.</li>
                         <li>The <PlayCircle className="inline-block h-3 w-3 mx-0.5 text-green-500"/>/<StopCircle className="inline-block h-3 w-3 mx-0.5 text-red-500"/> button (header) is for continuous recording; its transcript populates the input area when stopped, then use <Brain className="inline-block h-3 w-3 mx-0.5"/> to process.</li>
                       </ul>
                   </div>
@@ -115,3 +127,4 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
     </Card>
   );
 }
+
