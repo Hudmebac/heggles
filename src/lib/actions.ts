@@ -12,53 +12,68 @@ export async function processTextThought(
   rawText: string
 ): Promise<Omit<Thought, "id" | "timestamp">> {
   try {
-    const transcription = rawText; // Use the provided text directly as the transcription
+    const transcription = rawText; 
 
-    const summaryResult = await summarizeAudio({ transcription });
-    const keywordsResult = await extractKeywords({ text: transcription });
+    // Perform all AI processing steps
+    const [summaryResult, keywordsResult, refinementResult] = await Promise.all([
+      summarizeAudio({ transcription }),
+      extractKeywords({ text: transcription }),
+      refineThought({ transcript: transcription })
+    ]);
     
     return {
       originalText: transcription,
       summary: summaryResult.summary,
       keywords: keywordsResult.keywords,
+      refinedTranscript: refinementResult.refinedTranscript,
+      actionItems: refinementResult.actionItems,
     };
   } catch (error) {
     console.error("Error processing text thought:", error);
-    throw new Error("Failed to process text input with AI.");
+    // Return a partial result or a more structured error
+    return {
+        originalText: rawText,
+        summary: "Error during AI processing.",
+        keywords: [],
+        refinedTranscript: rawText, // Fallback
+        actionItems: [`Error: ${(error as Error).message}`], 
+    };
   }
 }
 
 // Process recorded audio data by using the live transcription provided from the client
 export async function processRecordedAudio(
-  audioDataUrl: string, // Kept for potential future use (e.g. playback) but not for STT here
-  transcription: string // This is the live transcription from the 10s recording period
+  audioDataUrl: string, 
+  transcription: string 
 ): Promise<Omit<Thought, "id" | "timestamp">> {
   try {
-    // Log receipt of audio data for debugging, but it's not sent to STT service here
     console.log("Processing recorded audio - Data URL received (first 100 chars):", audioDataUrl.substring(0,100));
     console.log("Processing recorded audio - Using provided live transcription:", transcription);
 
-    if (!transcription || transcription.trim() === "") {
-      // Handle cases where the live transcription might be empty
-      // You could return a default thought, or specific message
-      return {
-        originalText: "[No speech detected during recording]",
-        summary: "No speech was detected during the recording.",
-        keywords: [],
-      };
-    }
+    const effectiveTranscription = transcription.trim() === "" ? "[No speech detected during recording]" : transcription;
 
-    const summaryResult = await summarizeAudio({ transcription }); // Use the live transcription
-    const keywordsResult = await extractKeywords({ text: transcription }); // Use the live transcription
+    const [summaryResult, keywordsResult, refinementResult] = await Promise.all([
+        summarizeAudio({ transcription: effectiveTranscription }),
+        extractKeywords({ text: effectiveTranscription }),
+        refineThought({ transcript: effectiveTranscription })
+    ]);
     
     return {
-      originalText: transcription, // This is the key change - using the live transcription
+      originalText: effectiveTranscription, 
       summary: summaryResult.summary,
       keywords: keywordsResult.keywords,
+      refinedTranscript: refinementResult.refinedTranscript,
+      actionItems: refinementResult.actionItems,
     };
   } catch (error) {
     console.error("Error processing recorded audio with live transcription:", error);
-    throw new Error("Failed to process recorded audio with AI using live transcription.");
+    return {
+        originalText: transcription,
+        summary: "Error during AI processing of recorded audio.",
+        keywords: [],
+        refinedTranscript: transcription,
+        actionItems: [`Error: ${(error as Error).message}`],
+    };
   }
 }
 
@@ -98,3 +113,4 @@ export async function clarifyThoughtWithAI(
     throw new Error("Failed to clarify thought with AI.");
   }
 }
+
