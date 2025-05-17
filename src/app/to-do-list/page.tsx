@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Label } from '@/components/ui/label'; // Added missing import
+import { Label } from '@/components/ui/label';
 import { format, parseISO, isValid, isPast, isToday, isTomorrow } from 'date-fns';
 import { 
   ClipboardList, Trash2, Edit3, PlusCircle, Save, Ban, CheckSquare, Clock, 
@@ -42,11 +42,17 @@ const parseTimeToTimePoint = (timeStr?: string | null): TimePoint | null => {
 
 // Helper to format TimePoint into "HH:MM AM/PM" string
 const formatTimePointToString = (timePoint?: TimePoint | null): string | null => {
-  if (!timePoint) return null;
-  const h = parseInt(timePoint.hh, 10);
-  const m = parseInt(timePoint.mm, 10);
-  if (isNaN(h) || isNaN(m) || h < 1 || h > 12 || m < 0 || m > 59) return null;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} ${timePoint.period}`;
+  if (!timePoint || !timePoint.period) return null; // Period is essential
+  const hInput = timePoint.hh;
+  const mInput = timePoint.mm;
+
+  // Default to 12:00 if hh and mm are empty but period is present
+  const hVal = (hInput === '' || hInput === null) ? 12 : parseInt(hInput, 10);
+  const mVal = (mInput === '' || mInput === null) ? 0 : parseInt(mInput, 10);
+
+  if (isNaN(hVal) || isNaN(mVal) || hVal < 1 || hVal > 12 || mVal < 0 || mVal > 59) return null;
+  
+  return `${String(hVal).padStart(2, '0')}:${String(mVal).padStart(2, '0')} ${timePoint.period}`;
 };
 
 
@@ -134,8 +140,8 @@ export default function ToDoListPage() {
     if (!item || item.completed) return;
     setEditingTimeItemId(itemId);
     setCurrentEditorTimeSettingType(item.timeSettingType || 'not_set');
-    setCurrentEditorStartTime(item.startTime || null);
-    setCurrentEditorEndTime(item.endTime || null);
+    setCurrentEditorStartTime(item.startTime ? {...item.startTime} : null);
+    setCurrentEditorEndTime(item.endTime ? {...item.endTime} : null);
     setCurrentEditorDueDate(item.dueDate ? parseISO(item.dueDate) : undefined);
     setEditingItemId(null);
   };
@@ -146,29 +152,58 @@ export default function ToDoListPage() {
     let newStartTime: TimePoint | null = null;
     let newEndTime: TimePoint | null = null;
 
+    // Handle Start Time
     if (currentEditorTimeSettingType === 'specific_start' || currentEditorTimeSettingType === 'specific_start_end') {
-      if (currentEditorStartTime && formatTimePointToString(currentEditorStartTime)) {
-        newStartTime = currentEditorStartTime;
-      } else {
-        toast({ title: "Invalid Start Time", description: "Please enter a valid start time (HH: 1-12, MM: 00-59).", variant: "destructive" });
-        return;
+      if (currentEditorStartTime) {
+        const hNum = parseInt(currentEditorStartTime.hh);
+        const mNum = parseInt(currentEditorStartTime.mm);
+        let isMalformed = false;
+        if (currentEditorStartTime.hh !== '' && currentEditorStartTime.hh !== null && (isNaN(hNum) || hNum < 1 || hNum > 12)) {
+            isMalformed = true;
+        }
+        if (currentEditorStartTime.mm !== '' && currentEditorStartTime.mm !== null && (isNaN(mNum) || mNum < 0 || mNum > 59)) {
+            isMalformed = true;
+        }
+
+        if (isMalformed) {
+          toast({ title: "Invalid Start Time", description: "Start time hours (1-12) or minutes (00-59) are out of range or invalid.", variant: "destructive" });
+          return;
+        }
+        
+        const formattedStart = formatTimePointToString(currentEditorStartTime);
+        if (formattedStart) { // Successfully formatted to HH:MM AM/PM
+          newStartTime = { ...currentEditorStartTime, hh: String(parseInt(currentEditorStartTime.hh || '12')).padStart(2,'0'), mm: String(parseInt(currentEditorStartTime.mm || '00')).padStart(2,'0') };
+        } else if (currentEditorStartTime.period && (currentEditorStartTime.hh === '' || currentEditorStartTime.hh === null) && (currentEditorStartTime.mm === '' || currentEditorStartTime.mm === null)) {
+          // Only period is set, default HH:MM
+          newStartTime = { hh: '12', mm: '00', period: currentEditorStartTime.period };
+        }
+        // If not malformed, and not fully formattable, and not just period, newStartTime remains null (e.g. user cleared fields)
       }
     }
+
+    // Handle End Time
     if (currentEditorTimeSettingType === 'specific_start_end') {
-      if (currentEditorEndTime && formatTimePointToString(currentEditorEndTime)) {
-        newEndTime = currentEditorEndTime;
-      } else {
-        toast({ title: "Invalid End Time", description: "Please enter a valid end time (HH: 1-12, MM: 00-59).", variant: "destructive" });
-        return;
-      }
-      // Basic validation: end time should be after start time (if both specific)
-      if (newStartTime && newEndTime) {
-        const startTotalMinutes = (parseInt(newStartTime.hh) % 12 + (newStartTime.period === 'PM' && parseInt(newStartTime.hh) !== 12 ? 12 : 0)) * 60 + parseInt(newStartTime.mm);
-        const endTotalMinutes = (parseInt(newEndTime.hh) % 12 + (newEndTime.period === 'PM' && parseInt(newEndTime.hh) !== 12 ? 12 : 0)) * 60 + parseInt(newEndTime.mm);
-        if (endTotalMinutes <= startTotalMinutes) {
-          // toast({ title: "Invalid Time Range", description: "End time must be after start time.", variant: "destructive" });
-          // return; 
-          // Allowing same day overnight for now, complex validation deferred
+      if (currentEditorEndTime) {
+        const hNum = parseInt(currentEditorEndTime.hh);
+        const mNum = parseInt(currentEditorEndTime.mm);
+        let isMalformed = false;
+        if (currentEditorEndTime.hh !== '' && currentEditorEndTime.hh !== null && (isNaN(hNum) || hNum < 1 || hNum > 12)) {
+            isMalformed = true;
+        }
+        if (currentEditorEndTime.mm !== '' && currentEditorEndTime.mm !== null && (isNaN(mNum) || mNum < 0 || mNum > 59)) {
+            isMalformed = true;
+        }
+
+        if (isMalformed) {
+          toast({ title: "Invalid End Time", description: "End time hours (1-12) or minutes (00-59) are out of range or invalid.", variant: "destructive" });
+          return;
+        }
+
+        const formattedEnd = formatTimePointToString(currentEditorEndTime);
+        if (formattedEnd) {
+          newEndTime = { ...currentEditorEndTime, hh: String(parseInt(currentEditorEndTime.hh || '12')).padStart(2,'0'), mm: String(parseInt(currentEditorEndTime.mm || '00')).padStart(2,'0') };
+        } else if (currentEditorEndTime.period && (currentEditorEndTime.hh === '' || currentEditorEndTime.hh === null) && (currentEditorEndTime.mm === '' || currentEditorEndTime.mm === null)) {
+          newEndTime = { hh: '12', mm: '00', period: currentEditorEndTime.period };
         }
       }
     }
@@ -182,7 +217,7 @@ export default function ToDoListPage() {
         return { 
           ...item, 
           timeSettingType: currentEditorTimeSettingType,
-          startTime: currentEditorTimeSettingType === 'not_set' || currentEditorTimeSettingType === 'all_day' ? null : newStartTime,
+          startTime: (currentEditorTimeSettingType === 'not_set' || currentEditorTimeSettingType === 'all_day') ? null : newStartTime,
           endTime: currentEditorTimeSettingType === 'specific_start_end' ? newEndTime : null,
           dueDate: currentEditorDueDate ? format(currentEditorDueDate, 'yyyy-MM-dd') : null,
         };
@@ -208,7 +243,7 @@ export default function ToDoListPage() {
       return item;
     }));
     toast({ title: "Time & Date Settings Cleared" });
-    setEditingTimeItemId(null); // Close editor after clearing
+    setEditingTimeItemId(null); 
   };
 
   const handleCancelTimeEditor = () => {
@@ -217,7 +252,13 @@ export default function ToDoListPage() {
   
   const handleTempTimeChange = (type: 'start' | 'end', field: 'hh' | 'mm' | 'period', value: string) => {
     const setter = type === 'start' ? setCurrentEditorStartTime : setCurrentEditorEndTime;
-    setter(prev => ({ ...(prev || initialTimePoint), [field]: value }));
+    setter(prev => {
+      const newPoint = { ...(prev || initialTimePoint), [field]: value };
+      // Ensure hh and mm are always strings, even if user clears input
+      if (field === 'hh' && value === null) newPoint.hh = '';
+      if (field === 'mm' && value === null) newPoint.mm = '';
+      return newPoint;
+    });
   };
 
   const displayFormattedTime = (item: ToDoListItem): string => {
@@ -230,10 +271,12 @@ export default function ToDoListPage() {
     if (item.startTime) {
       const formattedStart = formatTimePointToString(item.startTime);
       if (formattedStart) displayStr += `Starts ${formattedStart}`;
+      else if (item.startTime.period) displayStr += `Starts ${item.startTime.period}`; // Fallback for only period
     }
     if (item.timeSettingType === 'specific_start_end' && item.endTime) {
       const formattedEnd = formatTimePointToString(item.endTime);
-      if (formattedEnd) displayStr += displayStr ? ` - Ends ${formattedEnd}` : `Ends ${formattedEnd}`;
+       if (formattedEnd) displayStr += displayStr ? ` - Ends ${formattedEnd}` : `Ends ${formattedEnd}`;
+       else if (item.endTime.period) displayStr += displayStr ? ` - Ends ${item.endTime.period}` : `Ends ${item.endTime.period}`;
     }
     return displayStr || 'Time set (see details)';
   };
@@ -324,8 +367,8 @@ export default function ToDoListPage() {
       case 'dueDateAsc':
         displayItems.sort((a, b) => {
           if (!a.dueDate && !b.dueDate) return 0;
-          if (!a.dueDate) return 1; // items without due date last
-          if (!b.dueDate) return -1; // items without due date last
+          if (!a.dueDate) return 1; 
+          if (!b.dueDate) return -1; 
           return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
         });
         break;
@@ -343,9 +386,8 @@ export default function ToDoListPage() {
       case 'alphaDesc':
         displayItems.sort((a, b) => b.text.localeCompare(a.text));
         break;
-      case 'priority': // Placeholder - no priority field yet
+      case 'priority': 
       default:
-        // Default order is as stored (supports drag/drop)
         break;
     }
     return displayItems;
@@ -366,7 +408,7 @@ export default function ToDoListPage() {
       <div className="flex items-center gap-1 p-1 border rounded-md bg-background">
         <Input type="text" value={currentVal?.hh || ''} onChange={(e) => handleTempTimeChange(type, 'hh', e.target.value)} maxLength={2} className="w-12 h-8 text-center px-0.5 text-sm" placeholder="HH"/>:
         <Input type="text" value={currentVal?.mm || ''} onChange={(e) => handleTempTimeChange(type, 'mm', e.target.value)} maxLength={2} className="w-12 h-8 text-center px-0.5 text-sm" placeholder="MM"/>
-        <Select value={currentVal?.period || 'AM'} onValueChange={(val) => handleTempTimeChange(type, 'period', val)}>
+        <Select value={currentVal?.period || 'AM'} onValueChange={(val) => handleTempTimeChange(type, 'period', val as 'AM' | 'PM')}>
           <SelectTrigger className="w-20 h-8 px-2 text-sm"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="AM">AM</SelectItem><SelectItem value="PM">PM</SelectItem></SelectContent>
         </Select>
@@ -518,9 +560,8 @@ export default function ToDoListPage() {
                     </div>
                   </div>
                   
-                  {/* Collapsible Time and Date Editor */}
                   {!item.completed && (
-                    <div className="pl-8"> {/* Indent editor section */}
+                    <div className="pl-8"> 
                        <Button 
                           variant="outline" 
                           size="sm" 
@@ -612,3 +653,4 @@ export default function ToDoListPage() {
 }
 
     
+
