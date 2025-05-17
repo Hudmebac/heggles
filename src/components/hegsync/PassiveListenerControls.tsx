@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Mic, MicOff, AlertTriangle, Timer, Info, Zap } from 'lucide-react'; // Zap might be unused now
+import { Mic, MicOff, AlertTriangle, Timer, Info, Brain } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -113,7 +113,7 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
             </SelectContent>
           </Select>
            <p className="text-xs text-muted-foreground pt-1">
-            The <q><strong>HegSync</strong>{recallCmdSuffix}</q> voice command or the <Mic className="inline-block h-3 w-3 mx-0.5"/> button on the dashboard records a {recordingDurationSeconds}-second audio snippet. You can also set this buffer time via voice: <q><strong>HegSync</strong>{setBufferCmdSuffix} [duration]</q>.
+            The <q><strong>HegSync</strong>{recallCmdSuffix}</q> voice command or the <Mic className="inline-block h-3 w-3 mx-0.5"/> icon button on the dashboard records a {recordingDurationSeconds}-second audio snippet. You can also set this buffer time via voice: <q><strong>HegSync</strong>{setBufferCmdSuffix} [duration]</q>.
           </p>
         </div>
 
@@ -130,15 +130,16 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
             <div>
                 Toggle the switch above or say <q><strong>HegSync</strong>{turnOnCmdSuffix}</q> / <q><strong>HegSync</strong>{turnOffCmdSuffix}</q> to manage passive listening.
                 <ul className="list-disc pl-5 mt-1 space-y-0.5">
-                  <li>Say <q><strong>HegSync</strong>{recallCmdSuffix}</q> (or use the <Mic className="inline-block h-3 w-3 mx-0.5"/> button on the dashboard) to record a {recordingDurationSeconds}s audio snippet for AI processing.</li>
+                  <li>Say <q><strong>HegSync</strong>{recallCmdSuffix}</q> (or use the <Mic className="inline-block h-3 w-3 mx-0.5"/> icon button on the dashboard) to record a {recordingDurationSeconds}s audio snippet for AI processing.</li>
                   <li>Say <q><strong>HegSync</strong>{addShopCmdSuffix} [item]</q> to add to your shopping list.</li>
                   <li>Say <q><strong>HegSync</strong>{setBufferCmdSuffix} [e.g., 5 minutes / always on]</q> to set the conceptual buffer time.</li>
                   <li>Say <q><strong>HegSync</strong>{deleteItemSuffix} [item/item number X] from [shopping list/to do list]</q> to remove an item.</li>
                 </ul>
-                 The "Process Thought (from text)" button uses text from the input area on the dashboard.
+                 The <Brain className="inline-block h-3 w-3 mx-0.5"/> icon button on the dashboard uses text from the input area.
             </div>
         </div>
       </CardContent>
     </Card>
   );
 }
+

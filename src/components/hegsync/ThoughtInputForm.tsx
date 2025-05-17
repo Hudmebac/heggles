@@ -124,7 +124,6 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
         };
         stream.getTracks().forEach(track => track.stop());
         audioChunksRef.current = [];
-        // setIsCapturingAudio(false); // Moved to handleProcessRecordedAudio finally block
       };
 
       toast({ title: "Recording Started", description: `Capturing audio for ${RECORDING_DURATION_MS / 1000} seconds...`, duration: RECORDING_DURATION_MS });
@@ -345,7 +344,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
           let commandMatchedThisTurn = false;
 
           if (finalUtterance === WAKE_WORDS.RECALL_THOUGHT.toLowerCase()) {
-            toast({ title: "Recall Command Detected!", description: "Starting audio capture..." });
+            toast({ title: <><strong>HegSync</strong> Recall Command Detected!</>, description: "Starting audio capture..." });
             startAudioRecording(); 
             commandMatchedThisTurn = true;
           } else if (finalUtterance.startsWith(WAKE_WORDS.ADD_TO_SHOPPING_LIST.toLowerCase())) {
@@ -535,7 +534,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
           <>
             Voice: Say <q><strong>HegSync</strong>{recallCmdSuffix}</q> to record a {RECORDING_DURATION_MS / 1000}s audio snippet.
             Other commands: <q><strong>HegSync</strong>{addShopCmdSuffix} [item]</q>, <q><strong>HegSync</strong>{setBufferCmdSuffix} [duration]</q>, <q><strong>HegSync</strong>{deleteItemSuffix} [item/item number X] from [list type]</q>, <q><strong>HegSync</strong>{turnOnCmdSuffix}</q>, or <q><strong>HegSync</strong>{turnOffCmdSuffix}</q>.
-            Manual: Use buttons below for text input or to trigger audio recording.
+            Manual: Use the <Brain className="inline-block h-3.5 w-3.5 mx-0.5"/> icon to process text from input area, or <Mic className="inline-block h-3.5 w-3.5 mx-0.5"/> to trigger audio recording.
           </>
         </CardDescription>
       </CardHeader>
@@ -559,7 +558,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
           </Alert>
         )}
 
-        <form onSubmit={(e) => e.preventDefault()} className="space-y-4"> {/* Changed to prevent default for button-triggered actions */}
+        <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
           <Textarea
             placeholder={getTextareaPlaceholder()}
             value={inputText}
@@ -574,22 +573,12 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
               type="button"
               onClick={handleManualSubmit}
               disabled={!isListening || isLoading || isCapturingAudio || !inputText.trim()}
-              className="flex-grow"
-              title="Process thought from text area with AI"
-            >
-              {isLoading && inputText.trim() && !isCapturingAudio ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Brain className="mr-2 h-4 w-4" />}
-              Process Thought (from text)
-            </Button>
-             <Button
-              type="button"
-              onClick={handleManualSubmit}
-              disabled={!isListening || isLoading || isCapturingAudio || !inputText.trim()}
               size="icon"
               className="p-2 h-auto" 
               aria-label="Process thought from text area with AI"
               title="Process thought from text area with AI"
             >
-              <Brain className={`h-5 w-5 ${isLoading && inputText.trim() && !isCapturingAudio ? 'animate-pulse' : ''}`} />
+              {isLoading && inputText.trim() && !isCapturingAudio ? <Loader2 className="h-5 w-5 animate-spin" /> : <Brain className="h-5 w-5" />}
             </Button>
             <Button
               type="button"
@@ -605,10 +594,11 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
           </div>
         </form>
         <p className="text-xs text-muted-foreground mt-2">
-          The <q><strong>HegSync</strong>{recallCmdSuffix}</q> voice command (or the <Mic className="inline-block h-3 w-3 mx-0.5"/> button) records a {RECORDING_DURATION_MS / 1000}-second audio snippet for AI processing.
-          Other voice commands are processed directly based on your speech. The "Process Thought (from text)" button uses text from the input area.
+          The <q><strong>HegSync</strong>{recallCmdSuffix}</q> voice command (or the <Mic className="inline-block h-3 w-3 mx-0.5"/> icon button) records a {RECORDING_DURATION_MS / 1000}-second audio snippet for AI processing.
+          Other voice commands are processed directly based on your speech. The <Brain className="inline-block h-3 w-3 mx-0.5"/> icon button uses text from the input area.
         </p>
       </CardContent>
     </Card>
   );
 }
+
