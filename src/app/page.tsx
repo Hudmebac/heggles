@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
 import type { Thought, PinnedThought } from '@/lib/types';
 import { PassiveListenerControls } from '@/components/hegsync/PassiveListenerControls';
@@ -12,11 +12,12 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { pinThoughtAndSuggestCategories } from '@/lib/actions';
 import { useRouter } from 'next/navigation';
+import { LOCALSTORAGE_KEYS } from '@/lib/constants';
 
 export default function DashboardPage() {
   const [isListening, setIsListening] = useState(true); // Enabled by default
-  const [recalledThoughts, setRecalledThoughts] = useLocalStorage<Thought[]>('hegsync-recalled-thoughts', []);
-  const [pinnedThoughts, setPinnedThoughts] = useLocalStorage<PinnedThought[]>('hegsync-memory-vault', []);
+  const [recalledThoughts, setRecalledThoughts] = useLocalStorage<Thought[]>(LOCALSTORAGE_KEYS.RECALLED_THOUGHTS, []);
+  const [pinnedThoughts, setPinnedThoughts] = useLocalStorage<PinnedThought[]>(LOCALSTORAGE_KEYS.MEMORY_VAULT, []);
   
   const [clarifyingThought, setClarifyingThought] = useState<Thought | null>(null);
   const [isClarifierOpen, setIsClarifierOpen] = useState(false);
@@ -24,10 +25,10 @@ export default function DashboardPage() {
   const { toast } = useToast();
   const router = useRouter();
 
-  const handleToggleListening = (active: boolean) => {
+  const handleToggleListening = useCallback((active: boolean) => {
     setIsListening(active);
     toast({ title: `Passive Listening ${active ? "Enabled" : "Disabled"}`, description: active ? "Ready to recall thoughts and listen for commands." : "Voice commands and recording are off." });
-  };
+  }, [toast]); // setIsListening is stable, toast might change if useToast itself re-renders its context, but generally stable.
 
   const handleThoughtRecalled = (newThought: Thought) => {
     setRecalledThoughts(prevThoughts => [newThought, ...prevThoughts].sort((a,b) => b.timestamp - a.timestamp));
