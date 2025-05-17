@@ -16,53 +16,60 @@ interface ThemeProviderState {
   setTheme: (theme: Theme) => void;
 }
 
-const initialState: ThemeProviderState = {
-  theme: 'light',
+const initialContextState: ThemeProviderState = {
+  theme: 'light', 
   setTheme: () => null,
 };
 
-const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
+const ThemeProviderContext = createContext<ThemeProviderState>(initialContextState);
 
 export function ThemeProvider({
   children,
   defaultTheme = 'light',
   storageKey = 'hegsync-theme',
 }: ThemeProviderProps) {
-  const [storedTheme, setStoredTheme] = useLocalStorage<Theme>(storageKey, defaultTheme);
-  const [theme, setThemeState] = useState<Theme>(() => storedTheme || defaultTheme);
+  const [storedThemeFromLocalStorage, setStoredThemeInLocalStorage] = useLocalStorage<Theme>(storageKey, defaultTheme);
+  const [effectiveTheme, setEffectiveTheme] = useState<Theme>(defaultTheme);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setThemeState(storedTheme);
-  }, [storedTheme]);
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
+    if (mounted) {
+      setEffectiveTheme(storedThemeFromLocalStorage);
+    }
+  }, [mounted, storedThemeFromLocalStorage]);
+
+  useEffect(() => {
+    if (!mounted) {
+      return;
+    }
+
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark', 'theme-high-contrast-light', 'theme-high-contrast-dark');
 
-    if (theme === 'system') { // 'system' theme can be added later if needed
-      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      root.classList.add(systemTheme);
-      return;
-    }
-    
-    if (theme === 'dark') {
+    if (effectiveTheme === 'dark') {
       root.classList.add('dark');
-    } else if (theme === 'high-contrast-light') {
+    } else if (effectiveTheme === 'high-contrast-light') {
       root.classList.add('theme-high-contrast-light');
-    } else if (theme === 'high-contrast-dark') {
+    } else if (effectiveTheme === 'high-contrast-dark') {
       root.classList.add('theme-high-contrast-dark');
-    } else {
-      root.classList.add('light'); // Default to light theme class
+    } else { 
+      root.classList.add('light');
     }
-  }, [theme]);
+  }, [effectiveTheme, mounted]);
 
   const setTheme = (newTheme: Theme) => {
-    setStoredTheme(newTheme);
-    setThemeState(newTheme);
+    setStoredThemeInLocalStorage(newTheme); 
+    setEffectiveTheme(newTheme);
   };
+  
+  const contextThemeValue = mounted ? effectiveTheme : defaultTheme;
 
   return (
-    <ThemeProviderContext.Provider value={{ theme, setTheme }}>
+    <ThemeProviderContext.Provider value={{ theme: contextThemeValue, setTheme }}>
       {children}
     </ThemeProviderContext.Provider>
   );
