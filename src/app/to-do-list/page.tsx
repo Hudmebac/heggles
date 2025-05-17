@@ -42,15 +42,20 @@ const parseTimeToTimePoint = (timeStr?: string | null): TimePoint | null => {
 
 // Helper to format TimePoint into "HH:MM AM/PM" string
 const formatTimePointToString = (timePoint?: TimePoint | null): string | null => {
-  if (!timePoint || !timePoint.period) return null; // Period is essential
+  if (!timePoint || !timePoint.period) return null; 
   const hInput = timePoint.hh;
   const mInput = timePoint.mm;
 
-  // Default to 12:00 if hh and mm are empty but period is present
   const hVal = (hInput === '' || hInput === null) ? 12 : parseInt(hInput, 10);
   const mVal = (mInput === '' || mInput === null) ? 0 : parseInt(mInput, 10);
 
-  if (isNaN(hVal) || isNaN(mVal) || hVal < 1 || hVal > 12 || mVal < 0 || mVal > 59) return null;
+  if (isNaN(hVal) || isNaN(mVal) || hVal < 1 || hVal > 12 || mVal < 0 || mVal > 59) {
+     // Allow saving with just period by defaulting hh/mm if they are empty
+     if ((hInput === '' || hInput === null) && (mInput === '' || mInput === null) && timePoint.period) {
+        return `12:00 ${timePoint.period}`;
+     }
+     return null; // Truly invalid
+  }
   
   return `${String(hVal).padStart(2, '0')}:${String(mVal).padStart(2, '0')} ${timePoint.period}`;
 };
@@ -151,61 +156,61 @@ export default function ToDoListPage() {
 
     let newStartTime: TimePoint | null = null;
     let newEndTime: TimePoint | null = null;
+    let finalTimeSettingType = currentEditorTimeSettingType;
 
-    // Handle Start Time
     if (currentEditorTimeSettingType === 'specific_start' || currentEditorTimeSettingType === 'specific_start_end') {
-      if (currentEditorStartTime) {
-        const hNum = parseInt(currentEditorStartTime.hh);
-        const mNum = parseInt(currentEditorStartTime.mm);
-        let isMalformed = false;
-        if (currentEditorStartTime.hh !== '' && currentEditorStartTime.hh !== null && (isNaN(hNum) || hNum < 1 || hNum > 12)) {
-            isMalformed = true;
-        }
-        if (currentEditorStartTime.mm !== '' && currentEditorStartTime.mm !== null && (isNaN(mNum) || mNum < 0 || mNum > 59)) {
-            isMalformed = true;
-        }
+        if (currentEditorStartTime) {
+            const hNum = parseInt(currentEditorStartTime.hh);
+            const mNum = parseInt(currentEditorStartTime.mm);
+            let isMalformed = false;
+            if (currentEditorStartTime.hh !== '' && currentEditorStartTime.hh !== null && (isNaN(hNum) || hNum < 1 || hNum > 12)) isMalformed = true;
+            if (currentEditorStartTime.mm !== '' && currentEditorStartTime.mm !== null && (isNaN(mNum) || mNum < 0 || mNum > 59)) isMalformed = true;
 
-        if (isMalformed) {
-          toast({ title: "Invalid Start Time", description: "Start time hours (1-12) or minutes (00-59) are out of range or invalid.", variant: "destructive" });
-          return;
+            if (isMalformed) {
+                toast({ title: "Invalid Start Time", description: "Start time hours (1-12) or minutes (00-59) are invalid.", variant: "destructive" });
+                return;
+            }
+            // If only period is set, default hh and mm
+            const hFinal = (currentEditorStartTime.hh === '' || currentEditorStartTime.hh === null) ? '12' : String(hNum).padStart(2,'0');
+            const mFinal = (currentEditorStartTime.mm === '' || currentEditorStartTime.mm === null) ? '00' : String(mNum).padStart(2,'0');
+            if (currentEditorStartTime.period) {
+                 newStartTime = { hh: hFinal, mm: mFinal, period: currentEditorStartTime.period };
+            } else if (currentEditorStartTime.hh || currentEditorStartTime.mm) { // HH or MM set, but no period
+                toast({ title: "Missing AM/PM", description: "Please select AM or PM for the start time.", variant: "destructive" });
+                return;
+            } // else, if all are blank, newStartTime remains null
         }
-        
-        const formattedStart = formatTimePointToString(currentEditorStartTime);
-        if (formattedStart) { // Successfully formatted to HH:MM AM/PM
-          newStartTime = { ...currentEditorStartTime, hh: String(parseInt(currentEditorStartTime.hh || '12')).padStart(2,'0'), mm: String(parseInt(currentEditorStartTime.mm || '00')).padStart(2,'0') };
-        } else if (currentEditorStartTime.period && (currentEditorStartTime.hh === '' || currentEditorStartTime.hh === null) && (currentEditorStartTime.mm === '' || currentEditorStartTime.mm === null)) {
-          // Only period is set, default HH:MM
-          newStartTime = { hh: '12', mm: '00', period: currentEditorStartTime.period };
-        }
-        // If not malformed, and not fully formattable, and not just period, newStartTime remains null (e.g. user cleared fields)
-      }
+         // If newStartTime is still null but type requires it, maybe user cleared fields - revert type or handle
+        if (!newStartTime && currentEditorTimeSettingType === 'specific_start') finalTimeSettingType = 'not_set';
     }
 
-    // Handle End Time
     if (currentEditorTimeSettingType === 'specific_start_end') {
-      if (currentEditorEndTime) {
-        const hNum = parseInt(currentEditorEndTime.hh);
-        const mNum = parseInt(currentEditorEndTime.mm);
-        let isMalformed = false;
-        if (currentEditorEndTime.hh !== '' && currentEditorEndTime.hh !== null && (isNaN(hNum) || hNum < 1 || hNum > 12)) {
-            isMalformed = true;
-        }
-        if (currentEditorEndTime.mm !== '' && currentEditorEndTime.mm !== null && (isNaN(mNum) || mNum < 0 || mNum > 59)) {
-            isMalformed = true;
-        }
+        if (currentEditorEndTime) {
+            const hNum = parseInt(currentEditorEndTime.hh);
+            const mNum = parseInt(currentEditorEndTime.mm);
+            let isMalformed = false;
+            if (currentEditorEndTime.hh !== '' && currentEditorEndTime.hh !== null && (isNaN(hNum) || hNum < 1 || hNum > 12)) isMalformed = true;
+            if (currentEditorEndTime.mm !== '' && currentEditorEndTime.mm !== null && (isNaN(mNum) || mNum < 0 || mNum > 59)) isMalformed = true;
 
-        if (isMalformed) {
-          toast({ title: "Invalid End Time", description: "End time hours (1-12) or minutes (00-59) are out of range or invalid.", variant: "destructive" });
-          return;
+            if (isMalformed) {
+                toast({ title: "Invalid End Time", description: "End time hours (1-12) or minutes (00-59) are invalid.", variant: "destructive" });
+                return;
+            }
+            const hFinal = (currentEditorEndTime.hh === '' || currentEditorEndTime.hh === null) ? '12' : String(hNum).padStart(2,'0');
+            const mFinal = (currentEditorEndTime.mm === '' || currentEditorEndTime.mm === null) ? '00' : String(mNum).padStart(2,'0');
+             if (currentEditorEndTime.period) {
+                newEndTime = { hh: hFinal, mm: mFinal, period: currentEditorEndTime.period };
+            } else if (currentEditorEndTime.hh || currentEditorEndTime.mm) {
+                toast({ title: "Missing AM/PM", description: "Please select AM or PM for the end time.", variant: "destructive" });
+                return;
+            }
         }
-
-        const formattedEnd = formatTimePointToString(currentEditorEndTime);
-        if (formattedEnd) {
-          newEndTime = { ...currentEditorEndTime, hh: String(parseInt(currentEditorEndTime.hh || '12')).padStart(2,'0'), mm: String(parseInt(currentEditorEndTime.mm || '00')).padStart(2,'0') };
-        } else if (currentEditorEndTime.period && (currentEditorEndTime.hh === '' || currentEditorEndTime.hh === null) && (currentEditorEndTime.mm === '' || currentEditorEndTime.mm === null)) {
-          newEndTime = { hh: '12', mm: '00', period: currentEditorEndTime.period };
+        // If start time is set but end time isn't (or vice-versa for specific_start_end), maybe revert type
+        if (currentEditorTimeSettingType === 'specific_start_end' && (!newStartTime || !newEndTime)) {
+            if (newStartTime && !newEndTime) finalTimeSettingType = 'specific_start'; // Downgrade to specific_start
+            else if (!newStartTime && newEndTime) { /* invalid state, maybe clear end or warn */ newEndTime = null; finalTimeSettingType = 'not_set';}
+            else finalTimeSettingType = 'not_set'; // both null
         }
-      }
     }
     
     if (currentEditorTimeSettingType === 'am_period') newStartTime = { hh: '12', mm: '00', period: 'AM' };
@@ -216,9 +221,9 @@ export default function ToDoListPage() {
       if (item.id === editingTimeItemId) {
         return { 
           ...item, 
-          timeSettingType: currentEditorTimeSettingType,
-          startTime: (currentEditorTimeSettingType === 'not_set' || currentEditorTimeSettingType === 'all_day') ? null : newStartTime,
-          endTime: currentEditorTimeSettingType === 'specific_start_end' ? newEndTime : null,
+          timeSettingType: finalTimeSettingType,
+          startTime: (finalTimeSettingType === 'not_set' || finalTimeSettingType === 'all_day') ? null : newStartTime,
+          endTime: finalTimeSettingType === 'specific_start_end' ? newEndTime : null,
           dueDate: currentEditorDueDate ? format(currentEditorDueDate, 'yyyy-MM-dd') : null,
         };
       }
@@ -254,7 +259,6 @@ export default function ToDoListPage() {
     const setter = type === 'start' ? setCurrentEditorStartTime : setCurrentEditorEndTime;
     setter(prev => {
       const newPoint = { ...(prev || initialTimePoint), [field]: value };
-      // Ensure hh and mm are always strings, even if user clears input
       if (field === 'hh' && value === null) newPoint.hh = '';
       if (field === 'mm' && value === null) newPoint.mm = '';
       return newPoint;
@@ -271,14 +275,12 @@ export default function ToDoListPage() {
     if (item.startTime) {
       const formattedStart = formatTimePointToString(item.startTime);
       if (formattedStart) displayStr += `Starts ${formattedStart}`;
-      else if (item.startTime.period) displayStr += `Starts ${item.startTime.period}`; // Fallback for only period
     }
     if (item.timeSettingType === 'specific_start_end' && item.endTime) {
       const formattedEnd = formatTimePointToString(item.endTime);
        if (formattedEnd) displayStr += displayStr ? ` - Ends ${formattedEnd}` : `Ends ${formattedEnd}`;
-       else if (item.endTime.period) displayStr += displayStr ? ` - Ends ${item.endTime.period}` : `Ends ${item.endTime.period}`;
     }
-    return displayStr || 'Time set (see details)';
+    return displayStr || 'Time setting issue'; // Fallback for unexpected data
   };
   
   const displayDueDate = (dueDate: string | null | undefined): React.ReactNode => {
@@ -362,7 +364,7 @@ export default function ToDoListPage() {
   };
 
   const sortedItems = useMemo(() => {
-    let displayItems = [...items];
+    let displayItems = [...items]; // Use a mutable copy for sorting
     switch (sortOrder) {
       case 'dueDateAsc':
         displayItems.sort((a, b) => {
@@ -386,8 +388,31 @@ export default function ToDoListPage() {
       case 'alphaDesc':
         displayItems.sort((a, b) => b.text.localeCompare(a.text));
         break;
-      case 'priority': 
+      case 'priority':
+        displayItems.sort((a, b) => {
+          const aHasDueDate = !!a.dueDate;
+          const bHasDueDate = !!b.dueDate;
+
+          if (aHasDueDate && !bHasDueDate) return -1; // a comes first
+          if (!aHasDueDate && bHasDueDate) return 1;  // b comes first
+          
+          if (aHasDueDate && bHasDueDate) {
+            const dateA = new Date(a.dueDate!).getTime();
+            const dateB = new Date(b.dueDate!).getTime();
+            if (dateA !== dateB) {
+              return dateA - dateB; // Earlier date comes first
+            }
+          }
+          // If due dates are the same (or both null), use original order from `items`
+          const indexA = items.findIndex(item => item.id === a.id);
+          const indexB = items.findIndex(item => item.id === b.id);
+          return indexA - indexB;
+        });
+        break;
+      case 'default':
       default:
+        // For 'default', we want the order as it is in `items` (user-managed)
+        // displayItems is already a copy of items, so no further sort needed here
         break;
     }
     return displayItems;
@@ -426,16 +451,16 @@ export default function ToDoListPage() {
         </div>
         <div className="w-full sm:w-auto">
           <Select value={sortOrder} onValueChange={setSortOrder}>
-            <SelectTrigger className="w-full sm:w-[180px]" aria-label="Sort tasks by">
+            <SelectTrigger className="w-full sm:w-[200px]" aria-label="Sort tasks by">
               <SelectValue placeholder="Sort by..." />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="default">Default Order</SelectItem>
+              <SelectItem value="priority">Priority</SelectItem>
               <SelectItem value="dueDateAsc">Due Date (Oldest First)</SelectItem>
               <SelectItem value="dueDateDesc">Due Date (Newest First)</SelectItem>
               <SelectItem value="alphaAsc">Alphabetical (A-Z)</SelectItem>
               <SelectItem value="alphaDesc">Alphabetical (Z-A)</SelectItem>
-              <SelectItem value="priority" disabled>Priority (Coming Soon)</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -653,4 +678,3 @@ export default function ToDoListPage() {
 }
 
     
-
