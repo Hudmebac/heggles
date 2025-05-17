@@ -55,7 +55,7 @@ export default function DashboardPage() {
       setPinnedThoughts(prev => [newPinnedThought, ...prev].sort((a,b) => b.pinnedTimestamp - a.timestamp));
       setRecalledThoughts(prev => prev.filter(t => t.id !== thoughtToPin.id));
       toast({ title: "Thought Pinned", description: "Successfully saved to Memory Vault." });
-      router.push('/memory-vault'); 
+      // router.push('/memory-vault'); // Removed this line
     } catch (error) {
       toast({ title: "Error Pinning Thought", description: (error as Error).message, variant: "destructive" });
     }
@@ -163,3 +163,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
