@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Mic, MicOff, AlertTriangle, Timer, Info, Brain } from 'lucide-react'; 
+import { Mic, MicOff, AlertTriangle, Timer, Info, Brain, PlayCircle, StopCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -63,7 +63,7 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
   const setBufferCmdSuffix = WAKE_WORDS.HEGGLES_SET_BUFFER.substring(WAKE_WORDS.HEGGLES_BASE.length);
   const turnOnCmdSuffix = WAKE_WORDS.HEGGLES_TURN_ON.substring(WAKE_WORDS.HEGGLES_BASE.length);
   const turnOffCmdSuffix = WAKE_WORDS.HEGGLES_TURN_OFF.substring(WAKE_WORDS.HEGGLES_BASE.length);
-  const deleteItemSuffix = WAKE_WORDS.HEGGLES_DELETE_ITEM_PREFIX.substring(WAKE_WORDS.HEGGLES_BASE.length);
+  const deleteItemSuffix = WAKE_WORDS.DELETE_ITEM_PREFIX.substring(WAKE_WORDS.HEGGLES_BASE.length);
   const recordingDurationSeconds = RECORDING_DURATION_MS / 1000;
 
 
@@ -106,8 +106,8 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
             </SelectContent>
           </Select>
            <p className="text-xs text-muted-foreground pt-1">
-            This setting is primarily for the '<strong>Heggles</strong>{setBufferCmdSuffix}' voice command.
-            The '<strong>Heggles</strong>{recallCmdSuffix}' voice command now triggers a {recordingDurationSeconds}-second live recording.
+            This setting is used when you say "<strong>Heggles</strong>{setBufferCmdSuffix} [duration]".
+            The "<strong>Heggles</strong>{recallCmdSuffix}" voice command now triggers a {recordingDurationSeconds}-second live recording.
           </p>
         </div>
 
@@ -122,16 +122,16 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
         <div className="flex items-start p-3 border rounded-lg bg-secondary/30 text-sm text-muted-foreground">
             <Info className="h-5 w-5 mr-2 mt-0.5 shrink-0 text-primary" />
             <div>
-                Voice commands starting with '<strong>Heggles</strong>' populate the input area on the dashboard. Click the <Brain className="inline-block h-3 w-3 mx-0.5"/> icon to process.
+                Voice commands starting with '<strong>Heggles</strong>' usually populate the input area on the dashboard. Click the <Brain className="inline-block h-3 w-3 mx-0.5"/> icon to process.
                 <ul className="list-disc pl-5 mt-1 space-y-0.5">
                   <li>Toggle listening: <q><strong>Heggles</strong>{turnOnCmdSuffix}</q> / <q><strong>Heggles</strong>{turnOffCmdSuffix}</q>. (Immediate action)</li>
-                  <li>Live snippet recall: <q><strong>Heggles</strong>{recallCmdSuffix}</q>. (Triggers {recordingDurationSeconds}s live recording, then AI processing).</li>
-                  <li>Add to shopping list: <q><strong>Heggles</strong>{addShopCmdSuffix} [item]</q>. (Populates input for Brain processing)</li>
-                  <li>Add to to-do list: <q><strong>Heggles</strong>{addToDoCmdSuffix} [task]</q>. (Populates input for Brain processing)</li>
+                  <li>Live snippet recall: <q><strong>Heggles</strong>{recallCmdSuffix}</q>. (Triggers {recordingDurationSeconds}s live recording, then AI processing. This is different from the dashboard mic button for dictation.)</li>
+                  <li>Add to shopping list: <q><strong>Heggles</strong>{addShopCmdSuffix} [item] to my shopping list</q>. (Populates input for Brain processing)</li>
+                  <li>Add to to-do list: <q><strong>Heggles</strong>{addToDoCmdSuffix} [task] to my to do list</q>. (Populates input for Brain processing)</li>
                   <li>Set buffer: <q><strong>Heggles</strong>{setBufferCmdSuffix} [e.g., 5 minutes / always on]</q>. (Immediate action)</li>
                   <li>Delete item: <q><strong>Heggles</strong>{deleteItemSuffix} [item/item number X] from [shopping list/to do list]</q>. (Populates input for Brain processing)</li>
-                  <li>The Microphone icon button on the dashboard (in Input & Recall card) is for direct dictation into the input area.</li>
-                  <li>The Play/Stop icon button (next to Dashboard title in header) is for continuous recording; its transcript also populates the input area when stopped for Brain processing.</li>
+                  <li>The Microphone icon button (<Mic className="inline-block h-3 w-3 mx-0.5"/>) on the dashboard (in Input & Recall card) is for direct dictation into the input area.</li>
+                  <li>The Play/Stop icon button (<PlayCircle className="inline-block h-3 w-3 mx-0.5 text-green-500"/>/<StopCircle className="inline-block h-3 w-3 mx-0.5 text-red-500"/>) (next to Dashboard title) is for continuous recording; its transcript also populates the input area when stopped.</li>
                 </ul>
             </div>
         </div>
