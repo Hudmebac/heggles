@@ -7,6 +7,8 @@ export interface Thought {
   keywords?: string[];
   refinedTranscript?: string;
   actionItems?: string[];
+  intentAnalysis?: IntentAnalysisOutput; // Added
+  aiAnswer?: string; // Added
 }
 
 export interface PinnedThought extends Thought {
@@ -49,4 +51,13 @@ export interface ToDoListItem {
 
   // New due date field
   dueDate?: string | null; // Store as "YYYY-MM-DD"
+}
+
+// Corresponds to the output of analyzeThoughtIntentFlow
+export interface IntentAnalysisOutput {
+  isQuestion: boolean;
+  isAction: boolean;
+  extractedQuestion?: string;
+  extractedAction?: string;
+  suggestedList?: "todo" | "shopping" | "none";
 }

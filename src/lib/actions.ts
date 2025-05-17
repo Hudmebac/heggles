@@ -1,11 +1,14 @@
 
 "use server";
 
-import type { Thought, PinnedThought } from "@/lib/types";
+import type { Thought, PinnedThought, IntentAnalysisOutput } from "@/lib/types";
 import { summarizeAudio } from "@/ai/flows/summarize-audio";
 import { extractKeywords } from "@/ai/flows/extract-keywords";
 import { suggestCategory } from "@/ai/flows/suggest-category";
 import { refineThought } from "@/ai/flows/refine-thought";
+import { analyzeThoughtIntent } from "@/ai/flows/analyze-thought-intent-flow";
+import { answerQuestion as answerQuestionFlow } from "@/ai/flows/answer-question-flow";
+
 
 // Process text-based thoughts (e.g., manual input)
 export async function processTextThought(
@@ -21,12 +24,23 @@ export async function processTextThought(
       refineThought({ transcript: transcription })
     ]);
     
+    const thoughtTextForIntent = refinementResult.refinedTranscript || transcription;
+    const intentAnalysisResult = await analyzeThoughtIntent({ thoughtText: thoughtTextForIntent });
+
+    let aiAnswerResult: string | undefined = undefined;
+    if (intentAnalysisResult.isQuestion && intentAnalysisResult.extractedQuestion) {
+      const answerData = await answerQuestionFlow({ question: intentAnalysisResult.extractedQuestion });
+      aiAnswerResult = answerData.answer;
+    }
+    
     return {
       originalText: transcription,
       summary: summaryResult.summary,
       keywords: keywordsResult.keywords,
       refinedTranscript: refinementResult.refinedTranscript,
-      actionItems: refinementResult.actionItems,
+      actionItems: refinementResult.actionItems, // These are from refineThought, good for explicit "add to list"
+      intentAnalysis: intentAnalysisResult,    // This is from analyzeThoughtIntent for broader understanding
+      aiAnswer: aiAnswerResult,
     };
   } catch (error) {
     console.error("Error processing text thought:", error);
@@ -37,6 +51,8 @@ export async function processTextThought(
         keywords: [],
         refinedTranscript: rawText, // Fallback
         actionItems: [`Error: ${(error as Error).message}`], 
+        intentAnalysis: { isQuestion: false, isAction: false },
+        aiAnswer: undefined,
     };
   }
 }
@@ -57,6 +73,15 @@ export async function processRecordedAudio(
         extractKeywords({ text: effectiveTranscription }),
         refineThought({ transcript: effectiveTranscription })
     ]);
+
+    const thoughtTextForIntent = refinementResult.refinedTranscript || effectiveTranscription;
+    const intentAnalysisResult = await analyzeThoughtIntent({ thoughtText: thoughtTextForIntent });
+    
+    let aiAnswerResult: string | undefined = undefined;
+    if (intentAnalysisResult.isQuestion && intentAnalysisResult.extractedQuestion) {
+      const answerData = await answerQuestionFlow({ question: intentAnalysisResult.extractedQuestion });
+      aiAnswerResult = answerData.answer;
+    }
     
     return {
       originalText: effectiveTranscription, 
@@ -64,6 +89,8 @@ export async function processRecordedAudio(
       keywords: keywordsResult.keywords,
       refinedTranscript: refinementResult.refinedTranscript,
       actionItems: refinementResult.actionItems,
+      intentAnalysis: intentAnalysisResult,
+      aiAnswer: aiAnswerResult,
     };
   } catch (error) {
     console.error("Error processing recorded audio with live transcription:", error);
@@ -73,6 +100,8 @@ export async function processRecordedAudio(
         keywords: [],
         refinedTranscript: transcription,
         actionItems: [`Error: ${(error as Error).message}`],
+        intentAnalysis: { isQuestion: false, isAction: false },
+        aiAnswer: undefined,
     };
   }
 }
@@ -83,7 +112,9 @@ export async function pinThoughtAndSuggestCategories(
   thought: Thought
 ): Promise<Omit<PinnedThought, "pinnedTimestamp">> {
   try {
-    const categorySuggestions = await suggestCategory({ thought: thought.originalText });
+    // Use refined transcript if available, otherwise original text for category suggestion
+    const textForCategories = thought.refinedTranscript || thought.originalText;
+    const categorySuggestions = await suggestCategory({ thought: textForCategories });
     return {
       ...thought,
       categories: categorySuggestions.categories,
@@ -98,7 +129,7 @@ export async function pinThoughtAndSuggestCategories(
   }
 }
 
-// Clarify a thought using AI
+// Clarify a thought using AI (this seems to be refineThought itself)
 export async function clarifyThoughtWithAI(
   transcript: string
 ): Promise<{ refinedTranscript: string; actionItems: string[] }> {
@@ -114,3 +145,13 @@ export async function clarifyThoughtWithAI(
   }
 }
 
+// New server action to directly answer a question
+export async function answerUserQuestion(question: string): Promise<string> {
+  try {
+    const result = await answerQuestionFlow({ question });
+    return result.answer;
+  } catch (error) {
+    console.error("Error answering user question:", error);
+    return "Sorry, I encountered an error trying to answer the question.";
+  }
+}

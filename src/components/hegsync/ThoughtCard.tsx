@@ -1,7 +1,7 @@
 
 "use client";
 
-import { Pin, Sparkles, MessageSquareText, Tags, CalendarDays, AlertCircle, Trash2 } from 'lucide-react';
+import { Pin, Sparkles, MessageSquareText, Tags, CalendarDays, AlertCircle, Trash2, HelpCircle, CheckCircle } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -66,6 +66,48 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
             <p className="text-sm text-muted-foreground p-2 bg-secondary/30 rounded-md">{thought.summary}</p>
           </div>
         )}
+        {thought.refinedTranscript && (
+          <div>
+            <h4 className="font-semibold text-sm mb-1 text-primary flex items-center">
+              <Sparkles className="mr-1.5 h-4 w-4"/> Refined Transcript:
+            </h4>
+            <p className="text-sm text-muted-foreground p-2 bg-primary/10 rounded-md whitespace-pre-wrap">{thought.refinedTranscript}</p>
+          </div>
+        )}
+         {thought.intentAnalysis?.isQuestion && thought.intentAnalysis.extractedQuestion && thought.aiAnswer && (
+          <div>
+            <h4 className="font-semibold text-sm mb-1 text-green-600 flex items-center">
+              <HelpCircle className="mr-1.5 h-4 w-4"/> AI Answered Question:
+            </h4>
+            <p className="text-sm text-muted-foreground italic p-1">Q: {thought.intentAnalysis.extractedQuestion}</p>
+            <p className="text-sm text-green-700 bg-green-50 p-2 rounded-md">{thought.aiAnswer}</p>
+          </div>
+        )}
+        {thought.actionItems && thought.actionItems.length > 0 && (
+          <div>
+            <h4 className="font-semibold text-sm mb-1 text-orange-600 flex items-center">
+              <AlertCircle className="mr-1.5 h-4 w-4"/> Action Items (from Refinement):
+            </h4>
+            <ul className="list-disc list-inside space-y-1 pl-1">
+              {thought.actionItems.map((item, index) => (
+                <li key={index} className="text-sm p-1 bg-orange-50 rounded-md">{item}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+         {thought.intentAnalysis?.isAction && thought.intentAnalysis.extractedAction && (
+          <div>
+            <h4 className="font-semibold text-sm mb-1 text-blue-600 flex items-center">
+              <CheckCircle className="mr-1.5 h-4 w-4"/> Identified Action (from Intent):
+            </h4>
+            <p className="text-sm p-1 bg-blue-50 rounded-md">
+              {thought.intentAnalysis.extractedAction}
+              {thought.intentAnalysis.suggestedList && thought.intentAnalysis.suggestedList !== 'none' && (
+                <span className="text-xs italic ml-1">(Suggested for: {thought.intentAnalysis.suggestedList})</span>
+              )}
+            </p>
+          </div>
+        )}
         {thought.keywords && thought.keywords.length > 0 && (
           <div>
             <h4 className="font-semibold text-sm mb-1 flex items-center">
@@ -90,26 +132,6 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
                 </Badge>
               ))}
             </div>
-          </div>
-        )}
-        {thought.refinedTranscript && (
-          <div>
-            <h4 className="font-semibold text-sm mb-1 text-primary flex items-center">
-              <Sparkles className="mr-1.5 h-4 w-4"/> Refined Transcript:
-            </h4>
-            <p className="text-sm text-muted-foreground p-2 bg-primary/10 rounded-md whitespace-pre-wrap">{thought.refinedTranscript}</p>
-          </div>
-        )}
-        {thought.actionItems && thought.actionItems.length > 0 && (
-          <div>
-            <h4 className="font-semibold text-sm mb-1 text-primary flex items-center">
-              <AlertCircle className="mr-1.5 h-4 w-4"/> Action Items:
-            </h4>
-            <ul className="list-disc list-inside space-y-1 pl-1">
-              {thought.actionItems.map((item, index) => (
-                <li key={index} className="text-sm p-1 bg-primary/10 rounded-md">{item}</li>
-              ))}
-            </ul>
           </div>
         )}
       </CardContent>
