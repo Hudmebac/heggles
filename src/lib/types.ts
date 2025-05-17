@@ -15,3 +15,9 @@ export interface PinnedThought extends Thought {
 }
 
 export type Theme = "light" | "dark" | "high-contrast-light" | "high-contrast-dark";
+
+export interface ShoppingListItem {
+  id: string;
+  text: string;
+  completed: boolean;
+}

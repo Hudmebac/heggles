@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
 import { Button } from '@/components/ui/button';
-import { BrainCircuit } from 'lucide-react';
+import { BrainCircuit, ListChecks } from 'lucide-react';
 
 export function Header() {
   return (
@@ -12,12 +12,18 @@ export function Header() {
           <BrainCircuit className="h-7 w-7 text-primary" />
           HegSync
         </Link>
-        <nav className="flex items-center gap-4">
+        <nav className="flex items-center gap-2 sm:gap-4">
           <Button variant="ghost" asChild>
             <Link href="/">Dashboard</Link>
           </Button>
           <Button variant="ghost" asChild>
             <Link href="/memory-vault">Memory Vault</Link>
+          </Button>
+          <Button variant="ghost" asChild>
+            <Link href="/shopping-list" className="flex items-center">
+              <ListChecks className="h-5 w-5 sm:mr-2" />
+              <span className="hidden sm:inline">Shopping List</span>
+            </Link>
           </Button>
           <ThemeSwitcher />
         </nav>
