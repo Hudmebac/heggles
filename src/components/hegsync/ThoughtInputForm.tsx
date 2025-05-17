@@ -13,7 +13,12 @@ import type { Thought, ShoppingListItem } from '@/lib/types';
 import { 
   WAKE_WORDS, 
   LOCALSTORAGE_KEYS,
-  RECORDING_DURATION_MS
+  RECORDING_DURATION_MS,
+  ACTUAL_RECORDING_SIMULATED_TRANSCRIPTION, // Added for clarity
+  SIMULATED_RECALL_PREFIX, // Added for clarity
+  SIMULATED_RECALL_SUFFIX, // Added for clarity
+  BUFFER_TIME_OPTIONS, // Added for clarity
+  DEFAULT_BUFFER_TIME // Added for clarity
 } from '@/lib/constants';
 
 interface ThoughtInputFormProps {
@@ -96,10 +101,8 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
       };
 
       mediaRecorderRef.current.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' }); // Adjust MIME type if needed
-        const audioUrl = URL.createObjectURL(audioBlob); // For potential local playback/debug
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' }); 
         
-        // Convert Blob to Data URL to send to server action
         const reader = new FileReader();
         reader.readAsDataURL(audioBlob);
         reader.onloadend = () => {
@@ -107,13 +110,9 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
           handleProcessRecordedAudio(base64AudioData);
         };
         
-        stream.getTracks().forEach(track => track.stop()); // Stop microphone stream
+        stream.getTracks().forEach(track => track.stop()); 
         setIsCapturingAudio(false);
-        audioChunksRef.current = []; // Clear chunks
-        // Ensure speech recognition restarts if global listening is still on
-        if (isListening && !recognitionRef.current && hasMicPermission && !isLoading) {
-           // Speech recognition useEffect will handle restart
-        }
+        audioChunksRef.current = [];
       };
       
       toast({ title: "Recording Started", description: `Capturing audio for ${RECORDING_DURATION_MS / 1000} seconds...`, duration: RECORDING_DURATION_MS });
@@ -129,7 +128,35 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
       console.error("Error starting audio recording:", err);
       toast({ title: "Recording Error", description: "Could not start audio recording. Check microphone permissions.", variant: "destructive" });
       setIsCapturingAudio(false);
-      setHasMicPermission(false); // Assume permission issue if fails here
+      setHasMicPermission(false); 
+    }
+  };
+
+  const simulateRecallFromBuffer = async () => {
+    setIsLoading(true);
+    try {
+      const bufferTimeSetting = localStorage.getItem(LOCALSTORAGE_KEYS.BUFFER_TIME) || DEFAULT_BUFFER_TIME;
+      const bufferTimeOption = BUFFER_TIME_OPTIONS.find(opt => opt.value === bufferTimeSetting);
+      const bufferLabel = bufferTimeOption ? bufferTimeOption.label : `${bufferTimeSetting} Minute(s)`;
+
+      const simulatedText = `${SIMULATED_RECALL_PREFIX} ${bufferLabel} ${SIMULATED_RECALL_SUFFIX}`;
+      
+      // For "replay that" with simulated buffer, we use processTextThought
+      // as we are generating text to simulate the buffer.
+      const processedData = await processTextThought(simulatedText);
+      const newThought: Thought = {
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        ...processedData,
+        originalText: simulatedText, // Ensure originalText is the simulated buffer text
+      };
+      onThoughtRecalled(newThought);
+      toast({ title: "Simulated Recall Processed", description: `Conceptual recall from ${bufferLabel} buffer.` });
+
+    } catch (error) {
+      toast({ title: "Error Simulating Recall", description: (error as Error).message, variant: "destructive" });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -174,7 +201,6 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
     if (!isListening || hasMicPermission === false || isLoading || isCapturingAudio) {
       if (recognitionRef.current && isRecognizingSpeech) {
         recognitionRef.current.stop();
-        // onend will set isRecognizingSpeech to false and recognitionRef.current to null
       }
       return;
     }
@@ -198,7 +224,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
       recognitionRef.current = new SpeechRecognitionAPI();
       const recognition = recognitionRef.current;
 
-      recognition.continuous = true; // Keep listening
+      recognition.continuous = true; 
       recognition.interimResults = false; 
       recognition.lang = 'en-US';
 
@@ -209,22 +235,24 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
       recognition.onend = () => {
         setIsRecognizingSpeech(false);
         recognitionRef.current = null; 
-        // The main useEffect will restart it if conditions are still met (isListening, hasMicPermission, !isLoading, !isCapturingAudio)
       };
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-        console.error('Speech recognition error:', event.error, event.message);
-        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-          setHasMicPermission(false); // Re-check permission if it's explicitly denied by service
-          toast({ title: "Microphone Access Issue", description: "Speech recognition service denied. Check browser settings or permissions.", variant: "destructive" });
-        } else if (event.error === 'no-speech' || event.error === 'aborted') {
+        if (event.error === 'no-speech' || event.error === 'aborted') {
+          console.warn('Speech recognition warning:', event.error, event.message || "(No specific message)");
           // These are common, onend will handle cleanup and useEffect will attempt restart
+        } else {
+          console.error('Speech recognition error:', event.error, event.message);
+        }
+        
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          setHasMicPermission(false); 
+          toast({ title: "Microphone Access Issue", description: "Speech recognition service denied. Check browser settings or permissions.", variant: "destructive" });
         } else if (event.error === 'network') {
           toast({ title: "Network Error", description: "Speech recognition might require a network connection.", variant: "destructive"});
-        } else {
+        } else if (event.error !== 'no-speech' && event.error !== 'aborted') { // Don't toast for common non-errors
           toast({ title: "Speech Error", description: `Voice recognition faced an issue: ${event.error}`, variant: "destructive"});
         }
-        // onend will be called, leading to recognitionRef.current = null
       };
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
@@ -237,20 +265,18 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
         const command = finalTranscript.trim().toLowerCase();
 
         if (command.startsWith(WAKE_WORDS.ADD_TO_SHOPPING_LIST)) {
-          if (recognitionRef.current) recognitionRef.current.stop(); // Stop listening for wake words
+          if (recognitionRef.current) recognitionRef.current.stop(); 
           const itemToAdd = command.substring(WAKE_WORDS.ADD_TO_SHOPPING_LIST.length).trim();
           addShoppingListItem(itemToAdd);
-          // Speech recognition will restart via useEffect if conditions met
         } else if (command.includes(WAKE_WORDS.RECALL_THOUGHT)) {
-          if (recognitionRef.current) recognitionRef.current.stop(); // Stop listening for wake words
+          if (recognitionRef.current) recognitionRef.current.stop(); 
           toast({ title: "Recall Command Detected!", description: "Starting audio capture..." });
-          startAudioRecording(); // This will handle its own microphone access and processing
-          // Speech recognition will restart via useEffect once audio capture is done and isLoading is false
+          startAudioRecording();
         }
       };
       
       try {
-        if (isListening && hasMicPermission && !isLoading && !isCapturingAudio) { // Final check before starting
+        if (isListening && hasMicPermission && !isLoading && !isCapturingAudio) { 
           recognition.start();
         }
       } catch (e) {
@@ -268,14 +294,14 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
         if (isRecognizingSpeech) {
             try { recognitionRef.current.stop(); } catch(e) { console.warn("Error stopping recognition in cleanup:", e); }
         }
+        recognitionRef.current = null;
       }
-      recognitionRef.current = null;
       setIsRecognizingSpeech(false);
 
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
         mediaRecorderRef.current.stop();
+        mediaRecorderRef.current = null;
       }
-      mediaRecorderRef.current = null;
       setIsCapturingAudio(false);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps 
@@ -309,7 +335,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
           )}
         </div>
         <CardDescription>
-          {isListening
+           {isListening
             ? `Voice: Say "${WAKE_WORDS.RECALL_THOUGHT}" (records live audio) or "${WAKE_WORDS.ADD_TO_SHOPPING_LIST} [item]".
                Text: Use area below and "Process Thought (from text)" button.`
             : "Enable passive listening above to use voice commands or text input."}
@@ -337,7 +363,13 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
 
         <form onSubmit={handleManualSubmit} className="space-y-4">
           <Textarea
-            placeholder={isListening ? "For manual 'Process Thought': Paste or type text here. Voice command 'replay that' records live audio." : "Enable listening to activate input..."}
+            placeholder={
+              isListening 
+                ? isCapturingAudio 
+                  ? "Recording audio snippet..." 
+                  : "Type or paste text for manual processing, or use voice commands..." 
+                : "Enable listening to activate input..."
+            }
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             rows={4}
@@ -356,8 +388,8 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
               Process Thought (from text)
             </Button>
              <Button
-              type="button" // Changed to button to prevent form submission if icon is clicked during recording
-              onClick={handleManualSubmit} // Keep existing submit logic for this icon button
+              type="button" 
+              onClick={handleManualSubmit} 
               disabled={!isListening || isLoading || isCapturingAudio || !inputText.trim()}
               size="icon"
               className="p-2 h-auto" 
@@ -369,11 +401,13 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
           </div>
         </form>
         <p className="text-xs text-muted-foreground mt-2">
-          The "Hegsync replay that" voice command records a short audio snippet for processing.
+          The "{WAKE_WORDS.RECALL_THOUGHT}" voice command records a {RECORDING_DURATION_MS / 1000}-second audio snippet for processing.
           The shopping list voice command operates independently.
         </p>
       </CardContent>
     </Card>
   );
 }
+    
+
     
