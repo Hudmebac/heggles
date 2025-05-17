@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
-import { BUFFER_TIME_OPTIONS, LOCALSTORAGE_KEYS, DEFAULT_BUFFER_TIME, RECORDING_DURATION_MS } from '@/lib/constants';
+import { BUFFER_TIME_OPTIONS, LOCALSTORAGE_KEYS, DEFAULT_BUFFER_TIME, RECORDING_DURATION_MS, WAKE_WORDS } from '@/lib/constants';
 
 interface PassiveListenerControlsProps {
   isListening: boolean;
@@ -83,7 +83,7 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
             </SelectContent>
           </Select>
            <p className="text-xs text-muted-foreground pt-1">
-            This setting is currently for conceptual reference. The "replay that" voice command records a fixed {recordingDurationSeconds}-second snippet.
+            This setting is currently for conceptual reference. The "{WAKE_WORDS.RECALL_THOUGHT}" voice command records a fixed {recordingDurationSeconds}-second snippet.
           </p>
         </div>
 
@@ -91,7 +91,7 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
           <div className="flex items-center p-3 border border-yellow-400 bg-yellow-50 text-yellow-700 rounded-md text-sm">
             <AlertTriangle className="h-5 w-5 mr-2" />
             <span>
-              Passive listening is active. The app will listen for wake words.
+              Passive listening is active. Audio is being temporarily buffered locally.
             </span>
           </div>
         )}
@@ -108,3 +108,4 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
     </Card>
   );
 }
+
