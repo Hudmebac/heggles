@@ -40,7 +40,7 @@ export const WAKE_WORDS = {
 export const SIMULATED_RECALL_PREFIX = "This is a simulated recall from the";
 export const SIMULATED_RECALL_SUFFIX = "audio buffer. Key points include discussing the upcoming project milestones, brainstorming marketing strategies for the new product launch, and remembering to schedule the team meeting for next week. Also, don't forget to pick up groceries after work and check the AI conference deadline.";
 
-export const ACTUAL_RECORDING_SIMULATED_TRANSCRIPTION = "[Actual recorded audio snippet was processed. This is a placeholder for real Speech-to-Text output. Content would be summary of what was spoken.]";
+export const ACTUAL_RECORDING_SIMULATED_TRANSCRIPTION = "Recorded audio (simulated transcription for AI processing).";
 
 export const RECORDING_DURATION_MS = 10000; // 10 seconds for audio snippet
 
