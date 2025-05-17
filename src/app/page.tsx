@@ -26,8 +26,7 @@ export default function DashboardPage() {
 
   const handleToggleListening = (active: boolean) => {
     setIsListening(active);
-    // Simulate clearing buffer when listening stops, or initializing when it starts
-    toast({ title: `Passive Listening ${active ? "Enabled" : "Disabled"}`, description: active ? "Ready to recall thoughts." : "" });
+    toast({ title: `Passive Listening ${active ? "Enabled" : "Disabled"}`, description: active ? "Ready to recall thoughts and listen for commands." : "Voice commands and recording are off." });
   };
 
   const handleThoughtRecalled = (newThought: Thought) => {
@@ -86,7 +85,11 @@ export default function DashboardPage() {
       
       <PassiveListenerControls isListening={isListening} onToggleListening={handleToggleListening} />
       
-      <ThoughtInputForm onThoughtRecalled={handleThoughtRecalled} isListening={isListening} />
+      <ThoughtInputForm 
+        onThoughtRecalled={handleThoughtRecalled} 
+        isListening={isListening}
+        onToggleListeningParent={handleToggleListening} 
+      />
 
       <Separator />
 

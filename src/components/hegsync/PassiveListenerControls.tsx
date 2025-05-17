@@ -42,7 +42,6 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
       if (event.key === LOCALSTORAGE_KEYS.BUFFER_TIME && event.newValue) {
         try {
           const newBufferTimeValue = JSON.parse(event.newValue) as BufferTimeValue;
-          // Check if the new value is actually a valid BufferTimeValue
           if (BUFFER_TIME_OPTIONS.some(opt => opt.value === newBufferTimeValue)) {
             setBufferTime(newBufferTimeValue);
           } else {
@@ -121,7 +120,7 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
         <div className="flex items-start p-3 border rounded-lg bg-secondary/30 text-sm text-muted-foreground">
             <Info className="h-5 w-5 mr-2 mt-0.5 shrink-0 text-primary" />
             <div>
-                Toggle to {isListening ? "disable" : "enable"} passive listening. <br />
+                Toggle to {isListening ? "disable" : "enable"} passive listening. Or say "{WAKE_WORDS.TURN_LISTENING_ON}" / "{WAKE_WORDS.TURN_LISTENING_OFF}". <br />
                 - Say "{WAKE_WORDS.RECALL_THOUGHT}" (records a {recordingDurationSeconds}s audio snippet). <br />
                 - Say "{WAKE_WORDS.ADD_TO_SHOPPING_LIST} [item]". <br />
                 - Say "{WAKE_WORDS.SET_BUFFER_TIME} [e.g., 5 minutes / always on]". <br />

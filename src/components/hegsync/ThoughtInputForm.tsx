@@ -16,15 +16,18 @@ import {
   RECORDING_DURATION_MS,
   BUFFER_TIME_OPTIONS,
   type BufferTimeValue,
-  DEFAULT_BUFFER_TIME, // For toast message
+  DEFAULT_BUFFER_TIME, 
+  SIMULATED_RECALL_PREFIX,
+  SIMULATED_RECALL_SUFFIX,
 } from '@/lib/constants';
 
 interface ThoughtInputFormProps {
   onThoughtRecalled: (thought: Thought) => void;
   isListening: boolean; // Global passive listening state from parent
+  onToggleListeningParent: (isListening: boolean) => void; // Callback to toggle parent's listening state
 }
 
-export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInputFormProps) {
+export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListeningParent }: ThoughtInputFormProps) {
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -280,18 +283,23 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
 
         if (finalLower) {
           setPartialWakeWordDetected(false);
+          if (recognitionRef.current) recognitionRef.current.stop(); // Stop recognition once a final command is processed
+
           if (finalLower.startsWith(WAKE_WORDS.ADD_TO_SHOPPING_LIST.toLowerCase())) {
-            if (recognitionRef.current) recognitionRef.current.stop(); 
             const itemToAdd = finalLower.substring(WAKE_WORDS.ADD_TO_SHOPPING_LIST.length).trim();
             addShoppingListItem(itemToAdd);
           } else if (finalLower.includes(WAKE_WORDS.RECALL_THOUGHT.toLowerCase())) { 
-            if (recognitionRef.current) recognitionRef.current.stop(); 
             toast({ title: "Recall Command Detected!", description: "Starting audio capture..." });
             startAudioRecording();
           } else if (finalLower.startsWith(WAKE_WORDS.SET_BUFFER_TIME.toLowerCase())) {
-            if (recognitionRef.current) recognitionRef.current.stop();
             const spokenDuration = finalLower.substring(WAKE_WORDS.SET_BUFFER_TIME.length).trim();
             setBufferTimeByVoice(spokenDuration);
+          } else if (finalLower.includes(WAKE_WORDS.TURN_LISTENING_OFF.toLowerCase())) {
+            onToggleListeningParent(false);
+            toast({ title: "Passive Listening Disabled by voice." });
+          } else if (finalLower.includes(WAKE_WORDS.TURN_LISTENING_ON.toLowerCase())) {
+            onToggleListeningParent(true);
+            toast({ title: "Passive Listening Enabled by voice." });
           }
         } else if (interimLower.includes("hegsync")) {
           setPartialWakeWordDetected(true);
@@ -333,7 +341,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
       setIsCapturingAudio(false);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps 
-  }, [isListening, hasMicPermission, isLoading, isCapturingAudio]); 
+  }, [isListening, hasMicPermission, isLoading, isCapturingAudio, onToggleListeningParent]); 
 
   const getMicIcon = () => {
     if (isCapturingAudio) return <Radio className="h-5 w-5 text-red-500 animate-pulse" />;
@@ -372,9 +380,9 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
         </div>
         <CardDescription>
            {isListening
-            ? `Voice: Say "${WAKE_WORDS.RECALL_THOUGHT}", "${WAKE_WORDS.ADD_TO_SHOPPING_LIST} [item]", or "${WAKE_WORDS.SET_BUFFER_TIME} [duration]".
+            ? `Voice: Say "${WAKE_WORDS.RECALL_THOUGHT}", "${WAKE_WORDS.ADD_TO_SHOPPING_LIST} [item]", "${WAKE_WORDS.SET_BUFFER_TIME} [duration]", "${WAKE_WORDS.TURN_LISTENING_ON}", or "${WAKE_WORDS.TURN_LISTENING_OFF}".
                Text: Use area below and "Process Thought (from text)" button.`
-            : "Enable passive listening above to use voice commands or text input."}
+            : "Enable passive listening above (or say \"Hegsync turn on\" if mic is already permitted) to use voice commands or text input."}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -427,7 +435,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
               Process Thought (from text)
             </Button>
              <Button
-              type="submit" 
+              type="button" 
               onClick={handleManualSubmit} 
               disabled={!isListening || isLoading || isCapturingAudio || !inputText.trim()}
               size="icon"
@@ -441,7 +449,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
         </form>
         <p className="text-xs text-muted-foreground mt-2">
           The "{WAKE_WORDS.RECALL_THOUGHT}" voice command records a {RECORDING_DURATION_MS / 1000}-second audio snippet. 
-          Shopping list and buffer time commands operate based on your speech.
+          Shopping list, buffer time, and listening toggle commands operate based on your speech.
         </p>
       </CardContent>
     </Card>
