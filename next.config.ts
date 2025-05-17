@@ -1,3 +1,4 @@
+
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
@@ -15,6 +16,12 @@ const nextConfig: NextConfig = {
         hostname: 'placehold.co',
         port: '',
         pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'heggie.netlify.app',
+        port: '',
+        pathname: '/**', // Allow any path for favicons or other images from this host
       },
     ],
   },
