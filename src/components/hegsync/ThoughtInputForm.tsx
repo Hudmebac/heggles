@@ -1,8 +1,7 @@
-
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
-import { Brain, Loader2, AlertTriangleIcon, MicOff, Radio } from 'lucide-react'; // Removed Mic, PlayCircle, StopCircle, Zap
+import { Brain, Loader2, AlertTriangleIcon, MicOff, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,12 +19,13 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { processTextThought, processRecordedAudio } from '@/lib/actions';
 import type { Thought, ShoppingListItem, ToDoListItem, IntentAnalysisOutput } from '@/lib/types';
-import { WAKE_WORDS, LOCALSTORAGE_KEYS } from '@/lib/constants';
+import { WAKE_WORDS, LOCALSTORAGE_KEYS, RECORDING_DURATION_MS } from '@/lib/constants';
 
 interface ThoughtInputFormProps {
   onThoughtRecalled: (thought: Thought) => void;
-  isExternallyLongRecording: boolean; // Controlled by parent (DashboardPage)
-  onStopLongRecordingParent: () => void; // Callback to notify parent when long recording stops internally
+  onEmptyRecalledThoughts: () => void; // New prop
+  isExternallyLongRecording: boolean;
+  onStopLongRecordingParent: () => void;
 }
 
 export interface ThoughtInputFormHandle {
@@ -34,28 +34,22 @@ export interface ThoughtInputFormHandle {
 }
 
 export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputFormProps>(
-  ({ onThoughtRecalled, isExternallyLongRecording, onStopLongRecordingParent }, ref) => {
+  ({ onThoughtRecalled, onEmptyRecalledThoughts, isExternallyLongRecording, onStopLongRecordingParent }, ref) => {
     const [inputText, setInputText] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
-
+    
     const [hasMicPermission, setHasMicPermission] = useState<boolean | null>(null);
     const [isBrowserUnsupported, setIsBrowserUnsupported] = useState(false);
     
-    // Removed states and refs for wake word listener and dashboard dictation mic
-    // recognitionRef, utteranceTranscriptRef, partialWakeWordDetected, commandProcessedSuccessfullyRef
-    // isRecognizingSpeech, isDashboardDictationActive, dashboardDictationRecognitionRef, dashboardDictationPauseTimeoutRef, dashboardDictationAccumulatedTranscriptRef
-
-    // Snippet recording for "replay that" is removed.
-    // isCapturingAudioForSnippet, snippetMediaRecorderRef, snippetRecognitionRef, snippetTranscriptRef, snippetAudioChunksRef
-    
-    // State and refs for Long Recording (controlled by header button via parent)
+    // Continuous recording (header mic)
     const [isCapturingAudioForLongRecording, setIsCapturingAudioForLongRecording] = useState(false);
     const longRecordingMediaRecorderRef = useRef<MediaRecorder | null>(null);
     const longRecordingSpeechRecognizerRef = useRef<SpeechRecognition | null>(null);
     const longRecordingTranscriptRef = useRef<string>('');
     const longRecordingAudioChunksRef = useRef<Blob[]>([]);
 
+    // Alert Dialog
     const [alertDialogConfig, setAlertDialogConfig] = useState<{
       title: string;
       description: React.ReactNode;
@@ -64,6 +58,7 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
       listName?: string;
       dataToRecallOnCancel?: Omit<Thought, "id" | "timestamp">;
       onConfirm: () => void;
+      actionLabel?: string;
     } | null>(null);
     const [isAlertDialogOpen, setIsAlertDialogOpen] = useState(false);
     const confirmedDialogActionRef = useRef(false);
@@ -148,6 +143,26 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
       }
     }, [toast]);
 
+    const clearShoppingList = useCallback(() => {
+        localStorage.setItem(LOCALSTORAGE_KEYS.SHOPPING_LIST, JSON.stringify([]));
+        window.dispatchEvent(new StorageEvent('storage', { key: LOCALSTORAGE_KEYS.SHOPPING_LIST, newValue: JSON.stringify([]) }));
+        toast({ title: "Shopping List Cleared" });
+    }, [toast]);
+
+    const completeAllToDoTasks = useCallback(() => {
+        try {
+            const currentItemsString = localStorage.getItem(LOCALSTORAGE_KEYS.TODO_LIST);
+            let currentItems: ToDoListItem[] = currentItemsString ? JSON.parse(currentItemsString) : [];
+            const updatedItems = currentItems.map(item => ({ ...item, completed: true }));
+            localStorage.setItem(LOCALSTORAGE_KEYS.TODO_LIST, JSON.stringify(updatedItems));
+            window.dispatchEvent(new StorageEvent('storage', { key: LOCALSTORAGE_KEYS.TODO_LIST, newValue: JSON.stringify(updatedItems) }));
+            toast({ title: "All To-Do Tasks Marked Complete" });
+        } catch (error) {
+            toast({ title: "Error Updating To-Do List", variant: "destructive" });
+        }
+    }, [toast]);
+
+
     const handleProcessInputText = useCallback(async () => {
       const textToProcess = inputText.trim();
       if (!textToProcess) {
@@ -159,18 +174,59 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
       const hegglesBaseLower = WAKE_WORDS.HEGGLES_BASE.toLowerCase();
       const lowerText = textToProcess.toLowerCase();
 
-      const shoppingListAddPattern = new RegExp(`^${hegglesBaseLower}\\s+${WAKE_WORDS.ADD_TO_SHOPPING_LIST_FULL_PREFIX_REGEX_PART.toLowerCase()}\\s+(.+?)(?:\\s+${WAKE_WORDS.TO_SHOPPING_LIST_SUFFIX_REGEX_PART.toLowerCase()})?$`);
+      const shoppingListAddPattern = new RegExp(`^${hegglesBaseLower}\\s+${WAKE_WORDS.ADD_TO_SHOPPING_LIST_PREFIX.substring(hegglesBaseLower.length).trim()}\\s+(.+?)(?:\\s+${WAKE_WORDS.TO_SHOPPING_LIST_SUFFIX_REGEX_PART.toLowerCase()})?$`);
       const shoppingListAddMatch = lowerText.match(shoppingListAddPattern);
       
-      const todoListAddPattern = new RegExp(`^${hegglesBaseLower}\\s+${WAKE_WORDS.ADD_TO_TODO_LIST_FULL_PREFIX_REGEX_PART.toLowerCase()}\\s+(.+?)(?:\\s+${WAKE_WORDS.TO_TODO_LIST_SUFFIX_REGEX_PART.toLowerCase()})?$`);
+      const todoListAddPattern = new RegExp(`^${hegglesBaseLower}\\s+${WAKE_WORDS.ADD_TO_TODO_LIST_PREFIX.substring(hegglesBaseLower.length).trim()}\\s+(.+?)(?:\\s+${WAKE_WORDS.TO_TODO_LIST_SUFFIX_REGEX_PART.toLowerCase()})?$`);
       const todoListAddMatch = lowerText.match(todoListAddPattern);
             
-      const deleteListPattern = new RegExp(`^${hegglesBaseLower}\\s+${WAKE_WORDS.DELETE_ITEM_PREFIX.toLowerCase()}\\s+(.*?)(?:\\s+${WAKE_WORDS.FROM_SHOPPING_LIST_TRIGGER.toLowerCase()}|\\s+${WAKE_WORDS.FROM_TODO_LIST_TRIGGER.toLowerCase()})$`);
+      const deleteListPattern = new RegExp(`^${hegglesBaseLower}\\s+${WAKE_WORDS.DELETE_ITEM_PREFIX.substring(hegglesBaseLower.length).trim()}\\s+(.*?)(?:\\s+${WAKE_WORDS.FROM_SHOPPING_LIST_TRIGGER.toLowerCase()}|\\s+${WAKE_WORDS.FROM_TODO_LIST_TRIGGER.toLowerCase()})$`);
       const deleteListMatch = lowerText.match(deleteListPattern);
 
-      // "heggles replay that" and "heggles set buffer" command checks are removed from here.
-      // "replay that" type functionality (live 10s recording) is handled by startAudioRecordingForSnippet (if we re-add it)
-      // "set buffer" is removed entirely.
+      // New command checks
+      if (lowerText === WAKE_WORDS.EMPTY_RECENT_THOUGHTS_COMMAND.toLowerCase()) {
+        confirmedDialogActionRef.current = false;
+        setAlertDialogConfig({
+            title: "Empty Recent Thoughts?",
+            description: "Are you sure you want to clear all thoughts from the 'Recent Thoughts' list on the dashboard?",
+            onConfirm: () => {
+                onEmptyRecalledThoughts();
+            },
+            actionLabel: "Empty Thoughts"
+        });
+        setIsAlertDialogOpen(true);
+        return; // Dialog will handle isLoading and inputText reset
+      }
+
+      if (lowerText === WAKE_WORDS.CLEAR_SHOPPING_LIST_COMMAND.toLowerCase()) {
+        confirmedDialogActionRef.current = false;
+        setAlertDialogConfig({
+            title: "Clear Shopping List?",
+            description: "Are you sure you want to remove all items from your shopping list?",
+            onConfirm: clearShoppingList,
+            actionLabel: "Clear List"
+        });
+        setIsAlertDialogOpen(true);
+        return;
+      }
+      
+      const completeAllPatternPart = WAKE_WORDS.COMPLETE_ALL_TASKS_PREFIX.toLowerCase();
+      const completeAllSuffixTodo = WAKE_WORDS.COMPLETE_ALL_TASKS_COMMAND_SUFFIX_TODO.toLowerCase();
+      const completeAllSuffixTodos = WAKE_WORDS.COMPLETE_ALL_TASKS_COMMAND_SUFFIX_TODOS.toLowerCase();
+
+      if (lowerText.startsWith(completeAllPatternPart) && 
+          (lowerText.endsWith(completeAllSuffixTodo) || lowerText.endsWith(completeAllSuffixTodos))) {
+        confirmedDialogActionRef.current = false;
+        setAlertDialogConfig({
+            title: "Complete All To-Do Tasks?",
+            description: "Are you sure you want to mark all tasks in your to-do list as complete?",
+            onConfirm: completeAllToDoTasks,
+            actionLabel: "Complete All"
+        });
+        setIsAlertDialogOpen(true);
+        return;
+      }
+
 
       if (shoppingListAddMatch && shoppingListAddMatch[1]) {
         const item = shoppingListAddMatch[1].trim();
@@ -184,9 +240,10 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
           onConfirm: () => {
             addListItem(LOCALSTORAGE_KEYS.SHOPPING_LIST, item, "Shopping List");
           },
+          actionLabel: "Add Item"
         });
         setIsAlertDialogOpen(true);
-        return;
+        return; 
       } else if (todoListAddMatch && todoListAddMatch[1]) {
         const task = todoListAddMatch[1].trim();
         confirmedDialogActionRef.current = false;
@@ -199,6 +256,7 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
           onConfirm: () => {
             addListItem(LOCALSTORAGE_KEYS.TODO_LIST, task, "To-Do List");
           },
+          actionLabel: "Add Task"
         });
         setIsAlertDialogOpen(true);
         return;
@@ -216,19 +274,41 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
         }
 
         if (listKey && itemIdentifierStr) {
-          const lowerIdentifierStr = itemIdentifierStr.toLowerCase();
-          const itemNumberPrefix = WAKE_WORDS.ITEM_NUMBER_PREFIX.toLowerCase();
-          if (lowerIdentifierStr.startsWith(itemNumberPrefix)) {
-            const numberStr = lowerIdentifierStr.substring(itemNumberPrefix.length).trim();
-            const itemNumber = parseInt(numberStr, 10);
-            if (!isNaN(itemNumber) && itemNumber > 0) {
-              deleteListItem(listKey, itemNumber, listName);
+          confirmedDialogActionRef.current = false;
+          const itemNumberPrefixLower = WAKE_WORDS.ITEM_NUMBER_PREFIX.toLowerCase();
+          let isDeletingByNumber = false;
+          let itemNumberToDelete = -1;
+          let itemNameToDelete = itemIdentifierStr;
+
+          if (itemIdentifierStr.toLowerCase().startsWith(itemNumberPrefixLower)) {
+            const numberStr = itemIdentifierStr.substring(itemNumberPrefixLower.length).trim();
+            itemNumberToDelete = parseInt(numberStr, 10);
+            if (!isNaN(itemNumberToDelete) && itemNumberToDelete > 0) {
+              isDeletingByNumber = true;
             } else {
               toast({ title: "Invalid Item Number", description: `"${numberStr}" is not a valid number.`, variant: "default" });
+              setIsLoading(false);
+              setInputText('');
+              return;
             }
-          } else {
-            deleteListItem(listKey, itemIdentifierStr, listName);
           }
+          
+          setAlertDialogConfig({
+            title: `Delete from ${listName}?`,
+            description: isDeletingByNumber 
+              ? <>Are you sure you want to delete item number <strong>{itemNumberToDelete}</strong> from your {listName}?</>
+              : <>Are you sure you want to delete "<strong>{itemNameToDelete}</strong>" from your {listName}?</>,
+            onConfirm: () => {
+              if (isDeletingByNumber) {
+                deleteListItem(listKey, itemNumberToDelete, listName);
+              } else {
+                deleteListItem(listKey, itemNameToDelete, listName);
+              }
+            },
+            actionLabel: "Delete"
+          });
+          setIsAlertDialogOpen(true);
+          return; 
         } else {
           toast({ title: "Deletion Command Incomplete", description: "Specify item and list (e.g., '...from my shopping list').", variant: "default" });
         }
@@ -240,6 +320,7 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
           let dialogShownForAISuggestion = false;
           let dataToRecallIfDialogCancelled: Omit<Thought, "id" | "timestamp"> | undefined = processedData;
 
+          // Check AI intent analysis for actions
           if (processedData.intentAnalysis?.isAction &&
               processedData.intentAnalysis.extractedAction &&
               processedData.intentAnalysis.suggestedList &&
@@ -249,23 +330,47 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
             const listKey = processedData.intentAnalysis.suggestedList === 'shopping' ? LOCALSTORAGE_KEYS.SHOPPING_LIST : LOCALSTORAGE_KEYS.TODO_LIST;
             const listName = processedData.intentAnalysis.suggestedList === 'shopping' ? "Shopping List" : "To-Do List";
             
-            confirmedDialogActionRef.current = false;
-            setAlertDialogConfig({
-              title: `AI Suggestion: Add to ${listName}?`,
-              description: <>The AI suggests adding "<strong>{action}</strong>" to your {listName}. Add it?</>,
-              itemText: action,
-              listKey: listKey,
-              listName: listName,
-              dataToRecallOnCancel: dataToRecallIfDialogCancelled,
-              onConfirm: () => {
-                addListItem(listKey, action, listName);
-              },
-            });
+            // Check if this AI suggested action matches one of the new direct commands
+            const lowerAction = action.toLowerCase();
+            if (listName === "Shopping List" && lowerAction === WAKE_WORDS.CLEAR_SHOPPING_LIST_COMMAND.toLowerCase()) {
+                confirmedDialogActionRef.current = false;
+                setAlertDialogConfig({
+                    title: "AI Suggestion: Clear Shopping List?",
+                    description: "The AI understood this as a command to clear your shopping list. Proceed?",
+                    onConfirm: clearShoppingList,
+                    actionLabel: "Clear List",
+                    dataToRecallOnCancel: dataToRecallIfDialogCancelled
+                });
+            } else if (listName === "To-Do List" && lowerAction.startsWith(WAKE_WORDS.COMPLETE_ALL_TASKS_PREFIX.toLowerCase()) && (lowerAction.endsWith(WAKE_WORDS.COMPLETE_ALL_TASKS_COMMAND_SUFFIX_TODO.toLowerCase()) || lowerAction.endsWith(WAKE_WORDS.COMPLETE_ALL_TASKS_COMMAND_SUFFIX_TODOS.toLowerCase()))) {
+                confirmedDialogActionRef.current = false;
+                setAlertDialogConfig({
+                    title: "AI Suggestion: Complete All To-Do Tasks?",
+                    description: "The AI understood this as a command to complete all to-do tasks. Proceed?",
+                    onConfirm: completeAllToDoTasks,
+                    actionLabel: "Complete All",
+                    dataToRecallOnCancel: dataToRecallIfDialogCancelled
+                });
+            } else { // Default AI suggestion for adding an item
+                confirmedDialogActionRef.current = false;
+                setAlertDialogConfig({
+                  title: `AI Suggestion: Add to ${listName}?`,
+                  description: <>The AI suggests adding "<strong>{action}</strong>" to your {listName}. Add it?</>,
+                  itemText: action,
+                  listKey: listKey,
+                  listName: listName,
+                  dataToRecallOnCancel: dataToRecallIfDialogCancelled,
+                  onConfirm: () => {
+                    addListItem(listKey, action, listName);
+                  },
+                  actionLabel: listName === "Shopping List" ? "Add Item" : "Add Task"
+                });
+            }
             setIsAlertDialogOpen(true);
             dialogShownForAISuggestion = true;
             return; 
           } 
-          else if (processedData.actionItems && processedData.actionItems.length > 0) {
+          // Check refined action items (less prioritized than direct intent)
+          else if (processedData.actionItems && processedData.actionItems.length > 0 && !dialogShownForAISuggestion) {
             for (const actionItem of processedData.actionItems) {
               const lowerActionItem = actionItem.toLowerCase();
               let itemToAdd: string | null = null;
@@ -301,6 +406,7 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
                   onConfirm: () => {
                     addListItem(targetListKey!, itemToAdd!, targetListName!);
                   },
+                  actionLabel: targetListName === "Shopping List" ? "Add Item" : "Add Task"
                 });
                 setIsAlertDialogOpen(true);
                 dialogShownForAISuggestion = true;
@@ -320,12 +426,37 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
           setIsLoading(false);
         }
       }
-    }, [inputText, toast, onThoughtRecalled, addListItem, deleteListItem]);
+    }, [inputText, toast, onThoughtRecalled, addListItem, deleteListItem, onEmptyRecalledThoughts, clearShoppingList, completeAllToDoTasks]);
     
+
+    // Effect to check for mic permission on mount
+    useEffect(() => {
+      const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (!SpeechRecognitionAPI) {
+        setIsBrowserUnsupported(true);
+        setHasMicPermission(false);
+        return;
+      }
+      setIsBrowserUnsupported(false);
+
+      if (hasMicPermission === null) {
+        navigator.mediaDevices.getUserMedia({ audio: true })
+          .then((stream) => {
+            stream.getTracks().forEach(track => track.stop()); 
+            setHasMicPermission(true);
+          })
+          .catch(err => {
+            console.warn("Microphone permission request error:", err.name, err.message);
+            setHasMicPermission(false);
+          });
+      }
+    }, [hasMicPermission]);
+
+
     const startLongRecording = useCallback((): boolean => {
         if (hasMicPermission !== true || isLoading || isCapturingAudioForLongRecording) {
           if (hasMicPermission !== true) toast({title: "Cannot Start Recording", description: "Microphone permission missing."});
-          else toast({title: "Cannot Start Recording", description: "System busy with another audio task."});
+          else toast({title: "Cannot Start Recording", description: "System busy."});
           return false;
         }
         
@@ -352,16 +483,16 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
 
             recognizer.onresult = (event: SpeechRecognitionEvent) => {
               let interimTranscript = "";
-              let finalTranscriptForThisResult = "";
+              let finalTranscriptForThisResultSegment = "";
               for (let i = event.resultIndex; i < event.results.length; ++i) {
                 if (event.results[i].isFinal) {
-                  finalTranscriptForThisResult += event.results[i][0].transcript + ' ';
+                  finalTranscriptForThisResultSegment += event.results[i][0].transcript + ' ';
                 } else {
                   interimTranscript += event.results[i][0].transcript;
                 }
               }
-              if (finalTranscriptForThisResult) {
-                longRecordingTranscriptRef.current = (longRecordingTranscriptRef.current + finalTranscriptForThisResult).trim();
+              if (finalTranscriptForThisResultSegment) {
+                longRecordingTranscriptRef.current = (longRecordingTranscriptRef.current + finalTranscriptForThisResultSegment).trim();
               }
               setInputText(longRecordingTranscriptRef.current + (interimTranscript ? " " + interimTranscript.trim() : ""));
             };
@@ -389,8 +520,8 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
             };
             longRecordingMediaRecorderRef.current.onstop = async () => {
               stream.getTracks().forEach(track => track.stop());
-              
               const finalTranscriptToSet = longRecordingTranscriptRef.current.trim();
+              
               setIsCapturingAudioForLongRecording(false); 
               setInputText(finalTranscriptToSet); 
               onStopLongRecordingParent(); 
@@ -433,20 +564,20 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
           try { longRecordingMediaRecorderRef.current.stop(); } catch(e) { 
             console.error("Error stopping media recorder:", e);
             const finalTranscript = longRecordingTranscriptRef.current.trim();
-            setInputText(finalTranscript);
             setIsCapturingAudioForLongRecording(false);
             onStopLongRecordingParent();
+            setInputText(finalTranscript); // Ensure inputText is set even if stop errors
              if (finalTranscript) {
                toast({ title: "Recording Stopped", description: "Transcript populated. Click Brain icon to process." });
              } else {
                toast({ title: "Recording Stopped", description: "No speech detected." });
              }
           }
-        } else {
+        } else { // If somehow media recorder is not in recording state but we think it is
           const finalTranscript = longRecordingTranscriptRef.current.trim();
-          setInputText(finalTranscript);
           setIsCapturingAudioForLongRecording(false);
           onStopLongRecordingParent();
+          setInputText(finalTranscript);
            if (finalTranscript) {
              toast({ title: "Recording Stopped", description: "Transcript populated. Click Brain icon to process." });
            } else {
@@ -455,42 +586,22 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
         }
     }, [isCapturingAudioForLongRecording, setInputText, onStopLongRecordingParent, toast]);
 
-    useImperativeHandle(ref, () => ({
-      startLongRecording,
-      stopLongRecordingAndProcess,
-    }));
-    
-    useEffect(() => {
-      const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (!SpeechRecognitionAPI) {
-        setIsBrowserUnsupported(true);
-        setHasMicPermission(false);
-        return;
-      }
-      setIsBrowserUnsupported(false);
-
-      if (hasMicPermission === null) {
-        navigator.mediaDevices.getUserMedia({ audio: true })
-          .then((stream) => {
-            stream.getTracks().forEach(track => track.stop()); 
-            setHasMicPermission(true);
-          })
-          .catch(err => {
-            console.warn("Microphone permission request error:", err.name, err.message);
-            setHasMicPermission(false);
-          });
-      }
-    }, [hasMicPermission]);
-
+    // Effect to sync with parent's long recording toggle
     useEffect(() => {
         if (isExternallyLongRecording && !isCapturingAudioForLongRecording) {
-          startLongRecording();
+            startLongRecording();
         } else if (!isExternallyLongRecording && isCapturingAudioForLongRecording) {
             stopLongRecordingAndProcess();
         }
     }, [isExternallyLongRecording, isCapturingAudioForLongRecording, startLongRecording, stopLongRecordingAndProcess]);
 
 
+    useImperativeHandle(ref, () => ({
+      startLongRecording,
+      stopLongRecordingAndProcess,
+    }));
+    
+    // Cleanup effect for long recording refs
     useEffect(() => {
       return () => {
          if (longRecordingSpeechRecognizerRef.current) {
@@ -507,7 +618,6 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
     const getTextareaPlaceholder = (): string => {
       if (isCapturingAudioForLongRecording) return "Continuous recording active. Transcript populates here. Click Brain icon to process when stopped.";
       if (isLoading && !isAlertDialogOpen) return "Processing...";
-      if (isBrowserUnsupported || hasMicPermission === false) return "Type thought or paste text here. Click Brain icon to process.";
       return "Type thought, paste text, or use header mic for continuous recording. Click Brain icon to process.";
     };
     
@@ -517,10 +627,9 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
           <CardHeader>
             <div className="flex justify-between items-center">
               <CardTitle className="text-xl">Input & Recall</CardTitle>
-              {/* Mic status text removed */}
             </div>
             <CardDescription>
-              Use the header microphone for continuous recording. The transcript will appear below. Click the Brain icon to process.
+             Use the header microphone for continuous recording. Transcript will appear below. Click the Brain icon to process.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -561,7 +670,6 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
                 >
                   {(isLoading && !isAlertDialogOpen && inputText.trim()) ? <Loader2 className="h-5 w-5 animate-spin" /> : <Brain className="h-5 w-5" />}
                 </Button>
-                {/* Dashboard dictation mic button removed */}
               </div>
             </div>
           </CardContent>
@@ -598,7 +706,7 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
                     confirmedDialogActionRef.current = true; 
                     alertDialogConfig.onConfirm();
                   }
-                }}>Confirm</AlertDialogAction>
+                }}>{alertDialogConfig.actionLabel || "Confirm"}</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>

@@ -1,46 +1,43 @@
 
 // src/lib/constants.ts
 
-// Buffer time constants are removed as the feature is being removed.
-
 export const LOCALSTORAGE_KEYS = {
   RECALLED_THOUGHTS: 'hegsync-recalled-thoughts',
   MEMORY_VAULT: 'hegsync-memory-vault',
-  // BUFFER_TIME: 'hegsync-buffer-time', // Removed
   SHOPPING_LIST: 'hegsync-shopping-list',
   TODO_LIST: 'hegsync-todo-list',
-  THEME: 'hegsync-theme', // Renamed from hegsync-theme
+  THEME: 'hegsync-theme',
 };
 
 export const WAKE_WORDS = {
-  HEGGLES_BASE: "heggles", // Primary wake word, kept for list additions if parsed from text
+  // Base wake word, primarily for parsing commands from text input
+  HEGGLES_BASE: "heggles",
 
-  // Dashboard specific wake words removed
-  // HEGGLES_REPLAY_THAT: "heggles replay that",
-  // HEGGLES_SET_BUFFER: "heggles set buffer",
-  // HEGGLES_TURN_OFF: "heggles turn off",
-  // HEGGLES_TURN_ON: "heggles turn on",
-
-  // For parsing "add X to Y list" in ThoughtInputForm if text is typed/pasted
-  ADD_TO_SHOPPING_LIST_FULL_PREFIX_REGEX_PART: "add",
-  TO_SHOPPING_LIST_SUFFIX_REGEX_PART: "to my shopping list",
-  ADD_TO_TODO_LIST_FULL_PREFIX_REGEX_PART: "add",
+  // For parsing "add X to Y list" in ThoughtInputForm if text is typed/pasted or from continuous recording
+  ADD_TO_SHOPPING_LIST_PREFIX: "heggles add", // Full command e.g., "heggles add milk to my shopping list"
+  TO_SHOPPING_LIST_SUFFIX_REGEX_PART: "to my shopping list", // For stricter matching
+  ADD_TO_TODO_LIST_PREFIX: "heggles add", // Full command e.g., "heggles add call mom to my to do list"
   TO_TODO_LIST_SUFFIX_REGEX_PART: "to my to do list",
-  
-  // For parsing "delete X from Y list" if text is typed/pasted
+
+  // For parsing "delete X from Y list"
   DELETE_ITEM_PREFIX: "heggles delete",
   FROM_SHOPPING_LIST_TRIGGER: "from my shopping list",
   FROM_TODO_LIST_TRIGGER: "from my to do list",
   ITEM_NUMBER_PREFIX: "item number ",
 
-  // Dictation control for inline mics on list pages
+  // Dictation control for inline mics on list pages & dashboard dictation
   END_DICTATION: "heggles end",
   STOP_DICTATION: "heggles stop",
 
-  // Specific command phrases for parsing text input
-  ADD_TO_SHOPPING_LIST_COMMAND_START: "heggles add", // Used for parsing input text
-  ADD_TO_TODO_LIST_COMMAND_START: "heggles add", // Used for parsing input text
+  // New commands for Brain Button processing
+  EMPTY_RECENT_THOUGHTS_COMMAND: "empty recent thoughts",
+  CLEAR_SHOPPING_LIST_COMMAND: "clear shopping list",
+  COMPLETE_ALL_TASKS_COMMAND_SUFFIX_TODO: "tasks in to do list", // e.g. "complete all tasks in to do list"
+  COMPLETE_ALL_TASKS_COMMAND_SUFFIX_TODOS: "to do list tasks", // e.g. "complete all to do list tasks"
+  COMPLETE_ALL_TASKS_PREFIX: "complete all",
 };
 
-// RECORDING_DURATION_MS is removed as "replay that" with fixed 10s is removed.
-// Continuous recording has its own start/stop.
+// For dashboard continuous recording (header mic) -> populates inputText for Brain button
+// For list page inline dictation mics -> populates respective input fields
+
+export const RECORDING_DURATION_MS = 10000; // 10 seconds for "heggles replay that" audio snippet

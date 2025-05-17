@@ -4,19 +4,17 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
 import type { Thought, PinnedThought } from '@/lib/types';
-// import { PassiveListenerControls } from '@/components/hegsync/PassiveListenerControls'; // Removed
 import { ThoughtInputForm, type ThoughtInputFormHandle } from '@/components/hegsync/ThoughtInputForm';
 import { RecentThoughtsList } from '@/components/hegsync/RecentThoughtsList';
 import { ThoughtClarifierDialog } from '@/components/hegsync/ThoughtClarifierDialog';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Mic, Radio } from 'lucide-react'; // Changed PlayCircle, StopCircle to Mic, Radio
+import { Mic, Radio } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { pinThoughtAndSuggestCategories } from '@/lib/actions';
 import { LOCALSTORAGE_KEYS } from '@/lib/constants';
 
 export default function DashboardPage() {
-  // isListening state for wake word is removed. Continuous recording state is now primary for dashboard mic.
   const [recalledThoughts, setRecalledThoughts] = useLocalStorage<Thought[]>(LOCALSTORAGE_KEYS.RECALLED_THOUGHTS, []);
   const [pinnedThoughts, setPinnedThoughts] = useLocalStorage<PinnedThought[]>(LOCALSTORAGE_KEYS.MEMORY_VAULT, []);
   
@@ -24,14 +22,18 @@ export default function DashboardPage() {
   const [isClarifierOpen, setIsClarifierOpen] = useState(false);
 
   const thoughtInputFormRef = useRef<ThoughtInputFormHandle>(null);
-
-  const [isLongRecording, setIsLongRecording] = useState(false); // This state now controls the header mic
+  const [isLongRecording, setIsLongRecording] = useState(false); 
 
   const { toast } = useToast();
 
   const handleThoughtRecalled = useCallback((newThought: Thought) => {
     setRecalledThoughts(prevThoughts => [newThought, ...prevThoughts].sort((a,b) => b.timestamp - a.timestamp));
   }, [setRecalledThoughts]);
+
+  const handleEmptyRecalledThoughts = useCallback(() => {
+    setRecalledThoughts([]);
+    toast({ title: "Recent Thoughts Cleared", description: "All recalled thoughts have been removed from the dashboard." });
+  }, [setRecalledThoughts, toast]);
   
   const handlePinThought = useCallback(async (thoughtToPin: Thought) => {
     try {
@@ -79,12 +81,10 @@ export default function DashboardPage() {
       }
     } else {
       thoughtInputFormRef.current?.stopLongRecordingAndProcess();
-      // setIsLongRecording(false); // This will be set by onStopLongRecordingParent callback
-      // Toast for stopping is now handled within ThoughtInputForm or after transcript population
     }
   }, [isLongRecording, toast]);
 
-  const handleStopLongRecordingParent = useCallback(() => {
+  const onStopLongRecordingParent = useCallback(() => {
     setIsLongRecording(false);
   }, []);
 
@@ -96,29 +96,30 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between mb-6 gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+        <div className="flex items-center gap-3">
+         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+        </div>
         <Button
           variant="ghost"
-          size="lg" // Made larger
-          className="p-2 h-12 w-12 sm:h-14 sm:w-14 rounded-full" // Made larger and rounder
+          size="lg" 
+          className="p-2 h-14 w-14 rounded-full" 
           onClick={handleToggleLongRecording}
           title={isLongRecording ? "Stop Continuous Recording" : "Start Continuous Recording (Mic)"}
         >
           {isLongRecording ? (
-            <Radio className="h-7 w-7 sm:h-8 sm:w-8 text-red-500 animate-pulse" />
+            <Radio className="h-8 w-8 text-red-500 animate-pulse" />
           ) : (
-            <Mic className="h-7 w-7 sm:h-8 sm:w-8 text-primary" />
+            <Mic className="h-8 w-8 text-primary" />
           )}
         </Button>
       </div>
       
-      {/* PassiveListenerControls removed */}
-      
       <ThoughtInputForm 
         ref={thoughtInputFormRef}
         onThoughtRecalled={handleThoughtRecalled} 
-        isExternallyLongRecording={isLongRecording} // Pass this to sync state
-        onStopLongRecordingParent={handleStopLongRecordingParent} // Callback to sync state
+        onEmptyRecalledThoughts={handleEmptyRecalledThoughts} // Pass the new handler
+        isExternallyLongRecording={isLongRecording}
+        onStopLongRecordingParent={onStopLongRecordingParent}
       />
 
       <Separator />
