@@ -43,7 +43,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
     if (recognitionRef.current && isRecognizingSpeech) {
       recognitionRef.current.stop(); // Stop listening while processing
     }
-    wakeWordDetectedRef.current = false; // Reset flag
+    // wakeWordDetectedRef.current is reset in handleManualSubmit or if wake word path taken
 
     setIsLoading(true);
     try {
@@ -66,6 +66,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
 
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    wakeWordDetectedRef.current = false; // Explicitly reset for manual submissions
     await processThoughtInput();
   };
 
@@ -171,10 +172,8 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
           processThoughtInput(); // Call the shared processing logic
         } else {
           toast({ title: "Input Empty", description: "Please type or paste the thought to process before using the wake word.", variant: "default" });
+          wakeWordDetectedRef.current = false; // Reset if input was empty
         }
-        // Optional: stop recognition explicitly to prevent immediate re-triggering if desired.
-        // if (recognitionRef.current) recognitionRef.current.stop(); 
-        // onend logic will handle restart if still isListening
       }
     };
 
@@ -198,8 +197,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
       }
       setIsRecognizingSpeech(false);
     };
-  }, [isListening, toast, inputText, isLoading, hasMicPermission, onThoughtRecalled]);
-
+  }, [isListening, toast, inputText, isLoading, hasMicPermission, onThoughtRecalled]); // processThoughtInput was removed from deps as it causes re-renders and re-init of speech rec
 
   return (
     <Card className="w-full shadow-lg">
@@ -249,12 +247,31 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
             className="resize-none"
             aria-label="Recalled thought input area"
           />
-          <Button type="submit" disabled={!isListening || isLoading || !inputText.trim()} className="w-full sm:w-auto">
-            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Brain className="mr-2 h-4 w-4" />}
-            Process with AI
-          </Button>
+          <div className="flex items-stretch gap-2">
+            <Button 
+              type="submit" 
+              disabled={!isListening || isLoading || !inputText.trim()} 
+              className="flex-grow"
+              aria-label="Process thought with AI"
+            >
+              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Brain className="mr-2 h-4 w-4" />}
+              Process with AI
+            </Button>
+            <Button
+              type="submit"
+              disabled={!isListening || isLoading || !inputText.trim()}
+              size="icon"
+              className="p-2 h-auto" 
+              aria-label="Recall thought with Brain icon"
+              title="Recall with Brain"
+            >
+              <Brain className={`h-5 w-5 ${isLoading ? 'animate-pulse' : ''}`} />
+            </Button>
+          </div>
         </form>
       </CardContent>
     </Card>
   );
 }
+
+    
