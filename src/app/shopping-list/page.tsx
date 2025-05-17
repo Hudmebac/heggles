@@ -26,11 +26,11 @@ export default function ShoppingListPage() {
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const pauseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-
-  const [isListeningForPageWakeWord, setIsListeningForPageWakeWord] = useState(false);
-  const [pageWakeWordMicPermission, setPageWakeWordMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
-  const pageWakeWordRecognitionRef = useRef<SpeechRecognition | null>(null);
-  const pageWakeWordListenerShouldBeActive = useRef(true);
+  // Removed page-level wake word listener states and refs
+  // const [isListeningForPageWakeWord, setIsListeningForPageWakeWord] = useState(false);
+  // const [pageWakeWordMicPermission, setPageWakeWordMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
+  // const pageWakeWordRecognitionRef = useRef<SpeechRecognition | null>(null);
+  // const pageWakeWordListenerShouldBeActive = useRef(true);
 
 
   useEffect(() => {
@@ -38,18 +38,9 @@ export default function ShoppingListPage() {
     const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognitionAPI) {
       setMicPermission('unsupported');
-      setPageWakeWordMicPermission('unsupported');
+      // setPageWakeWordMicPermission('unsupported'); // Removed
     } else {
-        if (pageWakeWordMicPermission === 'prompt') {
-            navigator.mediaDevices.getUserMedia({ audio: true })
-                .then(stream => {
-                    stream.getTracks().forEach(track => track.stop()); 
-                    setPageWakeWordMicPermission('granted');
-                })
-                .catch(() => {
-                    setPageWakeWordMicPermission('denied');
-                });
-        }
+        // Permission for inline dictation mic will be requested on first click
     }
     return () => {
       if (recognitionRef.current && recognitionRef.current.stop) {
@@ -112,7 +103,7 @@ export default function ShoppingListPage() {
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
     downloadAnchorNode.setAttribute("download", "shopping-list.json");
-    document.body.appendChild(downloadAnchorNode); // Required for Firefox
+    document.body.appendChild(downloadAnchorNode); 
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
     toast({ title: "Shopping List Exported" });
@@ -126,6 +117,17 @@ export default function ShoppingListPage() {
     const header = "text,completed\n";
     const csvContent = comments + header + "Example Item 1,false\nExample Item 2,true\n";
     const downloadAnchorNode = document.createElement('a');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    downloadAnchorNode.setAttribute("href", url);
+    downloadAnchorNode.setAttribute("download", "shopping-list_template.csv");
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+    URL.revokeObjectURL(url);
+    toast({ title: "Shopping List Template Exported" });
+  };
+
   const handleImportList = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -134,7 +136,7 @@ export default function ShoppingListPage() {
     reader.onload = (e) => {
       try {
         const csvText = e.target?.result as string;
-        const lines = csvText.split(/[\r\n]+/).filter(line => line.trim() !== '' && !line.startsWith('#')); // Split by various line endings and filter empty lines or comments
+        const lines = csvText.split(/[\r\n]+/).filter(line => line.trim() !== '' && !line.startsWith('#')); 
         if (lines.length === 0) {
            toast({ title: "Import Failed", description: "File is empty.", variant: "destructive" });
            return;
@@ -149,9 +151,9 @@ export default function ShoppingListPage() {
         }
 
         const importedItems: ShoppingListItem[] = lines.slice(1).map(line => {
-           const values = line.split(','); // Simple split, might need more robust CSV parsing for complex cases
+           const values = line.split(','); 
            return { id: crypto.randomUUID(), text: values[textIndex]?.trim() || '', completed: values[completedIndex]?.trim().toLowerCase() === 'true' };
-        }).filter(item => item.text !== ''); // Filter out items with empty text
+        }).filter(item => item.text !== ''); 
         setItems(importedItems);
         toast({ title: "Shopping List Imported", description: `${importedItems.length} items loaded.` });
 
@@ -160,6 +162,7 @@ export default function ShoppingListPage() {
       }
     };
     reader.readAsText(file);
+    event.target.value = ''; // Clear the input
   };
 
   const startInputRecognition = useCallback(() => {
@@ -215,7 +218,7 @@ export default function ShoppingListPage() {
       if (event.error === 'aborted') {
         console.info('Shopping list item input speech recognition aborted:', event.message);
       } else if (event.error === 'no-speech') {
-        console.warn('Shopping list item input speech recognition: No speech detected.', event.message);
+        // console.warn('Shopping list item input speech recognition: No speech detected.', event.message); // Reduced console noise
         if (isListeningForItemInput) { 
           toast({ title: "No speech detected", variant: "default" });
         }
@@ -235,7 +238,7 @@ export default function ShoppingListPage() {
         clearTimeout(pauseTimeoutRef.current);
       }
       recognitionRef.current = null; 
-      pageWakeWordListenerShouldBeActive.current = true; 
+      // pageWakeWordListenerShouldBeActive.current = true; // Removed
     };
     
     setNewItemText(''); 
@@ -278,77 +281,15 @@ export default function ShoppingListPage() {
     }
     
     if (currentPermission === 'granted') {
-      pageWakeWordListenerShouldBeActive.current = false; 
-      if (pageWakeWordRecognitionRef.current?.stop) {
-         try { pageWakeWordRecognitionRef.current.stop(); } catch(e) {/* ignore */}
-      }
+      // pageWakeWordListenerShouldBeActive.current = false; // Removed
+      // if (pageWakeWordRecognitionRef.current?.stop) { // Removed
+      //    try { pageWakeWordRecognitionRef.current.stop(); } catch(e) {/* ignore */} // Removed
+      // } // Removed
       startInputRecognition();
     }
   }, [isListeningForItemInput, micPermission, startInputRecognition, toast]);
 
-
-  useEffect(() => {
-    const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognitionAPI || pageWakeWordMicPermission !== 'granted' || isListeningForItemInput || !pageWakeWordListenerShouldBeActive.current) {
-      if (pageWakeWordRecognitionRef.current?.stop) {
-        try { pageWakeWordRecognitionRef.current.stop(); } catch(e) {/* ignore */}
-      }
-      return;
-    }
-
-    if (!pageWakeWordRecognitionRef.current) {
-      const pageRecognition = new SpeechRecognitionAPI();
-      pageWakeWordRecognitionRef.current = pageRecognition;
-      pageRecognition.continuous = true; 
-      pageRecognition.interimResults = false; 
-      pageRecognition.lang = 'en-US';
-
-      pageRecognition.onstart = () => setIsListeningForPageWakeWord(true);
-      pageRecognition.onresult = (event: SpeechRecognitionEvent) => {
-        const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
-        const detectedWakeWord = transcript === WAKE_WORDS.HEGGLES_BASE.toLowerCase() 
-          ? WAKE_WORDS.HEGGLES_BASE 
-          : null; 
-
-        if (detectedWakeWord) {
-          toast({ title: `'${detectedWakeWord.charAt(0).toUpperCase() + detectedWakeWord.slice(1)}' Detected`, description: "Activating item input microphone..." });
-          pageWakeWordListenerShouldBeActive.current = false; 
-          if (pageWakeWordRecognitionRef.current?.stop) { 
-             try { pageWakeWordRecognitionRef.current.stop(); } catch(e) {/* ignore */}
-          }
-          triggerItemInputMic(); 
-        }
-      };
-      pageRecognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-        console.warn('Page Wake Word recognition error:', event.error, event.message);
-        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-            setPageWakeWordMicPermission('denied'); 
-        } else if (event.error === 'no-speech' && isListeningForPageWakeWord) {
-        }
-      };
-      pageRecognition.onend = () => {
-        setIsListeningForPageWakeWord(false); 
-        pageWakeWordRecognitionRef.current = null; 
-      };
-      
-      try {
-        if (pageWakeWordListenerShouldBeActive.current) pageRecognition.start();
-      } catch (e) {
-        console.error("Failed to start page Wake Word recognition:", e);
-        setIsListeningForPageWakeWord(false);
-        pageWakeWordRecognitionRef.current = null;
-      }
-    }
-    
-    return () => { 
-      if (pageWakeWordRecognitionRef.current?.stop) {
-         try { pageWakeWordRecognitionRef.current.stop(); } catch(e) {/* ignore */}
-      }
-      pageWakeWordRecognitionRef.current = null;
-      setIsListeningForPageWakeWord(false);
-    };
-  }, [pageWakeWordMicPermission, isListeningForItemInput, triggerItemInputMic, toast, isListeningForPageWakeWord]);
-
+  // Removed page-level wake word listener useEffect
 
   if (!isClient) {
     return (
@@ -359,7 +300,7 @@ export default function ShoppingListPage() {
   }
 
   const micButtonDisabled = micPermission === 'unsupported' || micPermission === 'denied';
-  const pageWakeWordStatusText = isListeningForPageWakeWord ? "Listening for 'Heggles'..." : (pageWakeWordMicPermission === 'granted' && pageWakeWordListenerShouldBeActive.current ? "Say 'Heggles' to activate input" : "Page Wake Word listener off");
+  // const pageWakeWordStatusText = isListeningForPageWakeWord ? "Listening for 'Heggles' or 'Quartermaster'..." : (pageWakeWordMicPermission === 'granted' && pageWakeWordListenerShouldBeActive.current ? "Say 'Heggles' or 'Quartermaster' to activate input" : "Page Wake Word listener off"); // Removed
 
   return (
     <div className="space-y-8 max-w-2xl mx-auto">
@@ -373,12 +314,10 @@ export default function ShoppingListPage() {
           <Button variant="outline" onClick={handleExportTemplate} size="sm">Export Template</Button>
           <Button variant="outline" size="sm" asChild> 
             <Label htmlFor="import-shopping-list" className="cursor-pointer">Import CSV</Label>
-            <Input id="import-shopping-list" type="file" accept=".json" className="hidden" onChange={handleImportList} />
+            <Input id="import-shopping-list" type="file" accept=".csv" className="hidden" onChange={handleImportList} />
           </Button>
-
-
         </div>
-        <p className="text-sm text-muted-foreground mt-2 sm:mt-0">{pageWakeWordMicPermission === 'granted' && !isListeningForItemInput ? pageWakeWordStatusText : ""}</p>
+        {/* Removed pageWakeWordStatusText display */}
       </div>
 
       <Card className="shadow-lg">
@@ -398,14 +337,15 @@ export default function ShoppingListPage() {
             <Button
               type="button"
               variant="outline"
-              size="icon"
+              size="lg" // Made larger
+              className="p-2" // Adjusted padding for larger icon
               onClick={triggerItemInputMic}
               disabled={micButtonDisabled && micPermission !== 'prompt'}
               title={micButtonDisabled && micPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForItemInput ? "Stop voice input (or say 'Heggles end')" : "Add item using voice")}
               aria-label="Add item using voice"
             >
-              {isListeningForItemInput ? <Mic className="h-5 w-5 text-primary animate-pulse" /> :
-               (micButtonDisabled ? <MicOff className="h-5 w-5 text-muted-foreground" /> : <Mic className="h-5 w-5" />)}
+              {isListeningForItemInput ? <Mic className="h-6 w-6 text-primary animate-pulse" /> : // Made icon larger
+               (micButtonDisabled ? <MicOff className="h-6 w-6 text-muted-foreground" /> : <Mic className="h-6 w-6" />)}
             </Button>
             <Button type="submit" aria-label="Add item" className="px-3 sm:px-4">
               <PlusCircle className="mr-0 sm:mr-2 h-5 w-5" />
@@ -491,5 +431,3 @@ export default function ShoppingListPage() {
     </div>
   );
 }
-
-    

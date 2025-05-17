@@ -3,7 +3,7 @@
 
 import { useState, useEffect, FormEvent, DragEvent, useMemo, useRef, useCallback } from 'react';
 import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
-import type { ToDoListItem, TimePoint, TimeSettingType } from '@/lib/types';
+import type { ToDoListItem, TimePoint, TimeSettingType, DataFormat } from '@/lib/types'; // Added DataFormat
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -49,8 +49,8 @@ export default function ToDoListPage() {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingItemText, setEditingItemText] = useState('');
   
-  const [exportFormat, setExportFormat] = useState<'csv' | 'excel' | 'json' | 'text'>('csv');
-  const [importFormat, setImportFormat] = useState<'csv' | 'excel' | 'json' | 'text'>('csv');
+  const [exportFormat, setExportFormat] = useState<DataFormat>('csv'); // Changed type
+  const [importFormat, setImportFormat] = useState<DataFormat>('csv'); // Changed type
 
   const [editingTimeItemId, setEditingTimeItemId] = useState<string | null>(null);
   const [currentEditorTimeSettingType, setCurrentEditorTimeSettingType] = useState<TimeSettingType>('not_set');
@@ -69,11 +69,11 @@ export default function ToDoListPage() {
   const recognitionTaskRef = useRef<SpeechRecognition | null>(null);
   const pauseTaskTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-
-  const [isListeningForPageWakeWord, setIsListeningForPageWakeWord] = useState(false);
-  const [pageWakeWordMicPermission, setPageWakeWordMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
-  const pageWakeWordRecognitionRef = useRef<SpeechRecognition | null>(null);
-  const pageWakeWordListenerShouldBeActive = useRef(true);
+  // Removed page-level wake word listener states and refs
+  // const [isListeningForPageWakeWord, setIsListeningForPageWakeWord] = useState(false);
+  // const [pageWakeWordMicPermission, setPageWakeWordMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
+  // const pageWakeWordRecognitionRef = useRef<SpeechRecognition | null>(null);
+  // const pageWakeWordListenerShouldBeActive = useRef(true);
 
 
   useEffect(() => {
@@ -81,18 +81,9 @@ export default function ToDoListPage() {
     const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognitionAPI) {
       setTaskInputMicPermission('unsupported');
-      setPageWakeWordMicPermission('unsupported');
+      // setPageWakeWordMicPermission('unsupported'); // Removed
     } else {
-        if (pageWakeWordMicPermission === 'prompt') {
-             navigator.mediaDevices.getUserMedia({ audio: true })
-                .then(stream => {
-                    stream.getTracks().forEach(track => track.stop()); 
-                    setPageWakeWordMicPermission('granted');
-                })
-                .catch(() => {
-                    setPageWakeWordMicPermission('denied');
-                });
-        }
+        // Permission for inline dictation mic will be requested on first click
     }
     return () => { 
       if (recognitionTaskRef.current && recognitionTaskRef.current.stop) {
@@ -404,9 +395,8 @@ export default function ToDoListPage() {
     if (exportFormat === 'excel') {
       await handleExportExcelTemplate();
     } else if (exportFormat === 'text') {
-      // TODO: Implement text export template logic
        toast({ title: "Export Template Failed", description: "Text template export is not yet implemented.", variant: "destructive" });
-    } else { // CSV template
+    } else { 
     const csvContent = `text,completed,timeSettingType,startTime,endTime,dueDate
 # This is a CSV template for importing To-Do List items.
 # Each row represents a single task.
@@ -432,6 +422,7 @@ export default function ToDoListPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
     toast({ title: "To-Do List Template Exported", description: `A ${exportFormat.toUpperCase()} template has been downloaded.` });
     }
   };
@@ -465,14 +456,13 @@ export default function ToDoListPage() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "To-Do List Template");
 
-    // Set column widths (optional)
      worksheet['!cols'] = [
-      { wch: 30 }, // text
-      { wch: 10 }, // completed
-      { wch: 15 }, // timeSettingType
-      { wch: 10 }, // startTime
-      { wch: 10 }, // endTime
-      { wch: 12 }  // dueDate
+      { wch: 30 }, 
+      { wch: 10 }, 
+      { wch: 15 }, 
+      { wch: 10 }, 
+      { wch: 10 }, 
+      { wch: 12 }  
     ];
 
     XLSX.writeFile(workbook, "todo-list_template.xlsx");
@@ -494,14 +484,13 @@ export default function ToDoListPage() {
     } else if (exportFormat === 'excel') {
       await handleExportExcel();
     } else if (exportFormat === 'text') {
-      // TODO: Implement text export logic
       toast({ title: "Export Failed", description: "Text export is not yet implemented.", variant: "destructive" });
-    } else { // CSV Export
+    } else { 
 
     const headers = ["text", "completed", "timeSettingType", "startTime", "endTime", "dueDate"];
     const csvRows = items.map(item => {
       const values = [
-        `"${item.text.replace(/"/g, '""')}"`, // Escape double quotes in text
+        `"${item.text.replace(/"/g, '""')}"`, 
         item.completed ? 'true' : 'false',
         item.timeSettingType || '',
         item.startTime ? formatTimePointToString(item.startTime) || '' : '',
@@ -511,7 +500,7 @@ export default function ToDoListPage() {
       return values.join(',');
     });
 
-    const csvContent = [headers.join(','), ...csvRows].join('\\n'); // Use \\n for newline in JS string literal
+    const csvContent = [headers.join(','), ...csvRows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -521,6 +510,7 @@ export default function ToDoListPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
     toast({ title: "To-Do List Exported", description: "Your list has been downloaded as a CSV file." });
     }
   };
@@ -539,23 +529,21 @@ export default function ToDoListPage() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "To-Do List");
 
-    // Set column widths (optional)
      worksheet['!cols'] = [
-      { wch: 30 }, // text
-      { wch: 10 }, // completed
-      { wch: 15 }, // timeSettingType
-      { wch: 10 }, // startTime
-      { wch: 10 }, // endTime
-      { wch: 12 }  // dueDate
+      { wch: 30 }, 
+      { wch: 10 }, 
+      { wch: 15 }, 
+      { wch: 10 }, 
+      { wch: 10 }, 
+      { wch: 12 }  
     ];
 
-    // Auto-filter (optional)
     worksheet['!autofilter'] = { ref: "A1:F" + (data.length + 1) };
+    worksheet['!freeze'] = { xSplit: 0, ySplit: 1, topLeftCell: "A2", activePane: "bottomLeft", state: "frozen" };
 
-    // Freeze header row (optional)
-    worksheet['!freeze'] = 'A2';
 
     XLSX.writeFile(workbook, "todo-list.xlsx");
+    toast({ title: "To-Do List Exported", description: "Your list has been downloaded as an Excel file." });
   };
 
   const handleImportCSV = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -566,7 +554,7 @@ export default function ToDoListPage() {
     reader.onload = (e) => {
       try {
         const csvText = e.target?.result as string;
-        const lines = csvText.split(/\\r?\\n/).filter(line => line.trim() !== '' && !line.trim().startsWith('#')); // Handle potential \\r and skip comments
+        const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '' && !line.trim().startsWith('#')); 
         
         if (lines.length === 0) {
            toast({ title: "Import Failed", description: "The selected file is empty.", variant: "destructive" });
@@ -587,9 +575,8 @@ export default function ToDoListPage() {
           const itemData: Record<string, string> = {};
           headers.forEach((header, index) => {
              let value = values[index];
-             // Remove surrounding quotes if present
              if (value && value.startsWith('"') && value.endsWith('"')) {
-                 value = value.substring(1, value.length - 1).replace(/""/g, '"'); // Unescape double quotes
+                 value = value.substring(1, value.length - 1).replace(/""/g, '"'); 
              }
              itemData[header] = value;
           });
@@ -598,7 +585,7 @@ export default function ToDoListPage() {
           const endTimeString = itemData['endTime'];
 
           importedItems.push({
-            id: crypto.randomUUID(), // Always generate new IDs on import
+            id: crypto.randomUUID(), 
             text: itemData['text'] || 'Unnamed Task',
             completed: itemData['completed']?.toLowerCase() === 'true',
             timeSettingType: (itemData['timeSettingType'] as TimeSettingType) || 'not_set',
@@ -616,6 +603,7 @@ export default function ToDoListPage() {
       }
     };
     reader.readAsText(file);
+    event.target.value = ''; 
   };
 
   const handleImportJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -628,22 +616,17 @@ export default function ToDoListPage() {
         const jsonText = e.target?.result as string;
         const importedItems: ToDoListItem[] = JSON.parse(jsonText);
 
-        // Basic validation to ensure imported data looks like ToDoListItem[]
         if (!Array.isArray(importedItems) || importedItems.some(item => !item.id || typeof item.text !== 'string' || typeof item.completed !== 'boolean')) {
              toast({ title: "Import Failed", description: "Invalid JSON format. File does not contain a valid list of tasks.", variant: "destructive" });
              return;
         }
 
-         // Generate new IDs for imported items to prevent conflicts
         const itemsWithNewIds = importedItems.map(item => ({
             ...item,
             id: crypto.randomUUID(),
-            // Ensure timePoint objects have correct structure if they exist
             startTime: item.startTime && typeof item.startTime === 'object' && item.startTime !== null && 'hh' in item.startTime && 'mm' in item.startTime && 'period' in item.startTime ? {...item.startTime} as TimePoint : null,
             endTime: item.endTime && typeof item.endTime === 'object' && item.endTime !== null && 'hh' in item.endTime && 'mm' in item.endTime && 'period' in item.endTime ? {...item.endTime} as TimePoint : null,
-            // Validate and format dueDate
             dueDate: item.dueDate && isValid(parseISO(item.dueDate)) ? item.dueDate : null,
-             // Ensure timeSettingType is valid
             timeSettingType: ['not_set', 'all_day', 'am_period', 'pm_period', 'specific_start', 'specific_start_end'].includes(item.timeSettingType as string) ? item.timeSettingType : 'not_set',
         }));
 
@@ -655,6 +638,7 @@ export default function ToDoListPage() {
       }
     };
     reader.readAsText(file);
+    event.target.value = ''; 
   };
 
   const handleImportExcel = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -670,18 +654,14 @@ export default function ToDoListPage() {
         const worksheet = workbook.Sheets[sheetName];
         const json: any[] = XLSX.utils.sheet_to_json(worksheet);
 
-         // TODO: Parse the 'json' array into ToDoListItem format, handle headers/comments, validate data, and update state
         const importedItems: ToDoListItem[] = [];
 
-        // Assuming the first row after potential comments/headers is the actual data start
-        // Need to find the row that contains the actual data headers
         let dataStartIndex = -1;
         if (json.length > 0) {
            const firstRowKeys = Object.keys(json[0]).map(key => key.trim().toLowerCase());
            if (firstRowKeys.includes('text') && firstRowKeys.includes('completed')) {
-              dataStartIndex = 0; // Assuming no header row or header is first row
+              dataStartIndex = 0; 
            } else {
-              // Attempt to find a header row by looking for 'text' and 'completed'
               for (let i = 0; i < json.length; i++) {
                  const rowKeys = Object.keys(json[i]).map(key => key.trim().toLowerCase());
                  if (rowKeys.includes('text') && rowKeys.includes('completed')) {
@@ -697,17 +677,12 @@ export default function ToDoListPage() {
             return;
         }
 
-         // Start processing from the identified data start row
         for (let i = dataStartIndex; i < json.length; i++) {
              const row = json[i];
-
-            // Map Excel row data to ToDoListItem structure
-            // Ensure column names match those used in sheet_to_json (can vary based on header row)
             const text = row.text || '';
             const completed = String(row.completed || '').toLowerCase() === 'true';
             const timeSettingType = ['not_set', 'all_day', 'am_period', 'pm_period', 'specific_start', 'specific_start_end'].includes(row.timeSettingType as string) ? row.timeSettingType : 'not_set';
 
-            // Attempt to parse time strings, handling potential errors
             let startTime: TimePoint | null = null;
             if (row.startTime) {
                const parsedTime = parse(String(row.startTime), 'hh:mm a', new Date());
@@ -728,20 +703,17 @@ export default function ToDoListPage() {
                }
             }
 
-             // Attempt to parse dueDate string, handling potential errors and different formats
             let dueDate: string | null = null;
             if (row.dueDate) {
                 let dateCandidate = String(row.dueDate);
-                let parsedDate = parseISO(dateCandidate); // Try ISO format first
+                let parsedDate = parseISO(dateCandidate); 
                 if (!isValid(parsedDate)) {
-                    // If not ISO, try dd/MM/yyyy or MM/dd/yyyy (common Excel date formats)
                     parsedDate = parse(dateCandidate, 'dd/MM/yyyy', new Date());
                      if (!isValid(parsedDate)) {
                        parsedDate = parse(dateCandidate, 'MM/dd/yyyy', new Date());
                      }
-                     // Excel might store dates as numbers (days since 1900)
                     if (!isValid(parsedDate) && typeof row.dueDate === 'number') {
-                       const excelEpoch = new Date(Date.UTC(1899, 11, 30)); // Excel epoch is Dec 30, 1899
+                       const excelEpoch = new Date(Date.UTC(1899, 11, 30)); 
                        parsedDate = new Date(excelEpoch.getTime() + row.dueDate * 24 * 60 * 60 * 1000);
                     }
                 }
@@ -752,10 +724,9 @@ export default function ToDoListPage() {
                 }
             }
 
-            // Add item to the list if it has a text value
             if (text.trim()) {
                 importedItems.push({
-                    id: crypto.randomUUID(), // Generate new IDs on import
+                    id: crypto.randomUUID(), 
                     text: text.trim(),
                     completed: completed,
                     timeSettingType: timeSettingType as TimeSettingType,
@@ -779,6 +750,7 @@ export default function ToDoListPage() {
       }
     };
     reader.readAsBinaryString(file);
+    event.target.value = ''; 
   };
 
   const handleImportText = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -789,14 +761,14 @@ export default function ToDoListPage() {
     reader.onload = (e) => {
       try {
         const textContent = e.target?.result as string;
-        // TODO: Implement text parsing logic into ToDoListItem[]
-         console.log("Imported Text Data:", textContent); // Log data for debugging
-        toast({ title: "Import Failed", description: "Text import is not yet implemented.", variant: "default" }); // Placeholder toast
+         console.log("Imported Text Data:", textContent); 
+        toast({ title: "Import Failed", description: "Text import is not yet implemented.", variant: "default" }); 
       } catch (error) {
         toast({ title: "Import Failed", description: "Could not process text file.", variant: "destructive" });
       }
     };
     reader.readAsText(file);
+    event.target.value = ''; 
   };
 
 
@@ -910,8 +882,8 @@ export default function ToDoListPage() {
       if (event.error === 'aborted') {
         console.info('Task input speech recognition aborted:', event.message);
       } else if (event.error === 'no-speech') {
-        console.warn('Task input speech recognition: No speech detected.', event.message);
-        if (isListeningForTaskInput) { // Only toast if user was actively dictating
+        // console.warn('Task input speech recognition: No speech detected.', event.message); // Reduced console noise
+        if (isListeningForTaskInput) { 
           toast({ title: "No speech detected", variant: "default" });
         }
       } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
@@ -930,7 +902,7 @@ export default function ToDoListPage() {
         clearTimeout(pauseTaskTimeoutRef.current);
       }
       recognitionTaskRef.current = null; 
-      pageWakeWordListenerShouldBeActive.current = true; 
+      // pageWakeWordListenerShouldBeActive.current = true; // Removed
     };
     
     setNewItemText('');
@@ -974,76 +946,15 @@ export default function ToDoListPage() {
     }
     
     if (currentPermission === 'granted') {
-      pageWakeWordListenerShouldBeActive.current = false; 
-      if (pageWakeWordRecognitionRef.current?.stop) {
-         try { pageWakeWordRecognitionRef.current.stop(); } catch(e) {/* ignore */}
-      }
+      // pageWakeWordListenerShouldBeActive.current = false; // Removed
+      // if (pageWakeWordRecognitionRef.current?.stop) { // Removed
+      //    try { pageWakeWordRecognitionRef.current.stop(); } catch(e) {/* ignore */} // Removed
+      // } // Removed
       startTaskInputRecognition();
     }
   }, [isListeningForTaskInput, taskInputMicPermission, startTaskInputRecognition, toast]);
 
-  useEffect(() => {
-    const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognitionAPI || pageWakeWordMicPermission !== 'granted' || isListeningForTaskInput || !pageWakeWordListenerShouldBeActive.current) {
-      if (pageWakeWordRecognitionRef.current?.stop) {
-        try { pageWakeWordRecognitionRef.current.stop(); } catch(e) {/* ignore */}
-      }
-      return;
-    }
-
-    if (!pageWakeWordRecognitionRef.current) {
-      const pageRecognition = new SpeechRecognitionAPI();
-      pageWakeWordRecognitionRef.current = pageRecognition;
-      pageRecognition.continuous = true; 
-      pageRecognition.interimResults = false; 
-      pageRecognition.lang = 'en-US';
-
-      pageRecognition.onstart = () => setIsListeningForPageWakeWord(true);
-      pageRecognition.onresult = (event: SpeechRecognitionEvent) => {
-        const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
-         const detectedWakeWord = transcript === WAKE_WORDS.HEGGLES_BASE.toLowerCase() 
-          ? WAKE_WORDS.HEGGLES_BASE 
-          : null; 
-
-        if (detectedWakeWord) {
-          toast({ title: `'${detectedWakeWord.charAt(0).toUpperCase() + detectedWakeWord.slice(1)}' Detected`, description: "Activating task input microphone..." });
-          pageWakeWordListenerShouldBeActive.current = false;
-          if (pageWakeWordRecognitionRef.current?.stop) { 
-            try { pageWakeWordRecognitionRef.current.stop(); } catch(e) {/* ignore */}
-          }
-          triggerTaskInputMic(); 
-        }
-      };
-      pageRecognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-        console.warn('Page Wake Word recognition error:', event.error, event.message);
-        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-            setPageWakeWordMicPermission('denied');
-        } else if (event.error === 'no-speech' && isListeningForPageWakeWord) {
-        }
-      };
-      pageRecognition.onend = () => {
-        setIsListeningForPageWakeWord(false); 
-        pageWakeWordRecognitionRef.current = null; 
-      };
-      
-      try {
-        if (pageWakeWordListenerShouldBeActive.current) pageRecognition.start();
-      } catch (e) {
-        console.error("Failed to start page Wake Word recognition:", e);
-        setIsListeningForPageWakeWord(false);
-        pageWakeWordRecognitionRef.current = null;
-      }
-    }
-    
-    return () => { 
-      if (pageWakeWordRecognitionRef.current?.stop) {
-         try { pageWakeWordRecognitionRef.current.stop(); } catch(e) {/* ignore */}
-      }
-      pageWakeWordRecognitionRef.current = null;
-      setIsListeningForPageWakeWord(false);
-    };
-  }, [pageWakeWordMicPermission, isListeningForTaskInput, triggerTaskInputMic, toast, isListeningForPageWakeWord]);
-
+  // Removed page-level wake word listener useEffect
 
   if (!isClient) {
     return (
@@ -1068,7 +979,7 @@ export default function ToDoListPage() {
   };
 
   const taskMicButtonDisabled = taskInputMicPermission === 'unsupported' || taskInputMicPermission === 'denied';
-  const pageWakeWordStatusText = isListeningForPageWakeWord ? "Listening for 'Heggles'..." : (pageWakeWordMicPermission === 'granted' && pageWakeWordListenerShouldBeActive.current ? "Say 'Heggles' to activate input" : "Page Wake Word listener off");
+  // const pageWakeWordStatusText = isListeningForPageWakeWord ? "Listening for 'Heggles' or 'Quartermaster'..." : (pageWakeWordMicPermission === 'granted' && pageWakeWordListenerShouldBeActive.current ? "Say 'Heggles' or 'Quartermaster' to activate input" : "Page Wake Word listener off"); // Removed
 
 
   return (
@@ -1078,12 +989,10 @@ export default function ToDoListPage() {
           <ClipboardList className="h-10 w-10 text-primary" />
           <h1 className="text-3xl font-bold tracking-tight">To-Do List</h1>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-            <p className="text-xs text-muted-foreground flex-grow sm:flex-grow-0 text-right sm:text-left">
-                {pageWakeWordMicPermission === 'granted' && !isListeningForTaskInput ? pageWakeWordStatusText : ""}
-            </p>
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-center sm:justify-end mt-2 sm:mt-0">
+            {/* Removed pageWakeWordStatusText display */}
             <Select value={sortOrder} onValueChange={setSortOrder}>
-                <SelectTrigger className="w-full sm:w-[200px]" aria-label="Sort tasks by">
+                <SelectTrigger className="w-full xs:w-[180px] sm:w-[200px]" aria-label="Sort tasks by">
                 <SelectValue placeholder="Sort by..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -1095,49 +1004,51 @@ export default function ToDoListPage() {
                 <SelectItem value="alphaDesc">Alphabetical (Z-A)</SelectItem>
                 </SelectContent>
             </Select>
-             <Select value={exportFormat} onValueChange={setExportFormat}>
-                <SelectTrigger className="w-[120px] h-8" aria-label="Export format">
+            <div className="flex gap-1">
+             <Select value={exportFormat} onValueChange={(value) => setExportFormat(value as DataFormat)}>
+                <SelectTrigger className="w-[100px] xs:w-[110px] h-9" aria-label="Export format">
                    <SelectValue placeholder="Export As..." />
                 </SelectTrigger>
                  <SelectContent>
                    <SelectItem value="csv">CSV</SelectItem>
                    <SelectItem value="json">JSON</SelectItem>
                     <SelectItem value="excel">Excel</SelectItem>
-                   <SelectItem value="text">Text (WIP)</SelectItem>
+                   <SelectItem value="text">Text</SelectItem>
                 </SelectContent>
-                <Button variant="outline" onClick={handleExportList} size="sm" className="ml-2">Export List</Button>
-            </Select>
+              </Select>
+              <Button variant="outline" onClick={handleExportList} size="sm" className="h-9">Export</Button>
+            </div>
+            <Button variant="outline" onClick={handleExportTemplate} size="sm" className="h-9">Template</Button>
 
-            <Button variant="outline" onClick={handleExportTemplate} size="sm">Export Template</Button>
-
-             <Select value={importFormat} onValueChange={setImportFormat}>
-                <SelectTrigger className="w-[120px] h-8" aria-label="Import format">
+            <div className="flex gap-1">
+             <Select value={importFormat} onValueChange={(value) => setImportFormat(value as DataFormat)}>
+                <SelectTrigger className="w-[100px] xs:w-[110px] h-9" aria-label="Import format">
                    <SelectValue placeholder="Import From..." />
                 </SelectTrigger>
                  <SelectContent>
                    <SelectItem value="csv">CSV</SelectItem>
                    <SelectItem value="json">JSON</SelectItem>
-                   <SelectItem value="excel">Excel (WIP)</SelectItem>
-                   <SelectItem value="text">Text (WIP)</SelectItem>
+                   <SelectItem value="excel">Excel</SelectItem>
+                   <SelectItem value="text">Text</SelectItem>
                 </SelectContent>
             </Select>
-            <Button variant="outline" size="sm"> 
-                <Label htmlFor="import-todo-list" className="cursor-pointer" asChild>Import List</Label>
+            <Button variant="outline" size="sm" className="relative h-9"> 
+                <Label htmlFor="import-todo-list" className="cursor-pointer absolute inset-0 flex items-center justify-center px-3">Import</Label>
                  <Input
                     id="import-todo-list"
                     type="file"
-                    accept={importFormat === 'json' ? '.json' : importFormat === 'csv' ? '.csv' : importFormat === 'excel' ? '.xlsx' : importFormat === 'text' ? '.txt' : ''}
+                    accept={importFormat === 'json' ? '.json' : importFormat === 'csv' ? '.csv' : importFormat === 'excel' ? '.xlsx,.xls' : importFormat === 'text' ? '.txt' : ''}
                     className="hidden"
                     onChange={(e) => {
                        if (importFormat === 'json') handleImportJSON(e);
                        else if (importFormat === 'csv') handleImportCSV(e);
                        else if (importFormat === 'excel') handleImportExcel(e);
                        else if (importFormat === 'text') handleImportText(e);
-                       // Clear the file input value so the same file can be imported again if needed
                        e.target.value = ''; 
                     }}
                  />
            </Button>
+           </div>
         </div>
       </div>
 
@@ -1158,14 +1069,15 @@ export default function ToDoListPage() {
             <Button
               type="button"
               variant="outline"
-              size="icon"
+              size="lg" // Made larger
+              className="p-2" // Adjusted padding
               onClick={triggerTaskInputMic}
               disabled={taskMicButtonDisabled && taskInputMicPermission !== 'prompt'}
               title={taskMicButtonDisabled && taskInputMicPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForTaskInput ? "Stop voice input (or say 'Heggles end')" : "Add task using voice")}
               aria-label="Add task using voice"
             >
-              {isListeningForTaskInput ? <Mic className="h-5 w-5 text-primary animate-pulse" /> :
-               (taskMicButtonDisabled ? <MicOff className="h-5 w-5 text-muted-foreground" /> : <Mic className="h-5 w-5" />)}
+              {isListeningForTaskInput ? <Mic className="h-6 w-6 text-primary animate-pulse" /> : // Made icon larger
+               (taskMicButtonDisabled ? <MicOff className="h-6 w-6 text-muted-foreground" /> : <Mic className="h-6 w-6" />)}
             </Button>
             <Button type="submit" aria-label="Add task" className="px-3 sm:px-4">
               <PlusCircle className="mr-0 sm:mr-2 h-5 w-5" />
@@ -1364,5 +1276,3 @@ export default function ToDoListPage() {
     </div>
   );
 }
-
-    

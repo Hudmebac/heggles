@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
 import { Button } from '@/components/ui/button';
-import { BrainCircuit, ListChecks, ClipboardList, Settings } from 'lucide-react';
+import { BrainCircuit, ListChecks, ClipboardList } from 'lucide-react'; // Removed Settings icon
 
 export function Header() {
   return (
@@ -31,12 +31,7 @@ export function Header() {
               <span className="hidden sm:inline">To-Do List</span>
             </Link>
           </Button>
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/settings" title="Settings">
-              <Settings className="h-5 w-5" />
-              <span className="sr-only">Settings</span>
-            </Link>
-          </Button>
+          {/* Settings button removed */}
           <ThemeSwitcher />
         </nav>
       </div>

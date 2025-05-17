@@ -1,57 +1,46 @@
 
 // src/lib/constants.ts
 
-export const BUFFER_TIME_OPTIONS = [
-  { value: '1', label: '1 Minute' },
-  { value: '5', label: '5 Minutes' },
-  { value: '15', label: '15 Minutes' },
-  { value: '30', label: '30 Minutes' },
-  { value: 'continuous', label: 'Always On (Continuous)' },
-] as const;
-
-export type BufferTimeValue = typeof BUFFER_TIME_OPTIONS[number]['value'];
-
-export const DEFAULT_BUFFER_TIME: BufferTimeValue = '5';
+// Buffer time constants are removed as the feature is being removed.
 
 export const LOCALSTORAGE_KEYS = {
   RECALLED_THOUGHTS: 'hegsync-recalled-thoughts',
   MEMORY_VAULT: 'hegsync-memory-vault',
-  BUFFER_TIME: 'hegsync-buffer-time',
+  // BUFFER_TIME: 'hegsync-buffer-time', // Removed
   SHOPPING_LIST: 'hegsync-shopping-list',
   TODO_LIST: 'hegsync-todo-list',
-  THEME: 'hegsync-theme',
+  THEME: 'hegsync-theme', // Renamed from hegsync-theme
 };
 
 export const WAKE_WORDS = {
-  HEGGLES_BASE: "heggles", // Primary wake word
+  HEGGLES_BASE: "heggles", // Primary wake word, kept for list additions if parsed from text
 
-  // For UI display suffix generation in PassiveListenerControls
-  HEGGLES_REPLAY_THAT: "heggles replay that",
-  HEGGLES_ADD_TO_SHOPPING_LIST_PREFIX: "heggles add", // Used by PassiveListenerControls for suffix, actual command is longer
-  HEGGLES_ADD_TO_TODO_LIST_PREFIX: "heggles add",   // Used by PassiveListenerControls for suffix, actual command is longer
-  HEGGLES_SET_BUFFER: "heggles set buffer",
-  HEGGLES_TURN_OFF: "heggles turn off",
-  HEGGLES_TURN_ON: "heggles turn on",
-  DELETE_ITEM_PREFIX: "heggles delete", // Used by PassiveListenerControls for suffix
+  // Dashboard specific wake words removed
+  // HEGGLES_REPLAY_THAT: "heggles replay that",
+  // HEGGLES_SET_BUFFER: "heggles set buffer",
+  // HEGGLES_TURN_OFF: "heggles turn off",
+  // HEGGLES_TURN_ON: "heggles turn on",
 
-  // Full commands or critical parts for parsing in ThoughtInputForm
-  // HEGGLES_REPLAY_THAT is already defined above
-
-  // For parsing "add X to Y list" in ThoughtInputForm
-  ADD_TO_SHOPPING_LIST_FULL_PREFIX_REGEX_PART: "add", // "heggles add " is the full prefix
+  // For parsing "add X to Y list" in ThoughtInputForm if text is typed/pasted
+  ADD_TO_SHOPPING_LIST_FULL_PREFIX_REGEX_PART: "add",
   TO_SHOPPING_LIST_SUFFIX_REGEX_PART: "to my shopping list",
-  ADD_TO_TODO_LIST_FULL_PREFIX_REGEX_PART: "add", // "heggles add " is the full prefix
+  ADD_TO_TODO_LIST_FULL_PREFIX_REGEX_PART: "add",
   TO_TODO_LIST_SUFFIX_REGEX_PART: "to my to do list",
   
-  // For parsing "delete X from Y list" in ThoughtInputForm
-  // DELETE_ITEM_PREFIX is already defined above
+  // For parsing "delete X from Y list" if text is typed/pasted
+  DELETE_ITEM_PREFIX: "heggles delete",
   FROM_SHOPPING_LIST_TRIGGER: "from my shopping list",
   FROM_TODO_LIST_TRIGGER: "from my to do list",
   ITEM_NUMBER_PREFIX: "item number ",
 
-  // Dictation control
+  // Dictation control for inline mics on list pages
   END_DICTATION: "heggles end",
   STOP_DICTATION: "heggles stop",
+
+  // Specific command phrases for parsing text input
+  ADD_TO_SHOPPING_LIST_COMMAND_START: "heggles add", // Used for parsing input text
+  ADD_TO_TODO_LIST_COMMAND_START: "heggles add", // Used for parsing input text
 };
 
-export const RECORDING_DURATION_MS = 10000; // 10 seconds for audio snippet
+// RECORDING_DURATION_MS is removed as "replay that" with fixed 10s is removed.
+// Continuous recording has its own start/stop.
