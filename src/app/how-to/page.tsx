@@ -32,9 +32,9 @@ export default function HowToPage() {
             <div>
               <h4 className="font-semibold text-foreground mb-1">Continuous Recording (Header Microphone):</h4>
               <ul className="list-disc pl-5 space-y-1">
-                <li>Click the <Mic className="inline-block h-4 w-4 mx-0.5" /> icon in the header to start continuous voice recording.</li>
-                <li>The icon will change to a pulsing <Radio className="inline-block h-4 w-4 mx-0.5 text-red-500" />.</li>
-                <li>Speak your thoughts. When you're done, click the <Radio className="inline-block h-4 w-4 mx-0.5 text-red-500" /> icon again to stop.</li>
+                <li>Click the <Mic className="inline-block h-4 w-4 mx-0.5 align-middle" /> icon in the header to start continuous voice recording.</li>
+                <li>The icon will change to a pulsing <Radio className="inline-block h-4 w-4 mx-0.5 align-middle text-red-500" />.</li>
+                <li>Speak your thoughts. When you're done, click the <Radio className="inline-block h-4 w-4 mx-0.5 align-middle text-red-500" /> icon again to stop.</li>
                 <li>Your transcribed speech will appear in the "Input & Recall" text area.</li>
               </ul>
             </div>
@@ -42,7 +42,7 @@ export default function HowToPage() {
               <h4 className="font-semibold text-foreground mb-1">Text Input & Processing:</h4>
               <ul className="list-disc pl-5 space-y-1">
                 <li>You can directly type or paste text into the "Input & Recall" text area.</li>
-                <li>Once your text (either typed or from continuous recording) is in the text area, click the <Brain className="inline-block h-4 w-4 mx-0.5" /> icon button.</li>
+                <li>Once your text (either typed or from continuous recording) is in the text area, click the <Brain className="inline-block h-4 w-4 mx-0.5 align-middle" /> icon button.</li>
                 <li>Heggles will process this text:
                   <ul className="list-circle pl-5 space-y-0.5 mt-1">
                     <li>If it recognizes a command (see "Text Commands" below), it will ask for confirmation and then perform the action.</li>
@@ -56,8 +56,8 @@ export default function HowToPage() {
               <ul className="list-disc pl-5 space-y-1">
                 <li>Processed thoughts appear here.</li>
                 <li>Each thought card shows the original text, AI summary, keywords, and any AI-identified actions or answers.</li>
-                <li><Pin className="inline-block h-4 w-4 mx-0.5" />: Pin a thought to save it to your Memory Vault.</li>
-                <li><Sparkles className="inline-block h-4 w-4 mx-0.5" />: Clarify a thought with AI to refine its transcript and identify action items.</li>
+                <li><Pin className="inline-block h-4 w-4 mx-0.5 align-middle" />: Pin a thought to save it to your Memory Vault.</li>
+                <li><Sparkles className="inline-block h-4 w-4 mx-0.5 align-middle" />: Clarify a thought with AI to refine its transcript and identify action items.</li>
                 <li>You can delete thoughts from this list.</li>
               </ul>
             </div>
@@ -65,9 +65,15 @@ export default function HowToPage() {
         </AccordionItem>
 
         <AccordionItem value="item-2">
-          <AccordionTrigger className="text-xl font-semibold">Key Text Commands (for the Brain <Brain className="inline-block h-4 w-4 mx-0.5" /> Button)</AccordionTrigger>
+          <AccordionTrigger className="text-xl font-semibold">
+            <span className="flex items-center">
+              Key Text Commands (for the Brain
+              <Brain className="h-5 w-5 mx-1.5" />
+              Button)
+            </span>
+          </AccordionTrigger>
           <AccordionContent className="space-y-2 pt-2 text-muted-foreground">
-            <p>Type these commands into the "Input & Recall" text area (or get them there via continuous recording) and then click the <Brain className="inline-block h-4 w-4 mx-0.5" /> button.</p>
+            <p>Type these commands into the "Input & Recall" text area (or get them there via continuous recording) and then click the <Brain className="inline-block h-4 w-4 mx-0.5 align-middle" /> button.</p>
             <ul className="list-disc pl-5 space-y-1">
               <li><code>heggles add [item name] to my shopping list</code> - Adds the item to your shopping list (will ask for confirmation).</li>
               <li><code>heggles add [task name] to my to do list</code> - Adds the task to your to-do list (will ask for confirmation).</li>
@@ -84,14 +90,22 @@ export default function HowToPage() {
         </AccordionItem>
 
         <AccordionItem value="item-3">
-          <AccordionTrigger className="text-xl font-semibold">List Management (<ListChecks className="inline-block h-5 w-5 mx-0.5" /> Shopping & <ClipboardList className="inline-block h-5 w-5 mx-0.5" /> To-Do)</AccordionTrigger>
+          <AccordionTrigger className="text-xl font-semibold">
+            <span className="flex items-center">
+              List Management (
+              <ListChecks className="h-5 w-5 mx-1.5" />
+              Shopping &amp;
+              <ClipboardList className="h-5 w-5 mx-1.5" />
+              To-Do)
+            </span>
+          </AccordionTrigger>
           <AccordionContent className="space-y-4 pt-2 text-muted-foreground">
             <p>Access these lists from the header.</p>
             <div>
               <h4 className="font-semibold text-foreground mb-1">Common Features:</h4>
               <ul className="list-disc pl-5 space-y-1">
                 <li>Add items manually using the input field.</li>
-                <li>Use the <Mic className="inline-block h-4 w-4 mx-0.5" /> icon next to the input field for voice dictation to fill the field. Say "Heggles end" or "Heggles stop" to finish dictation, or pause for 2 seconds.</li>
+                <li>Use the <Mic className="inline-block h-4 w-4 mx-0.5 align-middle" /> icon next to the input field for voice dictation to fill the field. Say "Heggles end" or "Heggles stop" to finish dictation, or pause for 2 seconds.</li>
                 <li>Mark items as complete.</li>
                 <li>Edit item text.</li>
                 <li>Delete items.</li>
@@ -111,7 +125,12 @@ export default function HowToPage() {
         </AccordionItem>
 
         <AccordionItem value="item-4">
-          <AccordionTrigger className="text-xl font-semibold">Memory Vault (<Archive className="inline-block h-5 w-5 mx-0.5" />)</AccordionTrigger>
+          <AccordionTrigger className="text-xl font-semibold">
+            <span className="flex items-center">
+              Memory Vault (
+              <Archive className="h-5 w-5 mx-1.5" />)
+            </span>
+          </AccordionTrigger>
           <AccordionContent className="space-y-2 pt-2 text-muted-foreground">
             <p>The Memory Vault stores thoughts you've pinned for long-term recall.</p>
             <ul className="list-disc pl-5 space-y-1">
@@ -130,10 +149,10 @@ export default function HowToPage() {
             <p>Heggles uses AI to enhance your thoughts:</p>
             <ul className="list-disc pl-5 space-y-1">
                 <li><strong>Summarization & Keywords:</strong> Automatically generated for processed thoughts.</li>
-                <li><strong>Refinement:</strong> The "Clarify" option (<Sparkles className="inline-block h-4 w-4 mx-0.5" />) refines transcripts and extracts potential action items.</li>
+                <li><strong>Refinement:</strong> The "Clarify" option (<Sparkles className="inline-block h-4 w-4 mx-0.5 align-middle" />) refines transcripts and extracts potential action items.</li>
                 <li><strong>Intent Analysis:</strong> The AI tries to understand if your thought is a question or implies an action.
                     <ul className="list-circle pl-5 space-y-0.5 mt-1">
-                        <li>If it's a question, the AI attempts to answer it (answer displayed in the thought card with a <Volume2 className="inline-block h-4 w-4 mx-0.5" /> play button).</li>
+                        <li>If it's a question, the AI attempts to answer it (answer displayed in the thought card with a <Volume2 className="inline-block h-4 w-4 mx-0.5 align-middle" /> play button).</li>
                         <li>If it suggests an action for a list, you'll be prompted to confirm adding it.</li>
                     </ul>
                 </li>
