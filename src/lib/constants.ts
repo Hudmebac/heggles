@@ -18,6 +18,7 @@ export const LOCALSTORAGE_KEYS = {
   MEMORY_VAULT: 'hegsync-memory-vault',
   BUFFER_TIME: 'hegsync-buffer-time',
   SHOPPING_LIST: 'hegsync-shopping-list',
+  TODO_LIST: 'hegsync-todo-list', // Added new key
   THEME: 'hegsync-theme',
 };
 

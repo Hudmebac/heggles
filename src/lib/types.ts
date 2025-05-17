@@ -21,3 +21,9 @@ export interface ShoppingListItem {
   text: string;
   completed: boolean;
 }
+
+export interface ToDoListItem {
+  id: string;
+  text: string;
+  completed: boolean;
+}

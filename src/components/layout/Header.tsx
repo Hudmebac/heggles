@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
 import { Button } from '@/components/ui/button';
-import { BrainCircuit, ListChecks } from 'lucide-react';
+import { BrainCircuit, ListChecks, ClipboardList } from 'lucide-react';
 
 export function Header() {
   return (
@@ -12,7 +12,7 @@ export function Header() {
           <BrainCircuit className="h-7 w-7 text-primary" />
           HegSync
         </Link>
-        <nav className="flex items-center gap-2 sm:gap-4">
+        <nav className="flex items-center gap-1 sm:gap-2">
           <Button variant="ghost" asChild>
             <Link href="/">Dashboard</Link>
           </Button>
@@ -23,6 +23,12 @@ export function Header() {
             <Link href="/shopping-list" className="flex items-center">
               <ListChecks className="h-5 w-5 sm:mr-2" />
               <span className="hidden sm:inline">Shopping List</span>
+            </Link>
+          </Button>
+          <Button variant="ghost" asChild>
+            <Link href="/to-do-list" className="flex items-center">
+              <ClipboardList className="h-5 w-5 sm:mr-2" />
+              <span className="hidden sm:inline">To-Do List</span>
             </Link>
           </Button>
           <ThemeSwitcher />
