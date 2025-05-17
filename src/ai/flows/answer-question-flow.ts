@@ -10,6 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import {performWebSearchTool} from '@/ai/tools/search-tool';
 
 const AnswerQuestionInputSchema = z.object({
   question: z.string().describe('The question to be answered.'),
@@ -29,11 +30,22 @@ const prompt = ai.definePrompt({
   name: 'answerQuestionPrompt',
   input: {schema: AnswerQuestionInputSchema},
   output: {schema: AnswerQuestionOutputSchema},
-  prompt: `You are a knowledgeable and helpful AI assistant. Your goal is to provide a concise and accurate answer to the following question.
-If the question is subjective, unanswerable, or outside your capabilities, politely state that you cannot provide an answer.
+  tools: [performWebSearchTool],
+  prompt: `You are a knowledgeable and helpful AI assistant. Your primary goal is to provide a concise and accurate answer to the following question based on your internal knowledge.
 
 Question: {{{question}}}
 
+First, try to answer the question using your own knowledge.
+If, and only if, you determine that your internal knowledge is insufficient to provide a satisfactory answer (e.g., the question is about very recent events, specific real-time data, or obscure facts you might not know), then you may use the 'performWebSearchTool' to gather external information.
+
+If you use the web search tool:
+- Clearly indicate if the search results were helpful or not.
+- Synthesize the information from the search results to answer the question.
+- If the search results are inconclusive or do not provide an answer, state that.
+
+If you cannot answer the question even after considering a web search, politely state that you cannot provide an answer.
+
+Provide only the answer text.
 Answer:
 `,
 });
