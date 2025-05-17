@@ -25,19 +25,18 @@ import {
   LOCALSTORAGE_KEYS,
   BUFFER_TIME_OPTIONS,
   DEFAULT_BUFFER_TIME,
-  // RECORDING_DURATION_MS, // No longer used for fixed duration recording by this component's mic button
+  RECORDING_DURATION_MS,
 } from '@/lib/constants';
 
 interface ThoughtInputFormProps {
   onThoughtRecalled: (thought: Thought) => void;
-  isListening: boolean;
+  isListening: boolean; // Main passive listening toggle from parent
   onToggleListeningParent: (isListening: boolean) => void;
-  isExternallyLongRecording: boolean; // From page.tsx for continuous recording
-  onStopLongRecordingParent: () => void; // From page.tsx
+  isExternallyLongRecording: boolean;
+  onStopLongRecordingParent: () => void;
 }
 
 export interface ThoughtInputFormHandle {
-  // Methods for continuous recording (controlled by page.tsx)
   startLongRecording: () => boolean;
   stopLongRecordingAndProcess: () => void;
 }
@@ -50,28 +49,25 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
 
   // Main command listener (Heggles wake word etc.)
   const [hasMicPermission, setHasMicPermission] = useState<boolean | null>(null);
-  const [isRecognizingSpeech, setIsRecognizingSpeech] = useState(false);
+  const [isRecognizingSpeech, setIsRecognizingSpeech] = useState(false); // For UI feedback of main listener
   const [isBrowserUnsupported, setIsBrowserUnsupported] = useState(false);
-  const [partialWakeWordDetected, setPartialWakeWordDetected] = useState(false);
+  const [partialWakeWordDetected, setPartialWakeWordDetected] = useState(false); // True if "Heggles" detected in current utterance
   const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const utteranceTranscriptRef = useRef<string>('');
-  const commandProcessedSuccessfullyRef = useRef<boolean>(false);
-
+  const utteranceTranscriptRef = useRef<string>(''); // Accumulates full utterance for main listener
+  const commandProcessedSuccessfullyRef = useRef<boolean>(false); // Helps onend decide to clear utterance
 
   // Dashboard manual dictation (for the text area via dedicated mic button)
   const [isDashboardDictationActive, setIsDashboardDictationActive] = useState(false);
   const dashboardDictationRecognitionRef = useRef<SpeechRecognition | null>(null);
   const dashboardDictationPauseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const dashboardDictationAccumulatedTranscriptRef = useRef<string>('');
+  const dashboardDictationAccumulatedTranscriptRef = useRef<string>(''); // For text from dashboard dictation mic
 
-
-  // Continuous "Long" Recording refs & state (triggered by page.tsx's button)
-  const [isActivelyLongRecordingInternal, setIsActivelyLongRecordingInternal] = useState(false);
-  const longRecordingMediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const longRecordingSpeechRecognizerRef = useRef<SpeechRecognition | null>(null);
-  const longRecordingTranscriptRef = useRef<string>('');
-  const longRecordingAudioChunksRef = useRef<Blob[]>([]);
-
+  // Continuous "Long" Recording (triggered by page.tsx's button) & "Heggles replay that" snippet
+  const [isCapturingAudio, setIsCapturingAudio] = useState(false); // True if MediaRecorder is active
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const snippetRecognitionRef = useRef<SpeechRecognition | null>(null); // For transcribing the 10s snippet
+  const snippetTranscriptRef = useRef<string>(''); // Transcript from the 10s snippet
+  const audioChunksRef = useRef<Blob[]>([]);
 
   // AlertDialog state
   const [isAlertDialogOpen, setIsAlertDialogOpen] = useState(false);
@@ -84,10 +80,175 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
     onConfirm: () => void;
   } | null>(null);
 
-  // Imperative handle for parent (page.tsx) to control long recording
+  const parseSpokenBufferTime = useCallback((spokenDuration: string): BufferTimeValue | null => {
+    const cleanedSpoken = spokenDuration.toLowerCase().trim();
+    if (cleanedSpoken.includes('always on') || cleanedSpoken.includes('continuous')) return 'continuous';
+    for (const option of BUFFER_TIME_OPTIONS) {
+      if (option.value !== 'continuous') {
+        const labelMatchValue = option.label.toLowerCase().match(/^(\d+)\s*minute/);
+        if (labelMatchValue && labelMatchValue[1]) {
+            const numericLabelValue = labelMatchValue[1];
+            if (cleanedSpoken.startsWith(numericLabelValue) && (cleanedSpoken.includes("minute") || cleanedSpoken.includes("min"))) {
+                return option.value;
+            }
+        }
+        if (cleanedSpoken === option.value || cleanedSpoken === option.label.toLowerCase().replace(/\s*minute(s)?/, '')) return option.value;
+      }
+    }
+    const generalMinuteMatch = cleanedSpoken.match(/^(\d+)\s*(minute|min)s?$/);
+    if (generalMinuteMatch && generalMinuteMatch[1]) {
+      const numericValue = generalMinuteMatch[1];
+      const foundOption = BUFFER_TIME_OPTIONS.find(opt => opt.value === numericValue);
+      if (foundOption) return foundOption.value;
+    }
+    return null;
+  }, []);
+
+  const setBufferTimeByVoice = useCallback((spokenDuration: string) => {
+    if (typeof window === 'undefined') return;
+    const parsedValue = parseSpokenBufferTime(spokenDuration);
+    if (parsedValue) {
+      localStorage.setItem(LOCALSTORAGE_KEYS.BUFFER_TIME, JSON.stringify(parsedValue));
+      window.dispatchEvent(new StorageEvent('storage', { key: LOCALSTORAGE_KEYS.BUFFER_TIME, newValue: JSON.stringify(parsedValue) }));
+      const matchedOption = BUFFER_TIME_OPTIONS.find(opt => opt.value === parsedValue);
+      toast({ title: "Buffer Time Set By Voice", description: <>Conceptual buffer time set to <strong>{matchedOption?.label || parsedValue}</strong>.</> });
+    } else {
+      toast({ title: "Buffer Time Not Understood", description: "Please try '1 minute', 'always on', etc.", variant: "default" });
+    }
+    setInputText(''); // Clear the command from input text
+    utteranceTranscriptRef.current = '';
+    setPartialWakeWordDetected(false);
+    commandProcessedSuccessfullyRef.current = true;
+  }, [toast, parseSpokenBufferTime]);
+
+  const startAudioRecording = useCallback(async () => {
+    const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast({ title: "Browser Not Supported", description: "Audio recording or speech recognition not supported.", variant: "destructive" });
+      return false;
+    }
+    if (hasMicPermission !== true) {
+      toast({ title: "Microphone Access Denied", description: "Cannot record audio without microphone permission.", variant: "destructive" });
+      return false;
+    }
+    if (isLoading || isCapturingAudio || isDashboardDictationActive || isExternallyLongRecording) {
+        toast({ title: "System Busy", description: "Another audio process is active.", variant: "default"});
+        return false;
+    }
+
+    // Stop main command listener
+    if (recognitionRef.current) {
+      commandProcessedSuccessfullyRef.current = true; // Ensure it cleans up
+      try { recognitionRef.current.stop(); } catch (e) { console.warn("Error stopping main rec before snippet:", e); }
+    }
+    setIsRecognizingSpeech(false);
+    setPartialWakeWordDetected(false);
+    // utteranceTranscriptRef.current = ''; // Not strictly needed if commandProcessedSuccessfullyRef is true
+
+    setIsCapturingAudio(true);
+    snippetTranscriptRef.current = '';
+    audioChunksRef.current = [];
+    toast({ title: "Recording Audio & Speech...", description: `Capturing for ${RECORDING_DURATION_MS / 1000} seconds.` });
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // Initialize MediaRecorder for audio blob
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+      mediaRecorderRef.current.onstop = async () => {
+        stream.getTracks().forEach(track => track.stop()); // Stop all tracks from this stream
+        
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' }); // Or appropriate MIME type
+        audioChunksRef.current = [];
+        
+        const base64AudioData = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(audioBlob);
+          reader.onloadend = () => resolve(reader.result as string);
+        });
+
+        const liveTranscript = snippetTranscriptRef.current.trim();
+        snippetTranscriptRef.current = ''; // Reset for next use
+
+        setIsLoading(true);
+        try {
+          const processedData = await processRecordedAudio(base64AudioData, liveTranscript);
+          onThoughtRecalled({ id: crypto.randomUUID(), timestamp: Date.now(), ...processedData });
+          toast({ title: "Recorded Snippet Processed", description: "AI analysis complete." });
+        } catch (error) {
+          toast({ title: "Error Processing Recording", description: (error as Error).message, variant: "destructive" });
+        } finally {
+          setIsLoading(false);
+          setIsCapturingAudio(false); 
+        }
+      };
+      mediaRecorderRef.current.start();
+
+      // Initialize SpeechRecognition for live transcription of the snippet
+      snippetRecognitionRef.current = new SpeechRecognitionAPI();
+      const snippetRecognizer = snippetRecognitionRef.current;
+      snippetRecognizer.continuous = true; // Listen throughout the snippet duration
+      snippetRecognizer.interimResults = true;
+      snippetRecognizer.lang = 'en-US';
+      snippetRecognizer.onresult = (event: SpeechRecognitionEvent) => {
+        let interim = "";
+        let finalized = "";
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalized += event.results[i][0].transcript + ' ';
+          } else {
+            interim += event.results[i][0].transcript;
+          }
+        }
+        if (finalized) {
+          snippetTranscriptRef.current = (snippetTranscriptRef.current + finalized).trim();
+        }
+        // Optionally, display interim snippet transcript somewhere if needed for UX
+      };
+      snippetRecognizer.onerror = (event: SpeechRecognitionErrorEvent) => {
+        console.warn('Snippet transcription error:', event.error, event.message);
+        // If STT fails for snippet, it will use whatever was transcribed or empty string
+      };
+      snippetRecognizer.onend = () => {
+        // This onend is for the snippet recognizer. MediaRecorder.onstop handles processing.
+      };
+      snippetRecognizer.start();
+
+      // Stop both after RECORDING_DURATION_MS
+      setTimeout(() => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+          try { mediaRecorderRef.current.stop(); } catch (e) { console.warn("Error stopping media recorder for snippet:", e); }
+        }
+        if (snippetRecognitionRef.current) {
+          try { snippetRecognitionRef.current.stop(); } catch (e) { console.warn("Error stopping snippet recognizer:", e); }
+        }
+        // Note: setIsCapturingAudio(false) is now handled in MediaRecorder's onstop to ensure processing happens
+      }, RECORDING_DURATION_MS);
+      return true;
+
+    } catch (err) {
+      console.error("Error starting audio recording:", err);
+      toast({ title: "Audio Recording Error", description: (err as Error).message, variant: "destructive" });
+      setIsCapturingAudio(false);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+        try { mediaRecorderRef.current.stop(); } catch(e) {/* ignore */}
+      }
+      if (snippetRecognitionRef.current) {
+        try { snippetRecognitionRef.current.stop(); } catch(e) {/* ignore */}
+      }
+      return false;
+    }
+  }, [hasMicPermission, isLoading, isCapturingAudio, isDashboardDictationActive, isExternallyLongRecording, toast, onThoughtRecalled]);
+
+
   useImperativeHandle(ref, () => ({
     startLongRecording: () => {
-      if (!isListening || hasMicPermission !== true || isLoading || isDashboardDictationActive || isActivelyLongRecordingInternal) {
+      if (!isListening || hasMicPermission !== true || isLoading || isDashboardDictationActive || isCapturingAudio) {
         toast({ title: "Cannot Start Continuous Recording", description: "System is busy, passive listening is off, or microphone permission is missing.", variant: "destructive"});
         return false;
       }
@@ -106,19 +267,15 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
       
       const startRecordingFlow = async () => {
         try {
-          if (hasMicPermission !== true) { // Re-check and request if somehow became null
-            const streamPerm = await navigator.mediaDevices.getUserMedia({ audio: true });
-            streamPerm.getTracks().forEach(t => t.stop());
-            setHasMicPermission(true);
-          }
+          setIsCapturingAudio(true); // Use isCapturingAudio for long recording as well
+          snippetTranscriptRef.current = ''; // Re-use for long recording transcript
+          audioChunksRef.current = [];
+          setInputText("Continuous recording active. Speech will populate here when stopped. Click Brain icon to process.");
 
-          setIsActivelyLongRecordingInternal(true);
-          longRecordingTranscriptRef.current = '';
-          longRecordingAudioChunksRef.current = [];
-          setInputText("Continuous recording active. Speak your thoughts. Click Stop to populate input area.");
-
-          longRecordingSpeechRecognizerRef.current = new SpeechRecognitionAPI();
-          const recognizer = longRecordingSpeechRecognizerRef.current;
+          // For long recording, we will use the snippetRecognitionRef for live transcription
+          // and mediaRecorderRef for audio capture (though audio blob isn't directly used for STT here)
+          snippetRecognitionRef.current = new SpeechRecognitionAPI();
+          const recognizer = snippetRecognitionRef.current;
           recognizer.continuous = true;
           recognizer.interimResults = true;
           recognizer.lang = 'en-US';
@@ -133,9 +290,9 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
               }
             }
             if (finalTranscriptForThisResult) {
-              longRecordingTranscriptRef.current = (longRecordingTranscriptRef.current + finalTranscriptForThisResult).trim();
+              snippetTranscriptRef.current = (snippetTranscriptRef.current + finalTranscriptForThisResult).trim();
             }
-            setInputText(longRecordingTranscriptRef.current + (interimTranscript ? (longRecordingTranscriptRef.current ? " " : "") + interimTranscript : ""));
+            setInputText(snippetTranscriptRef.current + (interimTranscript ? (snippetTranscriptRef.current ? " " : "") + interimTranscript : ""));
           };
           recognizer.onerror = (event: SpeechRecognitionErrorEvent) => {
             console.error("Continuous recording speech recognition error:", event.error, event.message);
@@ -143,99 +300,96 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
           };
           recognizer.start();
 
-          // Start MediaRecorder for long recording
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          longRecordingMediaRecorderRef.current = new MediaRecorder(stream);
-          longRecordingMediaRecorderRef.current.ondataavailable = (event) => {
+          mediaRecorderRef.current = new MediaRecorder(stream);
+          mediaRecorderRef.current.ondataavailable = (event) => {
             if (event.data.size > 0) {
-              longRecordingAudioChunksRef.current.push(event.data);
+              audioChunksRef.current.push(event.data);
             }
           };
-          longRecordingMediaRecorderRef.current.onstop = async () => {
-            stream.getTracks().forEach(track => track.stop()); 
-            // const audioBlob = new Blob(longRecordingAudioChunksRef.current, { type: 'audio/webm' });
-            longRecordingAudioChunksRef.current = []; 
-            // const base64AudioData = await new Promise<string>((resolve) => {
-            //     const reader = new FileReader();
-            //     reader.readAsDataURL(audioBlob);
-            //     reader.onloadend = () => resolve(reader.result as string);
-            // });
-            
-            // For this flow, we only care about the transcript for the input text area.
-            // Audio data is conceptual or for future playback features if needed.
-            setInputText(longRecordingTranscriptRef.current.trim()); 
+          mediaRecorderRef.current.onstop = async () => { // This is for the LONG recording's media recorder
+            stream.getTracks().forEach(track => track.stop());
+            audioChunksRef.current = []; // Don't need the blob for this flow's STT
+            setInputText(snippetTranscriptRef.current.trim()); // Populate input with transcript
             // User then clicks Brain icon.
+            snippetTranscriptRef.current = ''; // Reset for next use
+            setIsCapturingAudio(false);
+            onStopLongRecordingParent(); // Notify parent
           };
-          longRecordingMediaRecorderRef.current.start();
+          mediaRecorderRef.current.start();
           return true;
 
         } catch (err) {
           console.error("Error starting continuous recording:", err);
           toast({ title: "Continuous Recording Error", description: `Could not start recording: ${(err as Error).message}`, variant: "destructive" });
-          setIsActivelyLongRecordingInternal(false);
+          setIsCapturingAudio(false);
           setInputText("");
-          if (longRecordingSpeechRecognizerRef.current) { try { longRecordingSpeechRecognizerRef.current.stop(); } catch(e) {/* ignore */}}
-          if (longRecordingMediaRecorderRef.current && longRecordingMediaRecorderRef.current.state === "recording") {
-             try { longRecordingMediaRecorderRef.current.stop(); } catch(e) {/* ignore */}
+          if (snippetRecognitionRef.current) { try { snippetRecognitionRef.current.stop(); } catch(e) {/* ignore */}}
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+             try { mediaRecorderRef.current.stop(); } catch(e) {/* ignore */}
           }
           onStopLongRecordingParent();
           return false;
         }
       };
-      startRecordingFlow(); // Don't need to await this here, it manages its own state
+      startRecordingFlow();
       return true;
     },
     stopLongRecordingAndProcess: () => {
-      if (!isActivelyLongRecordingInternal) return;
+      if (!isCapturingAudio) return; // Ensure it's actually long recording
 
-      if (longRecordingSpeechRecognizerRef.current) {
-        try { longRecordingSpeechRecognizerRef.current.stop(); } catch(e) { /* ignore */ }
+      if (snippetRecognitionRef.current) { // This is used for long recording transcription
+        try { snippetRecognitionRef.current.stop(); } catch(e) { /* ignore */ }
       }
-      if (longRecordingMediaRecorderRef.current && longRecordingMediaRecorderRef.current.state === "recording") {
-        try { longRecordingMediaRecorderRef.current.stop(); } catch(e) { /* ignore */ }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+        try { mediaRecorderRef.current.stop(); } catch(e) { /* ignore */ }
       } else {
-         // If mediarecorder wasn't recording but speech was, still populate input
-        setInputText(longRecordingTranscriptRef.current.trim());
+        // If mediarecorder wasn't recording but speech was, still populate input
+        setInputText(snippetTranscriptRef.current.trim());
+        setIsCapturingAudio(false); // Reset state
+        onStopLongRecordingParent(); // Notify parent
       }
-      
-      longRecordingSpeechRecognizerRef.current = null;
-      longRecordingMediaRecorderRef.current = null;
-
-      setIsActivelyLongRecordingInternal(false);
-      // Parent (page.tsx) already handles its state and toast.
-      // InputText area is populated by MediaRecorder's onstop or here.
+      // snippetRecognitionRef.current = null; // Handled in onstop/onerror of recorder
+      // mediaRecorderRef.current = null;
     },
   }));
 
-  // Effect to sync internal long recording state with parent prop
    useEffect(() => {
-    if (isExternallyLongRecording !== isActivelyLongRecordingInternal) {
-        setIsActivelyLongRecordingInternal(isExternallyLongRecording);
-        if (!isExternallyLongRecording && (longRecordingSpeechRecognizerRef.current || longRecordingMediaRecorderRef.current)) {
+    if (isExternallyLongRecording !== isCapturingAudio) { // isCapturingAudio is now general
+        if (isExternallyLongRecording) {
+             if (ref && 'current' in ref && ref.current) {
+                ref.current.startLongRecording();
+            }
+        } else {
             if (ref && 'current' in ref && ref.current) {
               ref.current.stopLongRecordingAndProcess();
             }
         }
     }
-  }, [isExternallyLongRecording, isActivelyLongRecordingInternal, ref]);
+  }, [isExternallyLongRecording, isCapturingAudio, ref]);
 
 
   useEffect(() => {
-    if (!isListening && isActivelyLongRecordingInternal) {
-      if (ref && 'current' in ref && ref.current) {
+    if (!isListening && (isCapturingAudio || isDashboardDictationActive)) {
+      if (isCapturingAudio && ref && 'current' in ref && ref.current) { // If long recording was active
         ref.current.stopLongRecordingAndProcess();
+        toast({ title: "Recording Stopped", description: "Passive listening was disabled." });
       }
-       toast({ title: "Recording Stopped", description: "Passive listening was disabled." });
+      if (isDashboardDictationActive && dashboardDictationRecognitionRef.current) { // If dashboard dictation was active
+         try { dashboardDictationRecognitionRef.current.stop(); } catch(e) {/* ignore */}
+         toast({ title: "Dictation Stopped", description: "Passive listening was disabled." });
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isListening, isActivelyLongRecordingInternal]);
+  }, [isListening]);
 
 
-  const addListItem = (listKey: string, itemText: string, listName: string) => {
-    if (!itemText.trim()) {
+  const addListItem = (listKey: string, itemTextToAdd: string, listName: string) => {
+    const item = itemTextToAdd.trim();
+    if (!item) {
       toast({ title: "No item specified", description: `Please specify the item to add to ${listName}.`, variant: "default" });
       setIsAlertDialogOpen(false);
-      // setIsLoading(false); // isLoading should be false if dialog takes over.
+      setIsLoading(false);
       return;
     }
     try {
@@ -243,12 +397,12 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
       let currentItems: Array<ShoppingListItem | ToDoListItem> = currentItemsString ? JSON.parse(currentItemsString) : [];
 
       if (listKey === LOCALSTORAGE_KEYS.SHOPPING_LIST) {
-        const newItem: ShoppingListItem = { id: crypto.randomUUID(), text: itemText.trim(), completed: false };
+        const newItem: ShoppingListItem = { id: crypto.randomUUID(), text: item, completed: false };
         currentItems = [...currentItems, newItem] as ShoppingListItem[];
       } else if (listKey === LOCALSTORAGE_KEYS.TODO_LIST) {
         const newItem: ToDoListItem = {
           id: crypto.randomUUID(),
-          text: itemText.trim(),
+          text: item,
           completed: false,
           timeSettingType: 'not_set',
           startTime: null,
@@ -260,14 +414,14 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
 
       localStorage.setItem(listKey, JSON.stringify(currentItems));
       window.dispatchEvent(new StorageEvent('storage', { key: listKey, newValue: JSON.stringify(currentItems) }));
-      toast({ title: "Item Added", description: `"${itemText.trim()}" added to your ${listName}.` });
+      toast({ title: "Item Added", description: `"${item}" added to your ${listName}.` });
     } catch (error) {
       console.error(`Error adding to ${listName}:`, error);
       toast({ title: `Error updating ${listName}`, description: "Could not save the item.", variant: "destructive" });
     } finally {
       setIsAlertDialogOpen(false);
-      setIsLoading(false); 
-      setInputText(''); 
+      setIsLoading(false);
+      setInputText('');
     }
   };
 
@@ -276,7 +430,8 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
       const currentItemsString = localStorage.getItem(listKey);
       if (!currentItemsString) {
         toast({ title: "List not found", description: `The ${listName} is empty.`, variant: "default" });
-        // setIsLoading(false); // Ensure loading is false
+        setIsLoading(false);
+        setInputText('');
         return;
       }
       let currentItems: Array<ShoppingListItem | ToDoListItem> = JSON.parse(currentItemsString);
@@ -315,8 +470,8 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
       console.error(`Error deleting from ${listName}:`, error);
       toast({ title: `Error updating ${listName}`, description: "Could not delete the item.", variant: "destructive" });
     } finally {
-        // setIsLoading(false); // Ensure loading is false
-        setInputText(''); 
+        setIsLoading(false);
+        setInputText('');
     }
   };
 
@@ -330,13 +485,18 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
     setIsLoading(true);
     const lowerText = textToProcess.toLowerCase();
 
+    // Pattern for "Heggles add X to shopping list"
     const shoppingListPattern = new RegExp(`^${WAKE_WORDS.HEGGLES_BASE.toLowerCase()}\\s+add\\s+(.+?)\\s+to\\s+(?:my\\s+|the\\s+)?shopping\\s+list$`);
-    const todoListPattern = new RegExp(`^${WAKE_WORDS.ADD_TO_TODO_LIST.toLowerCase().replace(/\[task\]/, '(.+?)')}$`); // Updated regex
-    const deleteListPattern = new RegExp(`^${WAKE_WORDS.DELETE_ITEM_PREFIX.toLowerCase()}\\s+(.*?)(?:\\s+${WAKE_WORDS.FROM_SHOPPING_LIST_TRIGGER.toLowerCase()}|\\s+${WAKE_WORDS.FROM_TODO_LIST_TRIGGER.toLowerCase()})$`);
-
     const shoppingListMatch = lowerText.match(shoppingListPattern);
+
+    // Pattern for "Heggles add X to to do list"
+    const todoListPattern = new RegExp(`^${WAKE_WORDS.HEGGLES_BASE.toLowerCase()}\\s+add\\s+(.+?)\\s+to\\s+(?:my\\s+|the\\s+)?to\\s+do\\s+list$`);
     const todoListMatch = lowerText.match(todoListPattern);
+    
+    // Pattern for "Heggles delete X from Y list"
+    const deleteListPattern = new RegExp(`^${WAKE_WORDS.HEGGLES_BASE.toLowerCase()}\\s+delete\\s+(.*?)(?:\\s+${WAKE_WORDS.FROM_SHOPPING_LIST_TRIGGER.toLowerCase()}|\\s+${WAKE_WORDS.FROM_TODO_LIST_TRIGGER.toLowerCase()})$`);
     const deleteListMatchResult = lowerText.match(deleteListPattern);
+
 
     if (shoppingListMatch && shoppingListMatch[1]) {
       const item = shoppingListMatch[1].trim();
@@ -349,6 +509,7 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
         onConfirm: () => addListItem(LOCALSTORAGE_KEYS.SHOPPING_LIST, item, "Shopping List"),
       });
       setIsAlertDialogOpen(true);
+      // setIsLoading will be handled by addListItem or dialog cancel
     } else if (todoListMatch && todoListMatch[1]) {
       const task = todoListMatch[1].trim();
        setAlertDialogConfig({
@@ -360,6 +521,7 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
         onConfirm: () => addListItem(LOCALSTORAGE_KEYS.TODO_LIST, task, "To-Do List"),
       });
       setIsAlertDialogOpen(true);
+      // setIsLoading will be handled by addListItem or dialog cancel
     } else if (deleteListMatchResult && deleteListMatchResult[1]) {
         const itemIdentifierStr = deleteListMatchResult[1].trim();
         let listKey = "";
@@ -383,130 +545,87 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
                     deleteListItem(listKey, itemNumber, listName);
                 } else {
                     toast({ title: "Invalid Item Number", description: `"${numberStr}" is not a valid number.`, variant: "default" });
+                    setIsLoading(false); setInputText('');
                 }
             } else {
                 deleteListItem(listKey, itemIdentifierStr, listName);
             }
         } else {
             toast({ title: "Deletion Command Incomplete", description: "Specify item and list (e.g., 'delete apples from shopping list').", variant: "default" });
+            setIsLoading(false); setInputText('');
         }
-        setIsLoading(false); // Deletion is synchronous for now
-    } else if (lowerText === WAKE_WORDS.RECALL_THOUGHT.toLowerCase()) {
-      let bufferTimeValue: BufferTimeValue = DEFAULT_BUFFER_TIME;
-      if (typeof window !== 'undefined') {
-        const bufferTimeValueString = localStorage.getItem(LOCALSTORAGE_KEYS.BUFFER_TIME);
-        if (bufferTimeValueString) {
-            try {
-                const parsed = JSON.parse(bufferTimeValueString) as BufferTimeValue;
-                if (BUFFER_TIME_OPTIONS.some(opt => opt.value === parsed)) bufferTimeValue = parsed;
-            } catch (e) { console.warn("Error parsing buffer time from LS:", e); }
-        }
-      }
-      const bufferOption = BUFFER_TIME_OPTIONS.find(opt => opt.value === bufferTimeValue);
-      const simulatedText = `Simulated recall from the ${bufferOption?.label || bufferTimeValue} buffer. This represents a thought captured from that period.`;
-      setInputText(''); // Clear the "Heggles replay that" command
-
+        // setIsLoading(false) and setInputText('') are handled by deleteListItem
+    }
+    // "Heggles replay that" is handled by voice command directly calling startAudioRecording.
+    // If "Heggles replay that" is typed and Brain is clicked, it's processed as general text.
+    else { // General text processing (including typed "Heggles replay that" or unrecognized "Heggles..." commands)
       try {
-        // Process this simulated text as a general thought
-        const processedData = await processTextThought(simulatedText);
-        // Now, use the same logic as for general text to check for AI-suggested actions or questions
+        const processedData = await processTextThought(textToProcess);
         let thoughtHandledByIntent = false;
+
         if (processedData.intentAnalysis?.isQuestion && processedData.intentAnalysis.extractedQuestion && processedData.aiAnswer) {
             onThoughtRecalled({ id: crypto.randomUUID(), timestamp: Date.now(), ...processedData });
-            toast({ title: "Simulated Recall: Question Answered", description: "AI has provided an answer based on the simulated recall." });
+            toast({ title: "Thought Processed & Question Answered", description: "AI has provided an answer." });
             thoughtHandledByIntent = true;
         } else if (processedData.intentAnalysis?.isAction && processedData.intentAnalysis.extractedAction && processedData.intentAnalysis.suggestedList && processedData.intentAnalysis.suggestedList !== 'none') {
             const action = processedData.intentAnalysis.extractedAction;
             const listKey = processedData.intentAnalysis.suggestedList === 'shopping' ? LOCALSTORAGE_KEYS.SHOPPING_LIST : LOCALSTORAGE_KEYS.TODO_LIST;
             const listName = processedData.intentAnalysis.suggestedList === 'shopping' ? "Shopping List" : "To-Do List";
              setAlertDialogConfig({
-                title: `Simulated Recall: Suggested Action for ${listName}`,
-                description: <>Based on simulated recall, the AI suggests adding "<strong>{action}</strong>" to your {listName}. Add it?</>,
-                itemText: action,
-                listKey: listKey,
-                listName: listName,
-                onConfirm: () => addListItem(listKey, action, listName),
-            });
-            setIsAlertDialogOpen(true); // setIsLoading(false) will be handled by addListItem or dialog close
-            thoughtHandledByIntent = true;
-        } else {
-            // If no specific intent, just show the processed simulated recall.
-            onThoughtRecalled({ id: crypto.randomUUID(), timestamp: Date.now(), ...processedData });
-            toast({ title: "Simulated Recall Processed", description: "AI analysis of simulated recall complete." });
-        }
-      } catch (error) {
-        toast({ title: "Error Processing Simulated Recall", description: (error as Error).message, variant: "destructive" });
-      } finally {
-        if (!isAlertDialogOpen) setIsLoading(false);
-      }
-    } else { // General text processing
-      try {
-        const processedData = await processTextThought(textToProcess);
-        let thoughtHandled = false;
-
-        // Priority to AI's direct intent analysis for actions/questions
-        if (processedData.intentAnalysis?.isQuestion && processedData.intentAnalysis.extractedQuestion && processedData.aiAnswer) {
-            onThoughtRecalled({ id: crypto.randomUUID(), timestamp: Date.now(), ...processedData });
-            toast({ title: "Thought Processed & Question Answered", description: "AI has provided an answer." });
-            thoughtHandled = true;
-        } else if (processedData.intentAnalysis?.isAction && processedData.intentAnalysis.extractedAction && processedData.intentAnalysis.suggestedList && processedData.intentAnalysis.suggestedList !== 'none') {
-            const action = processedData.intentAnalysis.extractedAction;
-            const listKey = processedData.intentAnalysis.suggestedList === 'shopping' ? LOCALSTORAGE_KEYS.SHOPPING_LIST : LOCALSTORAGE_KEYS.TODO_LIST;
-            const listName = processedData.intentAnalysis.suggestedList === 'shopping' ? "Shopping List" : "To-Do List";
-            setAlertDialogConfig({
-                title: `Suggested Action for ${listName}`,
+                title: `AI Suggestion: Action for ${listName}`,
                 description: <>The AI suggests adding "<strong>{action}</strong>" to your {listName}. Add it?</>,
                 itemText: action,
                 listKey: listKey,
                 listName: listName,
                 onConfirm: () => addListItem(listKey, action, listName),
             });
-            setIsAlertDialogOpen(true); // setIsLoading(false) by addListItem or dialog close
-            thoughtHandled = true;
-        }
-        // Fallback to actionItems from refineThought if no stronger intent was found
-        else if (processedData.actionItems && processedData.actionItems.length > 0 && !thoughtHandled) {
+            setIsAlertDialogOpen(true); // setIsLoading(false) will be handled by addListItem or dialog close
+            thoughtHandledByIntent = true; // This counts as handled, even if user cancels dialog
+        } else if (processedData.actionItems && processedData.actionItems.length > 0 && !thoughtHandledByIntent) {
+          // Fallback to actionItems from refineThought if no stronger intent was found and handled
           for (const action of processedData.actionItems) {
             const lowerAction = action.toLowerCase();
-            let match = lowerAction.match(/add(?:\s+'|s\s)(.*?)(?:\s+'|\s)to\s+(?:my\s+|the\s+)?shopping\s+list/);
-            if (match && match[1]) {
-              const itemToAdd = match[1].trim().replace(/^['"]|['"]$/g, '');
-              setAlertDialogConfig({
-                title: "Add to Shopping List?",
-                description: <>The AI suggests adding <strong>"{itemToAdd}"</strong> to your shopping list. Add it?</>,
-                itemText: itemToAdd,
-                listKey: LOCALSTORAGE_KEYS.SHOPPING_LIST,
-                listName: "Shopping List",
-                onConfirm: () => addListItem(LOCALSTORAGE_KEYS.SHOPPING_LIST, itemToAdd, "Shopping List"),
-              });
-              setIsAlertDialogOpen(true);
-              thoughtHandled = true;
-              break;
-            }
+            let itemToAdd: string | null = null;
+            let targetListKey: string | null = null;
+            let targetListName: string | null = null;
 
-            match = lowerAction.match(/add(?:\s+'|s\s)(.*?)(?:\s+'|\s)to\s+(?:my\s+|the\s+)?to-do\s+list/); // or todo list, todo-list etc.
-            if (match && match[1]) {
-              const taskToAdd = match[1].trim().replace(/^['"]|['"]$/g, '');
+            const shoppingMatch = lowerAction.match(/add(?:\s+'|s\s)(.*?)(?:\s+'|\s)to\s+(?:my\s+|the\s+)?shopping\s+list/);
+            if (shoppingMatch && shoppingMatch[1]) {
+              itemToAdd = shoppingMatch[1].trim().replace(/^['"]|['"]$/g, '');
+              targetListKey = LOCALSTORAGE_KEYS.SHOPPING_LIST;
+              targetListName = "Shopping List";
+            } else {
+              const todoMatch = lowerAction.match(/add(?:\s+'|s\s)(.*?)(?:\s+'|\s)to\s+(?:my\s+|the\s+)?to-do\s+list/);
+              if (todoMatch && todoMatch[1]) {
+                itemToAdd = todoMatch[1].trim().replace(/^['"]|['"]$/g, '');
+                targetListKey = LOCALSTORAGE_KEYS.TODO_LIST;
+                targetListName = "To-Do List";
+              }
+            }
+            if (itemToAdd && targetListKey && targetListName) {
               setAlertDialogConfig({
-                title: "Add to To-Do List?",
-                description: <>The AI suggests adding <strong>"{taskToAdd}"</strong> as a to-do. Add it?</>,
-                itemText: taskToAdd,
-                listKey: LOCALSTORAGE_KEYS.TODO_LIST,
-                listName: "To-Do List",
-                onConfirm: () => addListItem(LOCALSTORAGE_KEYS.TODO_LIST, taskToAdd, "To-Do List"),
+                title: `AI Suggestion: Add to ${targetListName}?`,
+                description: <>The AI suggests adding <strong>"{itemToAdd}"</strong> to your {targetListName}. Add it?</>,
+                itemText: itemToAdd,
+                listKey: targetListKey,
+                listName: targetListName,
+                onConfirm: () => addListItem(targetListKey!, itemToAdd!, targetListName!),
               });
               setIsAlertDialogOpen(true);
-              thoughtHandled = true;
-              break;
+              thoughtHandledByIntent = true; // This counts as handled
+              break; 
             }
           }
         }
 
-        if (!thoughtHandled) { // If no specific question or action was handled by dialogs
+        if (!thoughtHandledByIntent) { // If no specific question or action was handled by dialogs
           onThoughtRecalled({ id: crypto.randomUUID(), timestamp: Date.now(), ...processedData });
           toast({ title: "Thought Processed", description: "AI analysis complete." });
         }
-        if (!isAlertDialogOpen) setInputText(''); // Clear input only if no dialog is open
+        
+        if (!isAlertDialogOpen) { // Clear input only if no dialog is open (meaning it wasn't a list add)
+            setInputText('');
+        }
       } catch (error) {
         toast({ title: "Error Processing Thought", description: (error as Error).message, variant: "destructive" });
       } finally {
@@ -514,48 +633,6 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
       }
     }
   };
-
-  const parseSpokenBufferTime = useCallback((spokenDuration: string): BufferTimeValue | null => {
-    const cleanedSpoken = spokenDuration.toLowerCase().trim();
-    if (cleanedSpoken.includes('always on') || cleanedSpoken.includes('continuous')) return 'continuous';
-    for (const option of BUFFER_TIME_OPTIONS) {
-      if (option.value !== 'continuous') {
-        const labelMatchValue = option.label.toLowerCase().match(/^(\d+)\s*minute/);
-        if (labelMatchValue && labelMatchValue[1]) {
-            const numericLabelValue = labelMatchValue[1];
-            if (cleanedSpoken.startsWith(numericLabelValue) && (cleanedSpoken.includes("minute") || cleanedSpoken.includes("min"))) {
-                return option.value;
-            }
-        }
-        if (cleanedSpoken === option.value || cleanedSpoken === option.label.toLowerCase().replace(/\s*minute(s)?/, '')) return option.value;
-      }
-    }
-    const generalMinuteMatch = cleanedSpoken.match(/^(\d+)\s*(minute|min)s?$/);
-    if (generalMinuteMatch && generalMinuteMatch[1]) {
-      const numericValue = generalMinuteMatch[1];
-      const foundOption = BUFFER_TIME_OPTIONS.find(opt => opt.value === numericValue);
-      if (foundOption) return foundOption.value;
-    }
-    return null;
-  }, []);
-
-  const setBufferTimeByVoice = useCallback((spokenDuration: string) => {
-    if (typeof window === 'undefined') return;
-    const parsedValue = parseSpokenBufferTime(spokenDuration);
-    if (parsedValue) {
-      localStorage.setItem(LOCALSTORAGE_KEYS.BUFFER_TIME, JSON.stringify(parsedValue));
-      window.dispatchEvent(new StorageEvent('storage', { key: LOCALSTORAGE_KEYS.BUFFER_TIME, newValue: JSON.stringify(parsedValue) }));
-      const matchedOption = BUFFER_TIME_OPTIONS.find(opt => opt.value === parsedValue);
-      toast({ title: "Buffer Time Set By Voice", description: <>Conceptual buffer time set to <strong>{matchedOption?.label || parsedValue}</strong>.</> });
-    } else {
-      toast({ title: "Buffer Time Not Understood", description: "Please try '1 minute', 'always on', etc.", variant: "default" });
-    }
-    setInputText('');
-    utteranceTranscriptRef.current = '';
-    setPartialWakeWordDetected(false);
-    commandProcessedSuccessfullyRef.current = true; 
-  }, [toast, parseSpokenBufferTime, setInputText, setPartialWakeWordDetected]);
-
 
   // Main command listener (Heggles wake word etc.)
   useEffect(() => {
@@ -570,9 +647,9 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
 
     const shouldBeListening = isListening &&
                               hasMicPermission === true &&
-                              !isLoading && // if an AI call is in progress
-                              !isDashboardDictationActive &&
-                              !isActivelyLongRecordingInternal;
+                              !isLoading &&
+                              !isCapturingAudio && // Not during 10s snippet or long recording
+                              !isDashboardDictationActive;
 
     if (shouldBeListening && recognitionRef.current === null) {
       recognitionRef.current = new SpeechRecognitionAPI();
@@ -583,24 +660,24 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
 
       recognition.onstart = () => {
         setIsRecognizingSpeech(true);
-        commandProcessedSuccessfullyRef.current = false; // Reset for the new session
+        commandProcessedSuccessfullyRef.current = false;
       };
 
       recognition.onend = () => {
         setIsRecognizingSpeech(false);
         if (!commandProcessedSuccessfullyRef.current && partialWakeWordDetected) {
           // Paused mid-command (e.g. after "Heggles"), keep utterance for next cycle.
-          // utteranceTranscriptRef.current and partialWakeWordDetected are preserved.
         } else {
-          // Command was processed, or no partial detection - clear for next time.
           setPartialWakeWordDetected(false);
           utteranceTranscriptRef.current = '';
         }
-        recognitionRef.current = null; // CRUCIAL for allowing useEffect to restart
+        recognitionRef.current = null;
       };
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-        if (event.error !== 'no-speech' && event.error !== 'aborted') {
+        if (event.error === 'no-speech' || event.error === 'aborted') {
+          // console.warn('Main command recognition warning:', event.error, event.message);
+        } else {
            console.error('Main command recognition error:', event.error, event.message);
         }
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
@@ -612,92 +689,96 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
         commandProcessedSuccessfullyRef.current = true; // Consider this attempt over
         setPartialWakeWordDetected(false); 
         utteranceTranscriptRef.current = '';
-        // recognitionRef.current = null; // Let onend handle this
       };
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
-        let interimTranscriptThisTurn = '';
-        let newlyFinalizedSegmentThisTurn = '';
+        let newlyFinalizedSegmentThisTurn = "";
+        let currentInterimSegment = "";
 
         for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const segment = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            newlyFinalizedSegmentThisTurn += (newlyFinalizedSegmentThisTurn ? " " : "") + segment.trim();
-          } else {
-            interimTranscriptThisTurn += segment;
-          }
+            const segment = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+                newlyFinalizedSegmentThisTurn += (newlyFinalizedSegmentThisTurn ? " " : "") + segment.trim();
+            } else {
+                currentInterimSegment += segment;
+            }
         }
-        
+
         if (newlyFinalizedSegmentThisTurn) {
             utteranceTranscriptRef.current = (utteranceTranscriptRef.current + (utteranceTranscriptRef.current ? " " : "") + newlyFinalizedSegmentThisTurn).trim();
         }
         
-        const currentFullUtteranceForDisplay = (utteranceTranscriptRef.current ? utteranceTranscriptRef.current + " " : "") + interimTranscriptThisTurn.trim();
-        
-        const latestInterimForPartialCheck = interimTranscriptThisTurn.trim().toLowerCase();
-        if (!partialWakeWordDetected && latestInterimForPartialCheck.includes(WAKE_WORDS.HEGGLES_BASE.toLowerCase())) {
-          setPartialWakeWordDetected(true);
-          utteranceTranscriptRef.current = WAKE_WORDS.HEGGLES_BASE + " "; // Start with the base word clean
+        const fullUtteranceForDisplay = (utteranceTranscriptRef.current ? utteranceTranscriptRef.current + " " : "") + currentInterimSegment.trim();
+
+        if (!partialWakeWordDetected && currentInterimSegment.toLowerCase().includes(WAKE_WORDS.HEGGLES_BASE.toLowerCase())) {
+            setPartialWakeWordDetected(true);
+            // Start utteranceTranscript with Heggles if it's the first detection
+            if (!utteranceTranscriptRef.current.toLowerCase().startsWith(WAKE_WORDS.HEGGLES_BASE.toLowerCase())) {
+                 utteranceTranscriptRef.current = WAKE_WORDS.HEGGLES_BASE + " ";
+            }
         }
         
+        // Only update inputText if wake word has been partially detected
+        if (partialWakeWordDetected) {
+            setInputText(fullUtteranceForDisplay);
+        }
+
         const lastResultIsFinal = event.results[event.results.length - 1].isFinal;
 
         if (lastResultIsFinal && utteranceTranscriptRef.current) {
             const finalUtterance = utteranceTranscriptRef.current.trim();
-            const finalLower = finalUtterance.toLowerCase().trim();
-            
-            commandProcessedSuccessfullyRef.current = true; // Assume processed unless it's just "heggles"
+            const finalLower = finalUtterance.toLowerCase();
+            commandProcessedSuccessfullyRef.current = false; // Default to not processed
 
-            if (finalLower === WAKE_WORDS.TURN_LISTENING_OFF.toLowerCase()) {
+            if (!finalLower.startsWith(WAKE_WORDS.HEGGLES_BASE.toLowerCase())) {
+                // Speech detected but didn't start with Heggles. Ignore for inputText.
+                commandProcessedSuccessfullyRef.current = true; // This "unrelated" speech session is over.
+                if (recognitionRef.current) { try { recognitionRef.current.stop(); } catch (e) { /*ignore*/ } }
+                return; // Don't process further if it doesn't start with Heggles
+            }
+
+            // At this point, we know it starts with "Heggles"
+            if (finalLower === WAKE_WORDS.HEGGLES_REPLAY_THAT.toLowerCase()) {
+                commandProcessedSuccessfullyRef.current = true;
+                startAudioRecording(); // This handles its own toasts, loading states, etc.
+                setInputText(''); // Clear "Heggles replay that" from input
+            } else if (finalLower === WAKE_WORDS.HEGGLES_TURN_OFF.toLowerCase()) {
+                commandProcessedSuccessfullyRef.current = true;
                 onToggleListeningParent(false);
-                setInputText(''); 
-            } else if (finalLower === WAKE_WORDS.TURN_LISTENING_ON.toLowerCase()) {
+                setInputText('');
+            } else if (finalLower === WAKE_WORDS.HEGGLES_TURN_ON.toLowerCase()) {
+                commandProcessedSuccessfullyRef.current = true;
                 onToggleListeningParent(true);
-                setInputText(''); 
-            } else if (finalLower.startsWith(WAKE_WORDS.SET_BUFFER_TIME.toLowerCase())) {
-                const spokenDuration = finalUtterance.substring(WAKE_WORDS.SET_BUFFER_TIME.length).trim();
-                setBufferTimeByVoice(spokenDuration); // This already sets commandProcessedSuccessfullyRef
+                setInputText('');
+            } else if (finalLower.startsWith(WAKE_WORDS.HEGGLES_SET_BUFFER.toLowerCase())) {
+                commandProcessedSuccessfullyRef.current = true; // setBufferTimeByVoice handles its own success flag
+                const spokenDuration = finalUtterance.substring(WAKE_WORDS.HEGGLES_SET_BUFFER.length).trim();
+                setBufferTimeByVoice(spokenDuration);
             } else if (finalLower === WAKE_WORDS.HEGGLES_BASE.toLowerCase()) {
-                // Just "Heggles" was said and finalized. Keep listening.
+                // Just "Heggles" was said. Keep listening.
                 commandProcessedSuccessfullyRef.current = false; // NOT processed yet, preserve utterance.
-                setInputText(finalUtterance + " "); // Show "Heggles " in input, ready for more.
-                // Do not stop recognition here.
-            }
-             else {
-                // For all other utterances, populate inputText. User clicks Brain.
-                setInputText(finalUtterance);
-                // Check if it was an unrecognized Heggles command
-                const shoppingListPattern = new RegExp(`^${WAKE_WORDS.HEGGLES_BASE.toLowerCase()}\\s+add\\s+(.+?)\\s+to\\s+(?:my\\s+|the\\s+)?shopping\\s+list$`);
-                const todoListPattern = new RegExp(`^${WAKE_WORDS.ADD_TO_TODO_LIST.toLowerCase().replace(/\[task\]/, '(.+?)')}$`);
-                const deleteListPattern = new RegExp(`^${WAKE_WORDS.DELETE_ITEM_PREFIX.toLowerCase()}\\s+(.*?)(?:\\s+${WAKE_WORDS.FROM_SHOPPING_LIST_TRIGGER.toLowerCase()}|\\s+${WAKE_WORDS.FROM_TODO_LIST_TRIGGER.toLowerCase()})$`);
-
-                if (finalLower.startsWith(WAKE_WORDS.HEGGLES_BASE.toLowerCase()) &&
-                    !finalLower.match(shoppingListPattern) &&
-                    !finalLower.match(todoListPattern) &&
-                    !finalLower.match(deleteListPattern) &&
-                    finalLower !== WAKE_WORDS.RECALL_THOUGHT.toLowerCase() &&
-                    !finalLower.startsWith(WAKE_WORDS.SET_BUFFER_TIME.toLowerCase()) // Already handled
-                   ) {
-                  toast({ title: "Command Not Recognized", description: "Input area populated for manual processing.", variant: "default" });
-                }
-                // For other types of input (e.g. just random speech), it also populates the input text.
-                // The decision to toast "Command Not Recognized" is now more specific.
+                setInputText(finalUtterance + " "); // Show "Heggles " in input
+            } else {
+                // It started with "Heggles" but wasn't a direct action command.
+                // The full command (e.g., "Heggles add X to list", "Heggles delete Y", "Heggles unrecognized text")
+                // is already in inputText (due to partialWakeWordDetected being true).
+                // User will click Brain icon to process this.
+                commandProcessedSuccessfullyRef.current = true; // This speech session is over.
+                // Toast for unrecognized "Heggles..." command will be shown by Brain if not matched there
             }
 
-            // Stop recognition if the command was fully processed (or if it was just "Heggles" we DONT stop)
             if (recognitionRef.current && commandProcessedSuccessfullyRef.current) {
-                try { recognitionRef.current.stop(); } catch (e) { console.warn("Error stopping main command rec after result:", e); }
+                try { recognitionRef.current.stop(); } catch (e) { console.warn("Error stopping main cmd rec after final result:", e); }
             }
-        } else if (!lastResultIsFinal && partialWakeWordDetected) {
-            // Update input text with interim results if partial wake word is detected
-            setInputText(currentFullUtteranceForDisplay);
         }
       };
-
+      
       try {
-        recognition.start();
+        if (recognitionRef.current && typeof recognitionRef.current.start === 'function') {
+            recognitionRef.current.start();
+        }
       } catch (e) {
-        console.error("Failed to start main command speech recognition (in useEffect):", e);
+        console.error("Failed to start main command speech recognition:", e);
         if (recognitionRef.current === recognition) { 
           recognitionRef.current = null;
         }
@@ -712,7 +793,7 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
        // onend will set recognitionRef.current to null
     }
 
-    return () => {
+    return () => { // Cleanup
       if (recognitionRef.current) {
         commandProcessedSuccessfullyRef.current = true;
         try { recognitionRef.current.stop(); } catch (e) { /* ignore */ }
@@ -725,20 +806,20 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
       if (dashboardDictationPauseTimeoutRef.current) {
         clearTimeout(dashboardDictationPauseTimeoutRef.current);
       }
-      if (longRecordingSpeechRecognizerRef.current) {
-        try { longRecordingSpeechRecognizerRef.current.stop(); } catch(e) {/*ignore*/}
-        longRecordingSpeechRecognizerRef.current = null;
+      // Cleanup for snippet/long recording refs if necessary, though usually handled by their own logic
+      if (snippetRecognitionRef.current) {
+        try { snippetRecognitionRef.current.stop(); } catch(e) {/*ignore*/}
+        snippetRecognitionRef.current = null;
       }
-      if (longRecordingMediaRecorderRef.current && longRecordingMediaRecorderRef.current.state === "recording") {
-        try { longRecordingMediaRecorderRef.current.stop(); } catch(e) {/*ignore*/}
-        longRecordingMediaRecorderRef.current = null;
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+        try { mediaRecorderRef.current.stop(); } catch(e) {/*ignore*/}
+        mediaRecorderRef.current = null;
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isListening, hasMicPermission, isLoading, isDashboardDictationActive, isActivelyLongRecordingInternal, onToggleListeningParent, setBufferTimeByVoice, toast]);
+  }, [isListening, hasMicPermission, isLoading, isCapturingAudio, isDashboardDictationActive, onToggleListeningParent, setBufferTimeByVoice, startAudioRecording]);
 
 
-  // Effect for initial microphone permission check
   useEffect(() => {
     const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognitionAPI) {
@@ -746,23 +827,22 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
       setHasMicPermission(false);
       return;
     }
-    if (hasMicPermission === null) { // Only prompt if permission status is unknown
+    if (hasMicPermission === null) {
         navigator.mediaDevices.getUserMedia({ audio: true })
         .then((stream) => {
-          stream.getTracks().forEach(track => track.stop()); // Release the mic immediately after permission check
+          stream.getTracks().forEach(track => track.stop());
           setHasMicPermission(true);
         })
         .catch(err => {
           console.warn("Microphone permission request error:", err.name, err.message);
           setHasMicPermission(false);
-          // Only toast if it's a denial, not if user just closes prompt without choice on some browsers
           if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
             toast({ title: "Microphone Access Denied", variant: "destructive", description:"Heggles needs microphone access for voice commands." });
           }
         });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isBrowserUnsupported, hasMicPermission]); // Removed toast to avoid re-prompt issues
+  }, [hasMicPermission]);
 
 
   const handleDashboardMicClick = async () => {
@@ -771,19 +851,20 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
       toast({ title: "Browser Not Supported", variant: "destructive", description: "Speech recognition for dictation not available."});
       return;
     }
-    if (isActivelyLongRecordingInternal) {
-      toast({ title: "Action unavailable", description: "Stop continuous recording first.", variant: "default"});
+    if (isCapturingAudio) { // If "Heggles replay that" or long recording is active
+      toast({ title: "Action unavailable", description: "Recording/Processing is already in progress.", variant: "default"});
       return;
     }
     if (hasMicPermission === false) {
       toast({ title: "Microphone Access Denied", variant: "destructive"});
       return;
     }
-    if (hasMicPermission === null) { // Should not happen if above effect ran, but as a safeguard
+     if (hasMicPermission === null) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         stream.getTracks().forEach(t=>t.stop());
         setHasMicPermission(true);
+        // Fall through to start dictation after permission granted in this click
       } catch (err) {
         setHasMicPermission(false);
         toast({ title: "Microphone Access Denied", variant: "destructive"});
@@ -791,27 +872,27 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
       }
     }
 
-    if (isDashboardDictationActive) { // If already dictating, stop it.
+    if (isDashboardDictationActive) {
       if (dashboardDictationRecognitionRef.current) {
         try { dashboardDictationRecognitionRef.current.stop(); } catch(e) {/*ignore*/}
       }
       if (dashboardDictationPauseTimeoutRef.current) clearTimeout(dashboardDictationPauseTimeoutRef.current);
-      // The onend handler for dashboard dictation will handle processing.
-      // setInputText is already populated by onresult. User then clicks Brain.
+      // onend will handle setting isDashboardDictationActive to false
+      // User then clicks Brain icon.
       return;
     }
 
     // Stop main command listener if it's running
     if (recognitionRef.current) { 
-      commandProcessedSuccessfullyRef.current = true; // Signal main listener to clean up
+      commandProcessedSuccessfullyRef.current = true; 
       try { recognitionRef.current.stop(); } catch(e) { /* ignore */ }
     }
-    setIsRecognizingSpeech(false); // Ensure main listener UI is off
+    setIsRecognizingSpeech(false); 
     setPartialWakeWordDetected(false);
 
     setIsDashboardDictationActive(true);
-    dashboardDictationAccumulatedTranscriptRef.current = ''; // Start fresh dictation
-    setInputText("Dictating your thought..."); // Initial feedback
+    dashboardDictationAccumulatedTranscriptRef.current = inputText; // Start with current input text
+    // setInputText("Dictating your thought..."); // Feedback
 
     dashboardDictationRecognitionRef.current = new SpeechRecognitionAPI();
     const recognition = dashboardDictationRecognitionRef.current;
@@ -820,8 +901,7 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
     recognition.lang = 'en-US';
 
     recognition.onstart = () => {
-      // setIsRecognizingSpeech(false); // Not main recognizer
-      // setPartialWakeWordDetected(false);
+      // setIsRecognizingSpeech(false); already done
     };
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       if (dashboardDictationPauseTimeoutRef.current) clearTimeout(dashboardDictationPauseTimeoutRef.current);
@@ -842,7 +922,7 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
       }
       
       const currentDictationTranscript = dashboardDictationAccumulatedTranscriptRef.current;
-      const textToShowInInput = currentDictationTranscript + (interim ? (currentDictationTranscript ? " " : "") + interim : "");
+      const textToShowInInput = currentDictationTranscript + (interim ? (currentDictationTranscript ? " " : "") + interim.trim() : "");
       setInputText(textToShowInInput);
 
       const lowerTranscriptForEndCheck = textToShowInInput.trim().toLowerCase();
@@ -850,7 +930,7 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
       const stopCommand = WAKE_WORDS.STOP_DICTATION.toLowerCase();
 
       if (lowerTranscriptForEndCheck.endsWith(endCommand) || lowerTranscriptForEndCheck.endsWith(stopCommand)) {
-        let finalSpokenText = dashboardDictationAccumulatedTranscriptRef.current; // Use accumulated final parts
+        let finalSpokenText = dashboardDictationAccumulatedTranscriptRef.current;
          if (lowerTranscriptForEndCheck.endsWith(endCommand)) {
           const endCmdIdx = finalSpokenText.toLowerCase().lastIndexOf(endCommand);
           if (endCmdIdx !== -1) finalSpokenText = finalSpokenText.substring(0, endCmdIdx).trim();
@@ -858,13 +938,13 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
            const stopCmdIdx = finalSpokenText.toLowerCase().lastIndexOf(stopCommand);
            if (stopCmdIdx !== -1) finalSpokenText = finalSpokenText.substring(0, stopCmdIdx).trim();
         }
-        setInputText(finalSpokenText); // Set the cleaned text
-        dashboardDictationAccumulatedTranscriptRef.current = finalSpokenText; // Store cleaned
+        setInputText(finalSpokenText);
+        dashboardDictationAccumulatedTranscriptRef.current = finalSpokenText;
         if (dashboardDictationRecognitionRef.current) try { dashboardDictationRecognitionRef.current.stop(); } catch(e) {/*ignore*/}
       } else {
         dashboardDictationPauseTimeoutRef.current = setTimeout(() => {
           if (dashboardDictationRecognitionRef.current) try { dashboardDictationRecognitionRef.current.stop(); } catch(e) {/*ignore*/}
-        }, 2000); // 2-second pause
+        }, 2000);
       }
     };
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -880,7 +960,7 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
          toast({ title: "Dictation Error", description: event.message || "Could not recognize speech.", variant: "destructive" });
       }
       setIsDashboardDictationActive(false);
-      setInputText(dashboardDictationAccumulatedTranscriptRef.current.trim()); // Keep what was transcribed before error
+      setInputText(dashboardDictationAccumulatedTranscriptRef.current.trim());
     };
     recognition.onend = () => {
       if (dashboardDictationPauseTimeoutRef.current) clearTimeout(dashboardDictationPauseTimeoutRef.current);
@@ -888,18 +968,19 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
       dashboardDictationRecognitionRef.current = null;
       
       const finalDictatedText = dashboardDictationAccumulatedTranscriptRef.current.trim();
-      setInputText(finalDictatedText); // Ensure inputText is the final accumulated version for Brain processing
+      setInputText(finalDictatedText);
       if (finalDictatedText) {
         toast({title: "Dictation Ended", description: "Review text and click Brain icon to process."});
       }
-      // dashboardDictationAccumulatedTranscriptRef.current = ''; // Don't clear here, keep it for Brain icon
+      // dashboardDictationAccumulatedTranscriptRef.current = ''; // User processes what's in inputText
     };
     recognition.start();
   };
 
 
   const getMicIconForCardHeader = () => {
-    if (isActivelyLongRecordingInternal) return <Radio className="h-5 w-5 text-red-500 animate-pulse" />
+    if (isExternallyLongRecording || (isCapturingAudio && mediaRecorderRef.current?.context?.state === "recording" && snippetRecognitionRef.current)) return <Radio className="h-5 w-5 text-red-500 animate-pulse" /> // Long recording
+    if (isCapturingAudio) return <Radio className="h-5 w-5 text-red-500 animate-pulse" /> // "Heggles replay that" recording
     if (isDashboardDictationActive) return <Radio className="h-5 w-5 text-red-500 animate-pulse" />;
     if (partialWakeWordDetected) return <Mic className="h-5 w-5 text-yellow-500 animate-pulse" />;
     if (isRecognizingSpeech) return <Mic className="h-5 w-5 text-primary animate-pulse" />;
@@ -908,9 +989,10 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
   };
 
   const getMicStatusText = (): React.ReactNode => {
-    if (isActivelyLongRecordingInternal) return "Continuous recording active...";
+    if (isExternallyLongRecording || (isCapturingAudio && mediaRecorderRef.current?.context?.state === "recording" && snippetRecognitionRef.current)) return "Continuous recording active...";
+    if (isCapturingAudio) return "Recording 10s audio & speech...";
     if (isDashboardDictationActive) return "Dictating to input area...";
-    if (isLoading && !isAlertDialogOpen) return "Processing..."; // Only show processing if no dialog is open
+    if (isLoading && !isAlertDialogOpen) return "Processing...";
     if (!isListening) return "Voice Inactive (Passive Listening Off)";
     if (isBrowserUnsupported) return "Voice N/A (Browser Not Supported)";
     if (hasMicPermission === false) return "Mic Denied";
@@ -922,20 +1004,25 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
   };
 
   const getTextareaPlaceholder = (): string => {
-    if (isActivelyLongRecordingInternal) return "Continuous recording active. Speech will populate here when stopped. Click Brain icon to process.";
+    if (isExternallyLongRecording) return "Continuous recording active. Speech will populate here when stopped. Click Brain icon to process.";
+    if (isCapturingAudio) return "Recording 10s audio & speech for 'Heggles replay that'. Processed automatically.";
     if (isDashboardDictationActive) return "Dictating your thought... Say 'Heggles end' or 'Heggles stop' to finish. Text will populate here for Brain processing.";
     if (isLoading && !isAlertDialogOpen) return "Processing...";
     if (!isListening) return "Enable passive listening to use voice or type input here.";
     if (partialWakeWordDetected) return "'Heggles' detected. Finish your command. Text will appear here. Click Brain icon to process.";
-    if (isRecognizingSpeech) return "Listener active for 'Heggles'. Spoken commands will appear here. Click Brain icon to process.";
-    return "Enter thought, or use voice commands to populate this area. Click Brain icon to process.";
+    if (isRecognizingSpeech) return "Listener active. Say 'Heggles' followed by your command. Text will appear here for Brain processing.";
+    return "Type thought or say 'Heggles' + command. Click Brain icon to process.";
   };
 
-  const getDashboardDictationButtonIcon = () => {
+  const getDashboardDictationButtonIcon = () => { // For the mic button in the card
     if (isDashboardDictationActive) return <Radio className="h-5 w-5 text-red-500 animate-pulse" />;
-    if (!isListening || hasMicPermission !== true || isRecognizingSpeech || isActivelyLongRecordingInternal || isLoading) return <MicOff className="h-5 w-5 text-muted-foreground" />;
+    // Disable if main listener active, or long/snippet recording, or loading
+    if (!isListening || hasMicPermission !== true || isRecognizingSpeech || isCapturingAudio || isLoading) return <MicOff className="h-5 w-5 text-muted-foreground" />;
     return <Mic className="h-5 w-5 text-primary" />;
   };
+  
+  const dashboardMicButtonDisabled = !isListening || hasMicPermission !== true || isRecognizingSpeech || isCapturingAudio || isLoading || isExternallyLongRecording;
+
 
   return (
     <>
@@ -951,7 +1038,7 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
             )}
           </div>
           <CardDescription>
-            Spoken commands or typed text populate the area below. Click the <Brain className="inline-block h-3.5 w-3.5 mx-0.5"/> icon to process.
+            Use voice commands starting with '<strong>Heggles</strong>' or type directly. Then click the <Brain className="inline-block h-3.5 w-3.5 mx-0.5"/> icon to process.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -976,7 +1063,7 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               rows={4}
-              disabled={isLoading || isActivelyLongRecordingInternal || isDashboardDictationActive}
+              disabled={isLoading || isCapturingAudio}
               className="resize-none"
               aria-label="Thought input area"
             />
@@ -984,7 +1071,7 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
                <Button
                 type="button"
                 onClick={handleProcessInputText}
-                disabled={isLoading || isActivelyLongRecordingInternal || isDashboardDictationActive || !inputText.trim()}
+                disabled={isLoading || isCapturingAudio || !inputText.trim()}
                 size="icon"
                 className="p-2 h-auto"
                 aria-label="Process text from input area with AI"
@@ -995,7 +1082,7 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
               <Button
                 type="button"
                 onClick={handleDashboardMicClick}
-                disabled={!isListening || isLoading || isActivelyLongRecordingInternal || (isRecognizingSpeech && !isDashboardDictationActive && !partialWakeWordDetected) || hasMicPermission !== true}
+                disabled={dashboardMicButtonDisabled}
                 size="icon"
                 className="p-2 h-auto"
                 aria-label="Dictate thought into text area"
@@ -1005,10 +1092,10 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
               </Button>
             </div>
             <p className="text-xs text-muted-foreground pt-1">
-                The <q><strong>Heggles</strong>{WAKE_WORDS.RECALL_THOUGHT.substring(WAKE_WORDS.HEGGLES_BASE.length)}</q> voice command populates input for Brain processing.
-                The <Mic className="inline-block h-3 w-3 mx-0.5 text-primary"/> icon button (dictate) transcribes speech directly into the text area.
-                The <PlayCircle className="inline-block h-3 w-3 mx-0.5 text-green-500"/> / <StopCircle className="inline-block h-3 w-3 mx-0.5 text-red-500"/> button (header) is for continuous recording; its transcript populates the input area when stopped.
-                All text input (voice or typed) is processed using the <Brain className="inline-block h-3 w-3 mx-0.5"/> button.
+                Say '<strong>Heggles replay that</strong>' to record a 10s audio snippet for AI processing.
+                Other '<strong>Heggles</strong>' commands (e.g., 'add to list') populate this area for processing with the <Brain className="inline-block h-3 w-3 mx-0.5"/> button.
+                The <Mic className="inline-block h-3 w-3 mx-0.5"/> icon button (dictate) transcribes speech directly into this area.
+                The <PlayCircle className="inline-block h-3 w-3 mx-0.5 text-green-500"/> / <StopCircle className="inline-block h-3 w-3 mx-0.5 text-red-500"/> button (header) is for continuous recording.
             </p>
           </div>
         </CardContent>
@@ -1019,8 +1106,7 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
             setIsAlertDialogOpen(open);
             if (!open) {
                 setIsLoading(false); 
-                // Decide if inputText should be cleared when dialog is cancelled
-                // For now, let's keep it, user might want to edit.
+                // Don't clear inputText on cancel, user might want to edit.
             }
         }}>
           <AlertDialogContent>
@@ -1045,5 +1131,3 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
 });
 
 ThoughtInputForm.displayName = "ThoughtInputForm";
-
-    

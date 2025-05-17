@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
-import { BUFFER_TIME_OPTIONS, LOCALSTORAGE_KEYS, DEFAULT_BUFFER_TIME, WAKE_WORDS, type BufferTimeValue } from '@/lib/constants';
+import { BUFFER_TIME_OPTIONS, LOCALSTORAGE_KEYS, DEFAULT_BUFFER_TIME, WAKE_WORDS, type BufferTimeValue, RECORDING_DURATION_MS } from '@/lib/constants';
 
 interface PassiveListenerControlsProps {
   isListening: boolean;
@@ -57,13 +57,14 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
     onToggleListening(checked);
   };
 
-  const recallCmdSuffix = WAKE_WORDS.RECALL_THOUGHT.substring(WAKE_WORDS.HEGGLES_BASE.length);
-  const addShopCmdSuffix = WAKE_WORDS.ADD_TO_SHOPPING_LIST.substring(WAKE_WORDS.HEGGLES_BASE.length);
-  const addToDoCmdSuffix = WAKE_WORDS.ADD_TO_TODO_LIST.substring(WAKE_WORDS.HEGGLES_BASE.length);
-  const setBufferCmdSuffix = WAKE_WORDS.SET_BUFFER_TIME.substring(WAKE_WORDS.HEGGLES_BASE.length);
-  const turnOnCmdSuffix = WAKE_WORDS.TURN_LISTENING_ON.substring(WAKE_WORDS.HEGGLES_BASE.length);
-  const turnOffCmdSuffix = WAKE_WORDS.TURN_LISTENING_OFF.substring(WAKE_WORDS.HEGGLES_BASE.length);
-  const deleteItemSuffix = WAKE_WORDS.DELETE_ITEM_PREFIX.substring(WAKE_WORDS.HEGGLES_BASE.length);
+  const recallCmdSuffix = WAKE_WORDS.HEGGLES_REPLAY_THAT.substring(WAKE_WORDS.HEGGLES_BASE.length);
+  const addShopCmdSuffix = WAKE_WORDS.HEGGLES_ADD_TO_SHOPPING_LIST_PREFIX.substring(WAKE_WORDS.HEGGLES_BASE.length);
+  const addToDoCmdSuffix = WAKE_WORDS.HEGGLES_ADD_TO_TODO_LIST_PREFIX.substring(WAKE_WORDS.HEGGLES_BASE.length);
+  const setBufferCmdSuffix = WAKE_WORDS.HEGGLES_SET_BUFFER.substring(WAKE_WORDS.HEGGLES_BASE.length);
+  const turnOnCmdSuffix = WAKE_WORDS.HEGGLES_TURN_ON.substring(WAKE_WORDS.HEGGLES_BASE.length);
+  const turnOffCmdSuffix = WAKE_WORDS.HEGGLES_TURN_OFF.substring(WAKE_WORDS.HEGGLES_BASE.length);
+  const deleteItemSuffix = WAKE_WORDS.HEGGLES_DELETE_ITEM_PREFIX.substring(WAKE_WORDS.HEGGLES_BASE.length);
+  const recordingDurationSeconds = RECORDING_DURATION_MS / 1000;
 
 
   return (
@@ -90,7 +91,7 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
         <div className="space-y-2 p-4 border rounded-lg bg-secondary/30">
           <Label htmlFor="buffer-time-select" className="text-md font-medium flex items-center">
             <Timer className="mr-2 h-5 w-5 text-muted-foreground" />
-            Conceptual Buffer Time (for "<strong>Heggles</strong>{recallCmdSuffix}" voice command)
+            Conceptual Buffer Time (used by '<strong>Heggles</strong>{setBufferCmdSuffix} [duration]' voice command)
           </Label>
           <Select value={bufferTime} onValueChange={(value) => setBufferTime(value as BufferTimeValue)}>
             <SelectTrigger id="buffer-time-select" aria-label="Select buffer time period">
@@ -105,7 +106,8 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
             </SelectContent>
           </Select>
            <p className="text-xs text-muted-foreground pt-1">
-            The <q><strong>Heggles</strong>{recallCmdSuffix}</q> voice command simulates recalling from this conceptual buffer. The transcript appears in the input area for processing.
+            This setting is primarily for the '<strong>Heggles</strong>{setBufferCmdSuffix}' voice command.
+            The '<strong>Heggles</strong>{recallCmdSuffix}' voice command now triggers a {recordingDurationSeconds}-second live recording.
           </p>
         </div>
 
@@ -120,16 +122,16 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
         <div className="flex items-start p-3 border rounded-lg bg-secondary/30 text-sm text-muted-foreground">
             <Info className="h-5 w-5 mr-2 mt-0.5 shrink-0 text-primary" />
             <div>
-                Voice commands populate the input area on the dashboard. Click the <Brain className="inline-block h-3 w-3 mx-0.5"/> icon to process.
+                Voice commands starting with '<strong>Heggles</strong>' populate the input area on the dashboard. Click the <Brain className="inline-block h-3 w-3 mx-0.5"/> icon to process.
                 <ul className="list-disc pl-5 mt-1 space-y-0.5">
-                  <li>Toggle listening: <q><strong>Heggles</strong>{turnOnCmdSuffix}</q> / <q><strong>Heggles</strong>{turnOffCmdSuffix}</q>.</li>
-                  <li>Simulated recall: <q><strong>Heggles</strong>{recallCmdSuffix}</q>.</li>
-                  <li>Add to shopping list: <q><strong>Heggles</strong>{addShopCmdSuffix} [item]</q>.</li>
-                  <li>Add to to-do list: <q><strong>Heggles</strong>{addToDoCmdSuffix} [task]</q>.</li>
-                  <li>Set buffer: <q><strong>Heggles</strong>{setBufferCmdSuffix} [e.g., 5 minutes / always on]</q>.</li>
-                  <li>Delete item: <q><strong>Heggles</strong>{deleteItemSuffix} [item/item number X] from [shopping list/to do list]</q>.</li>
+                  <li>Toggle listening: <q><strong>Heggles</strong>{turnOnCmdSuffix}</q> / <q><strong>Heggles</strong>{turnOffCmdSuffix}</q>. (Immediate action)</li>
+                  <li>Live snippet recall: <q><strong>Heggles</strong>{recallCmdSuffix}</q>. (Triggers {recordingDurationSeconds}s live recording, then AI processing).</li>
+                  <li>Add to shopping list: <q><strong>Heggles</strong>{addShopCmdSuffix} [item]</q>. (Populates input for Brain processing)</li>
+                  <li>Add to to-do list: <q><strong>Heggles</strong>{addToDoCmdSuffix} [task]</q>. (Populates input for Brain processing)</li>
+                  <li>Set buffer: <q><strong>Heggles</strong>{setBufferCmdSuffix} [e.g., 5 minutes / always on]</q>. (Immediate action)</li>
+                  <li>Delete item: <q><strong>Heggles</strong>{deleteItemSuffix} [item/item number X] from [shopping list/to do list]</q>. (Populates input for Brain processing)</li>
                   <li>The Microphone icon button on the dashboard (in Input & Recall card) is for direct dictation into the input area.</li>
-                  <li>The Play/Stop icon button (next to Dashboard title) is for continuous recording; its transcript also populates the input area when stopped.</li>
+                  <li>The Play/Stop icon button (next to Dashboard title in header) is for continuous recording; its transcript also populates the input area when stopped for Brain processing.</li>
                 </ul>
             </div>
         </div>
