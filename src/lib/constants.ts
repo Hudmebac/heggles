@@ -24,10 +24,16 @@ export const LOCALSTORAGE_KEYS = {
 
 export const WAKE_WORDS = {
   RECALL_THOUGHT: "hegsync replay that",
-  ADD_TO_SHOPPING_LIST: "hegsync add to my shopping list",
-  SET_BUFFER_TIME: "hegsync set buffer",
+  ADD_TO_SHOPPING_LIST: "hegsync add to my shopping list", // This is a full phrase prefix
+  SET_BUFFER_TIME: "hegsync set buffer", // This is a prefix
   TURN_LISTENING_OFF: "hegsync turn off",
   TURN_LISTENING_ON: "hegsync turn on",
+  
+  // For more complex parsing of delete commands:
+  DELETE_ITEM_PREFIX: "hegsync delete", // General prefix for all delete commands
+  FROM_SHOPPING_LIST_TRIGGER: "from my shopping list",
+  FROM_TODO_LIST_TRIGGER: "from my to do list",
+  ITEM_NUMBER_KEYWORD: "item number", // Used to identify if deletion is by number
 };
 
 // Placeholder text for simulated recall based on buffer time

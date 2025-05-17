@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { processTextThought, processRecordedAudio } from '@/lib/actions';
-import type { Thought, ShoppingListItem } from '@/lib/types';
+import type { Thought, ShoppingListItem, ToDoListItem } from '@/lib/types';
 import {
   WAKE_WORDS,
   LOCALSTORAGE_KEYS,
@@ -18,6 +18,8 @@ import {
   type BufferTimeValue,
   DEFAULT_BUFFER_TIME,
   SIMULATED_RECALL_PREFIX,
+  SIMULATED_RECALL_SUFFIX,
+  ACTUAL_RECORDING_SIMULATED_TRANSCRIPTION
 } from '@/lib/constants';
 
 interface ThoughtInputFormProps {
@@ -41,7 +43,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
-  const handleProcessTextThought = async (textToProcess: string) => {
+  const handleProcessTextThoughtSubmit = async (textToProcess: string) => {
     if (!textToProcess.trim()) {
       toast({ title: "Input empty", description: "Cannot process an empty thought.", variant: "destructive" });
       return;
@@ -84,6 +86,38 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
       setIsLoading(false);
     }
   };
+  
+  const handleSimulatedRecall = async () => {
+    setIsLoading(true);
+    setPartialWakeWordDetected(false);
+    try {
+      let bufferTimeLabel = DEFAULT_BUFFER_TIME;
+      if (typeof window !== 'undefined') {
+        const storedBufferTime = localStorage.getItem(LOCALSTORAGE_KEYS.BUFFER_TIME);
+        const currentBufferTimeValue = storedBufferTime ? JSON.parse(storedBufferTime) as BufferTimeValue : DEFAULT_BUFFER_TIME;
+        const matchedOption = BUFFER_TIME_OPTIONS.find(opt => opt.value === currentBufferTimeValue);
+        bufferTimeLabel = matchedOption ? matchedOption.label : `${currentBufferTimeValue} buffer`;
+      }
+      const simulatedText = `${SIMULATED_RECALL_PREFIX} ${bufferTimeLabel} ${SIMULATED_RECALL_SUFFIX}`;
+      
+      // For simulated recall, we use the same processing as text thoughts.
+      const processedData = await processTextThought(simulatedText);
+      const newThought: Thought = {
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        originalText: simulatedText, // Use the generated simulated text
+        summary: processedData.summary,
+        keywords: processedData.keywords,
+      };
+      onThoughtRecalled(newThought);
+      toast({ title: "Simulated Recall Processed", description: `Generated thought from ${bufferTimeLabel}.` });
+    } catch (error) {
+      toast({ title: "Error in Simulated Recall", description: (error as Error).message, variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
 
   const startAudioRecording = async () => {
     if (isCapturingAudio || !hasMicPermission) {
@@ -137,12 +171,12 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
 
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await handleProcessTextThought(inputText);
+    await handleProcessTextThoughtSubmit(inputText);
   };
 
   const addShoppingListItem = (itemText: string) => {
     if (!itemText.trim()) {
-      toast({ title: "No item specified", description: <>Please say the item you want to add after '<q><strong>HegSync</strong>{WAKE_WORDS.ADD_TO_SHOPPING_LIST.substring("hegsync".length)}</q>'.</>, variant: "default" });
+      toast({ title: "No item specified", description: <>Please say the item you want to add after '<q><strong>HegSync</strong>{WAKE_WORDS.ADD_TO_SHOPPING_LIST.substring("hegsync".length).substring(" add to my shopping list".length)}</q>'.</>, variant: "default" });
       return;
     }
     try {
@@ -174,7 +208,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
         if (cleanedSpoken.includes(option.value) && (cleanedSpoken.includes('minute') || cleanedSpoken.includes('min'))) {
           return option.value;
         }
-        if (cleanedSpoken === option.value) {
+        if (cleanedSpoken === option.value) { // e.g., user just says "1" or "5"
             return option.value;
         }
       }
@@ -186,13 +220,66 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
     const parsedValue = parseSpokenBufferTime(spokenDuration);
     if (parsedValue) {
       localStorage.setItem(LOCALSTORAGE_KEYS.BUFFER_TIME, JSON.stringify(parsedValue));
+      // Dispatch a custom event to notify other components (like PassiveListenerControls)
+      window.dispatchEvent(new StorageEvent('storage', { key: LOCALSTORAGE_KEYS.BUFFER_TIME, newValue: JSON.stringify(parsedValue) }));
       const matchedOption = BUFFER_TIME_OPTIONS.find(opt => opt.value === parsedValue);
       toast({ title: "Buffer Time Set", description: `Conceptual buffer time set to ${matchedOption?.label || parsedValue}.` });
     } else {
-      const defaultOption = BUFFER_TIME_OPTIONS.find(opt => opt.value === DEFAULT_BUFFER_TIME);
+      const currentBufferTime = localStorage.getItem(LOCALSTORAGE_KEYS.BUFFER_TIME);
+      const defaultOption = BUFFER_TIME_OPTIONS.find(opt => opt.value === (currentBufferTime ? JSON.parse(currentBufferTime) : DEFAULT_BUFFER_TIME));
       toast({ title: "Buffer Time Not Understood", description: `Could not parse "${spokenDuration}". Please try e.g., "1 minute", "always on". Current is ${defaultOption?.label}.`, variant: "default" });
     }
   };
+
+  const deleteListItem = (
+    listKey: string,
+    identifier: string | number,
+    listName: string,
+    itemType: 'item' | 'task'
+  ) => {
+    try {
+      const currentItemsString = localStorage.getItem(listKey);
+      let currentItems: Array<ShoppingListItem | ToDoListItem> = currentItemsString ? JSON.parse(currentItemsString) : [];
+      let itemDeleted = false;
+      let deletedItemText = "";
+
+      if (typeof identifier === 'string') { // Delete by name
+        const originalLength = currentItems.length;
+        const searchName = identifier.trim().toLowerCase();
+        const itemFound = currentItems.find(item => item.text.toLowerCase() === searchName);
+        if (itemFound) {
+          deletedItemText = itemFound.text;
+          currentItems = currentItems.filter(item => item.text.toLowerCase() !== searchName);
+          itemDeleted = currentItems.length < originalLength;
+        }
+      } else { // Delete by number (1-based index)
+        const indexToDelete = identifier - 1; // Convert to 0-based
+        if (indexToDelete >= 0 && indexToDelete < currentItems.length) {
+          deletedItemText = currentItems[indexToDelete].text;
+          currentItems.splice(indexToDelete, 1);
+          itemDeleted = true;
+        }
+      }
+
+      if (itemDeleted) {
+        localStorage.setItem(listKey, JSON.stringify(currentItems));
+        window.dispatchEvent(new StorageEvent('storage', { key: listKey, newValue: JSON.stringify(currentItems) }));
+        const description = typeof identifier === 'string' 
+          ? `"${deletedItemText}" deleted from your ${listName}.`
+          : `${itemType.charAt(0).toUpperCase() + itemType.slice(1)} #${identifier} ("${deletedItemText}") deleted from your ${listName}.`;
+        toast({ title: `${itemType.charAt(0).toUpperCase() + itemType.slice(1)} Deleted`, description });
+      } else {
+        const description = typeof identifier === 'string'
+          ? `"${identifier}" not found in your ${listName}.`
+          : `Invalid ${itemType} number #${identifier} for your ${listName}.`;
+        toast({ title: "Deletion Failed", description, variant: "destructive" });
+      }
+    } catch (error) {
+      console.error(`Error deleting from ${listName}:`, error);
+      toast({ title: `Error updating ${listName}`, description: "Could not modify the list.", variant: "destructive" });
+    }
+  };
+
 
   useEffect(() => {
     const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -243,7 +330,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
       recognition.onend = () => {
         setIsRecognizingSpeech(false);
         setPartialWakeWordDetected(false);
-        recognitionRef.current = null;
+        recognitionRef.current = null; 
       };
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -259,7 +346,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
         } else if (event.error === 'network') {
           toast({ title: "Network Error", description: "Speech recognition might require a network connection.", variant: "destructive"});
         } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
-          toast({ title: "Speech Error", description: `Voice recognition faced an issue: ${event.error}`, variant: "destructive"});
+          // toast({ title: "Speech Error", description: `Voice recognition faced an issue: ${event.error}`, variant: "destructive"});
         }
         setPartialWakeWordDetected(false);
       };
@@ -282,7 +369,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
 
         if (finalLower) {
           setPartialWakeWordDetected(false);
-          if (recognitionRef.current) recognitionRef.current.stop();
+          if (recognitionRef.current) recognitionRef.current.stop(); // Stop recognition to process command
 
           if (finalLower.startsWith(WAKE_WORDS.ADD_TO_SHOPPING_LIST.toLowerCase())) {
             const itemToAdd = finalLower.substring(WAKE_WORDS.ADD_TO_SHOPPING_LIST.length).trim();
@@ -297,13 +384,48 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
             onToggleListeningParent(false);
           } else if (finalLower.includes(WAKE_WORDS.TURN_LISTENING_ON.toLowerCase())) {
             onToggleListeningParent(true);
+          } else if (finalLower.startsWith(WAKE_WORDS.DELETE_ITEM_PREFIX.toLowerCase())) {
+            const commandArgs = finalLower.substring(WAKE_WORDS.DELETE_ITEM_PREFIX.length).trim(); // e.g., "apples from my shopping list" or "item number 2 from my to do list"
+            
+            let listType: 'shopping' | 'todo' | null = null;
+            let itemIdentifierString = "";
+
+            if (commandArgs.includes(WAKE_WORDS.FROM_SHOPPING_LIST_TRIGGER.toLowerCase())) {
+              listType = 'shopping';
+              itemIdentifierString = commandArgs.substring(0, commandArgs.indexOf(WAKE_WORDS.FROM_SHOPPING_LIST_TRIGGER.toLowerCase())).trim();
+            } else if (commandArgs.includes(WAKE_WORDS.FROM_TODO_LIST_TRIGGER.toLowerCase())) {
+              listType = 'todo';
+              itemIdentifierString = commandArgs.substring(0, commandArgs.indexOf(WAKE_WORDS.FROM_TODO_LIST_TRIGGER.toLowerCase())).trim();
+            }
+
+            if (listType && itemIdentifierString) {
+              const listKey = listType === 'shopping' ? LOCALSTORAGE_KEYS.SHOPPING_LIST : LOCALSTORAGE_KEYS.TODO_LIST;
+              const listName = listType === 'shopping' ? "Shopping List" : "To-Do List";
+              const itemTypeName = listType === 'shopping' ? "item" : "task";
+
+              if (itemIdentifierString.toLowerCase().startsWith(WAKE_WORDS.ITEM_NUMBER_KEYWORD.toLowerCase())) {
+                const numberStr = itemIdentifierString.substring(WAKE_WORDS.ITEM_NUMBER_KEYWORD.length).trim();
+                const itemNumber = parseInt(numberStr, 10);
+                if (!isNaN(itemNumber) && itemNumber > 0) {
+                  deleteListItem(listKey, itemNumber, listName, itemTypeName);
+                } else {
+                  toast({ title: "Invalid Item Number", description: `Please say a valid number for the ${itemTypeName}.`, variant: "destructive" });
+                }
+              } else {
+                // Delete by name
+                deleteListItem(listKey, itemIdentifierString, listName, itemTypeName);
+              }
+            } else {
+              toast({ title: "Deletion Command Unclear", description: "Please specify the item and list clearly. E.g., 'delete apples from my shopping list' or 'delete item number 1 from my to do list'.", variant: "default" });
+            }
           }
+          // No need to manually restart recognition here, onend and useEffect will handle it if conditions are met
         } else if (interimLower.includes("hegsync")) {
-          setPartialWakeWordDetected(true);
+           if (!partialWakeWordDetected) setPartialWakeWordDetected(true);
         } else {
-          if(partialWakeWordDetected) {
-            setPartialWakeWordDetected(false);
-          }
+           if(partialWakeWordDetected) {
+             setPartialWakeWordDetected(false);
+           }
         }
       };
 
@@ -323,22 +445,22 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
         recognitionRef.current.onend = null;
         recognitionRef.current.onerror = null;
         recognitionRef.current.onresult = null;
-        if (isRecognizingSpeech) {
+        if (isRecognizingSpeech) { // Check if it was actually started
             try { recognitionRef.current.stop(); } catch(e) { console.warn("Error stopping recognition in cleanup:", e); }
         }
-        recognitionRef.current = null;
+        recognitionRef.current = null; // Ensure it's cleared for next setup
       }
-      setIsRecognizingSpeech(false);
-      setPartialWakeWordDetected(false);
+      setIsRecognizingSpeech(false); // Reset recognition state
+      setPartialWakeWordDetected(false); // Reset partial detection state
 
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-        mediaRecorderRef.current.stop();
+        mediaRecorderRef.current.stop(); // Stop media recorder if active
         mediaRecorderRef.current = null;
       }
-      setIsCapturingAudio(false);
+      setIsCapturingAudio(false); // Reset audio capture state
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isListening, hasMicPermission, isLoading, isCapturingAudio, onToggleListeningParent]);
+  }, [isListening, hasMicPermission, isLoading, isCapturingAudio, onToggleListeningParent]); // Dependencies that control the listening lifecycle
 
   const getMicIcon = () => {
     if (isCapturingAudio) return <Radio className="h-5 w-5 text-red-500 animate-pulse" />;
@@ -364,10 +486,12 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
   };
 
   const recallCmdSuffix = WAKE_WORDS.RECALL_THOUGHT.substring("hegsync".length);
-  const addShopCmdSuffix = WAKE_WORDS.ADD_TO_SHOPPING_LIST.substring("hegsync".length);
-  const setBufferCmdSuffix = WAKE_WORDS.SET_BUFFER_TIME.substring("hegsync".length);
+  const addShopCmdSuffix = WAKE_WORDS.ADD_TO_SHOPPING_LIST.substring("hegsync add to my shopping list".length);
+  const setBufferCmdSuffix = WAKE_WORDS.SET_BUFFER_TIME.substring("hegsync set buffer".length);
   const turnOnCmdSuffix = WAKE_WORDS.TURN_LISTENING_ON.substring("hegsync".length);
   const turnOffCmdSuffix = WAKE_WORDS.TURN_LISTENING_OFF.substring("hegsync".length);
+  const deleteItemSuffix = WAKE_WORDS.DELETE_ITEM_PREFIX.substring("hegsync".length);
+
 
   return (
     <Card className="w-full shadow-lg">
@@ -385,7 +509,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
            {isListening
             ? (
               <>
-                Voice: Say <q><strong>HegSync</strong>{recallCmdSuffix}</q>, <q><strong>HegSync</strong>{addShopCmdSuffix} [item]</q>, <q><strong>HegSync</strong>{setBufferCmdSuffix} [duration]</q>, <q><strong>HegSync</strong>{turnOnCmdSuffix}</q>, or <q><strong>HegSync</strong>{turnOffCmdSuffix}</q>.
+                Voice: Say <q><strong>HegSync</strong>{recallCmdSuffix}</q>, <q><strong>HegSync</strong> add to my shopping list [item]</q>, <q><strong>HegSync</strong>{setBufferCmdSuffix} [duration]</q>, <q><strong>HegSync</strong>{turnOnCmdSuffix}</q>, <q><strong>HegSync</strong>{turnOffCmdSuffix}</q>, or <q><strong>HegSync</strong>{deleteItemSuffix} [item/item number X] from [shopping list/to do list]</q>.
                 Text: Use area below and "Process Thought (from text)" button.
               </>
             )
@@ -436,7 +560,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
           />
           <div className="flex items-stretch gap-2">
             <Button
-              type="submit"
+              type="button" // Changed from submit to prevent form submission on its own
               onClick={handleManualSubmit}
               disabled={!isListening || isLoading || isCapturingAudio || !inputText.trim()}
               className="flex-grow"
@@ -446,7 +570,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
               Process Thought (from text)
             </Button>
              <Button
-              type="button"
+              type="button" // Changed from submit
               onClick={handleManualSubmit}
               disabled={!isListening || isLoading || isCapturingAudio || !inputText.trim()}
               size="icon"
@@ -460,7 +584,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
         </form>
         <p className="text-xs text-muted-foreground mt-2">
           The <q><strong>HegSync</strong>{recallCmdSuffix}</q> voice command records a {RECORDING_DURATION_MS / 1000}-second audio snippet.
-          Shopping list, buffer time, and listening toggle commands operate based on your speech.
+          Shopping list, to-do list, buffer time, and listening toggle commands operate based on your speech.
         </p>
       </CardContent>
     </Card>

@@ -67,10 +67,11 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
   const recordingDurationSeconds = RECORDING_DURATION_MS / 1000;
 
   const recallCmdSuffix = WAKE_WORDS.RECALL_THOUGHT.substring("hegsync".length);
-  const addShopCmdSuffix = WAKE_WORDS.ADD_TO_SHOPPING_LIST.substring("hegsync".length);
-  const setBufferCmdSuffix = WAKE_WORDS.SET_BUFFER_TIME.substring("hegsync".length);
+  const addShopCmdSuffix = WAKE_WORDS.ADD_TO_SHOPPING_LIST.substring("hegsync add to my shopping list".length);
+  const setBufferCmdSuffix = WAKE_WORDS.SET_BUFFER_TIME.substring("hegsync set buffer".length);
   const turnOnCmdSuffix = WAKE_WORDS.TURN_LISTENING_ON.substring("hegsync".length);
   const turnOffCmdSuffix = WAKE_WORDS.TURN_LISTENING_OFF.substring("hegsync".length);
+  const deleteItemSuffix = WAKE_WORDS.DELETE_ITEM_PREFIX.substring("hegsync".length);
 
 
   return (
@@ -112,7 +113,7 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
             </SelectContent>
           </Select>
            <p className="text-xs text-muted-foreground pt-1">
-            Voice command <q><strong>HegSync</strong>{recallCmdSuffix}</q> uses this to simulate recall and records a {recordingDurationSeconds}-second snippet. You can also set this via voice: <q><strong>HegSync</strong>{setBufferCmdSuffix} [duration]</q>.
+            The <q><strong>HegSync</strong>{recallCmdSuffix}</q> voice command records a {recordingDurationSeconds}-second audio snippet. You can also set this via voice: <q><strong>HegSync</strong>{setBufferCmdSuffix} [duration]</q>.
           </p>
         </div>
 
@@ -129,8 +130,9 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
             <div>
                 Toggle to {isListening ? "disable" : "enable"} passive listening. Or say <q><strong>HegSync</strong>{turnOnCmdSuffix}</q> / <q><strong>HegSync</strong>{turnOffCmdSuffix}</q>. <br />
                 - Say <q><strong>HegSync</strong>{recallCmdSuffix}</q> (records a {recordingDurationSeconds}s audio snippet). <br />
-                - Say <q><strong>HegSync</strong>{addShopCmdSuffix} [item]</q>. <br />
+                - Say <q><strong>HegSync</strong> add to my shopping list [item]</q>. <br />
                 - Say <q><strong>HegSync</strong>{setBufferCmdSuffix} [e.g., 5 minutes / always on]</q>. <br />
+                - Say <q><strong>HegSync</strong>{deleteItemSuffix} [item/item number X] from [shopping list/to do list]</q>. <br />
                 - The "Process Thought (from text)" button uses text from the input area.
             </div>
         </div>
