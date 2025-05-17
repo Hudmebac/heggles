@@ -2,47 +2,54 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Mic, MicOff, AlertTriangle } from 'lucide-react';
+import { Mic, MicOff, AlertTriangle, Timer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
 
 interface PassiveListenerControlsProps {
   isListening: boolean;
   onToggleListening: (isListening: boolean) => void;
 }
 
+const bufferTimeOptions = [
+  { value: '1', label: '1 Minute' },
+  { value: '5', label: '5 Minutes' },
+  { value: '15', label: '15 Minutes' },
+  { value: '30', label: '30 Minutes' },
+  { value: 'continuous', label: 'Always On (Continuous)' },
+];
+
 export function PassiveListenerControls({ isListening, onToggleListening }: PassiveListenerControlsProps) {
   const [showWarning, setShowWarning] = useState(false);
+  const [bufferTime, setBufferTime] = useLocalStorage<string>('hegsync-buffer-time', '5'); // Default to 5 minutes
 
-  // Handles the warning display logic, including initial state and subsequent toggles.
   useEffect(() => {
     let timerId: NodeJS.Timeout | undefined;
     if (isListening) {
       setShowWarning(true);
       timerId = setTimeout(() => {
         setShowWarning(false);
-      }, 5000); // Hide warning after 5 seconds
+      }, 5000); 
     } else {
-      // If isListening is false (either initially or after a toggle), ensure warning is hidden.
       setShowWarning(false);
     }
-
-    // Cleanup function to clear the timer if the component unmounts or isListening changes
     return () => {
       if (timerId) {
         clearTimeout(timerId);
       }
     };
-  }, [isListening]); // Re-run this effect whenever the `isListening` prop changes.
+  }, [isListening]);
 
-  // This function is called by the Switch component when its state changes by user interaction.
   const handleToggleSwitch = (checked: boolean) => {
-    onToggleListening(checked); // Inform the parent component about the state change.
-    // The useEffect above will handle updating `showWarning` based on the new `isListening` prop value.
+    onToggleListening(checked);
   };
   
+  const selectedBufferTimeLabel = bufferTimeOptions.find(opt => opt.value === bufferTime)?.label || `${bufferTime} Minutes`;
+
   return (
     <Card className="w-full shadow-lg">
       <CardHeader>
@@ -63,7 +70,26 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
             aria-label="Toggle passive listening mode"
           />
         </div>
-        {/* Warning is shown based on showWarning state, which is managed by the useEffect */}
+
+        <div className="space-y-2 p-4 border rounded-lg bg-secondary/30">
+          <Label htmlFor="buffer-time-select" className="text-md font-medium flex items-center">
+            <Timer className="mr-2 h-5 w-5 text-muted-foreground" />
+            Conceptual Buffer Time
+          </Label>
+          <Select value={bufferTime} onValueChange={setBufferTime}>
+            <SelectTrigger id="buffer-time-select" aria-label="Select buffer time period">
+              <SelectValue placeholder="Select buffer time" />
+            </SelectTrigger>
+            <SelectContent>
+              {bufferTimeOptions.map(option => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         {showWarning && (
           <div className="flex items-center p-3 border border-yellow-400 bg-yellow-50 text-yellow-700 rounded-md text-sm">
             <AlertTriangle className="h-5 w-5 mr-2" />
@@ -74,8 +100,8 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
           </div>
         )}
         <p className="text-sm text-muted-foreground">
-          Toggle to {isListening ? "disable" : "enable"} passive listening mode. When active, the app (conceptually) maintains a temporary local audio buffer.
-          Use the "Recall Thought" section to process the (simulated) buffered audio.
+          Toggle to {isListening ? "disable" : "enable"} passive listening. When active, the app (conceptually) maintains a temporary local audio buffer for the selected period of <span className="font-semibold">{selectedBufferTimeLabel}</span>.
+          Use the "Recall Thought" section to process this (simulated) buffered audio.
         </p>
       </CardContent>
     </Card>
