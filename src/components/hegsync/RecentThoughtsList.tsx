@@ -11,9 +11,10 @@ interface RecentThoughtsListProps {
   thoughts: Thought[];
   onPinThought: (thought: Thought) => void;
   onClarifyThought: (thought: Thought) => void;
+  onDeleteThought: (thoughtId: string) => void;
 }
 
-export function RecentThoughtsList({ thoughts, onPinThought, onClarifyThought }: RecentThoughtsListProps) {
+export function RecentThoughtsList({ thoughts, onPinThought, onClarifyThought, onDeleteThought }: RecentThoughtsListProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredThoughts = useMemo(() => {
@@ -55,6 +56,7 @@ export function RecentThoughtsList({ thoughts, onPinThought, onClarifyThought }:
               thought={thought}
               onPin={onPinThought}
               onClarify={onClarifyThought}
+              onDelete={onDeleteThought}
             />
           ))}
         </div>

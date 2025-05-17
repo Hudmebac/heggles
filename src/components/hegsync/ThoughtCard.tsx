@@ -1,7 +1,7 @@
 
 "use client";
 
-import { Pin, Sparkles, MessageSquareText, Tags, CalendarDays, AlertCircle } from 'lucide-react';
+import { Pin, Sparkles, MessageSquareText, Tags, CalendarDays, AlertCircle, Trash2 } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -19,14 +19,15 @@ interface ThoughtCardProps {
   thought: Thought | PinnedThought;
   onPin: (thought: Thought) => void;
   onClarify: (thought: Thought) => void;
+  onDelete?: (thoughtId: string) => void; // Optional: only for recalled thoughts
   isPinned?: boolean;
 }
 
-export function ThoughtCard({ thought, onPin, onClarify, isPinned = false }: ThoughtCardProps) {
+export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = false }: ThoughtCardProps) {
   const timeAgo = formatDistanceToNow(new Date(thought.timestamp), { addSuffix: true });
 
   return (
-    <Card className="shadow-md hover:shadow-lg transition-shadow duration-200">
+    <Card className="shadow-md hover:shadow-lg transition-shadow duration-200 flex flex-col h-full">
       <CardHeader>
         <div className="flex justify-between items-start">
           <div>
@@ -38,14 +39,21 @@ export function ThoughtCard({ thought, onPin, onClarify, isPinned = false }: Tho
               <CalendarDays className="mr-1.5 h-4 w-4 text-muted-foreground" /> {timeAgo}
             </CardDescription>
           </div>
-          {!isPinned && (
-             <Button variant="ghost" size="icon" onClick={() => onPin(thought)} title="Pin this thought">
-              <Pin className="h-5 w-5" />
-            </Button>
-          )}
+          <div className="flex items-center space-x-1">
+            {onDelete && !isPinned && (
+              <Button variant="ghost" size="icon" onClick={() => onDelete(thought.id)} title="Delete this thought">
+                <Trash2 className="h-5 w-5 text-destructive" />
+              </Button>
+            )}
+            {!isPinned && (
+               <Button variant="ghost" size="icon" onClick={() => onPin(thought)} title="Pin this thought">
+                <Pin className="h-5 w-5" />
+              </Button>
+            )}
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-3 flex-grow">
         <div>
           <h4 className="font-semibold text-sm mb-1">Original Text:</h4>
           <p className="text-sm text-muted-foreground max-h-24 overflow-y-auto p-2 bg-secondary/30 rounded-md whitespace-pre-wrap">

@@ -64,6 +64,11 @@ export default function DashboardPage() {
     setIsClarifierOpen(false);
   };
 
+  const handleDeleteRecalledThought = (thoughtId: string) => {
+    setRecalledThoughts(prev => prev.filter(t => t.id !== thoughtId));
+    toast({ title: "Thought Deleted", description: "The recalled thought has been removed." });
+  };
+
 
   // Ensure client-side only execution for localStorage access if needed for initial load
   const [isClient, setIsClient] = useState(false);
@@ -91,6 +96,7 @@ export default function DashboardPage() {
           thoughts={recalledThoughts}
           onPinThought={handlePinThought}
           onClarifyThought={handleClarifyThought}
+          onDeleteThought={handleDeleteRecalledThought}
         />
       </div>
 
