@@ -29,22 +29,14 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
   const [isRecognizingSpeech, setIsRecognizingSpeech] = useState(false);
   const [isBrowserUnsupported, setIsBrowserUnsupported] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const wakeWordForRecallDetectedRef = useRef(false); // For "replay that"
-
+  
   const processThoughtInputWithAI = async () => {
     if (!inputText.trim()) {
       toast({ title: "Input empty", description: "Please provide some text to recall.", variant: "destructive" });
       return;
     }
-    if (!isListening && !wakeWordForRecallDetectedRef.current) {
-      toast({ title: "Listening Inactive", description: "Please enable passive listening to recall a thought.", variant: "destructive" });
-      return;
-    }
+    // No need to check isListening here as this function is also called via voice command which implies listening was active.
 
-    if (recognitionRef.current && isRecognizingSpeech) {
-      recognitionRef.current.stop(); 
-    }
-    
     setIsLoading(true);
     try {
       const processedData = await processRecalledAudio(inputText);
@@ -54,20 +46,17 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
         ...processedData,
       };
       onThoughtRecalled(newThought);
-      setInputText(''); // Clear input text after successful recall
+      setInputText(''); 
       toast({ title: "Thought Recalled", description: "AI processing complete." });
     } catch (error) {
       toast({ title: "Error Recalling Thought", description: (error as Error).message, variant: "destructive" });
     } finally {
       setIsLoading(false);
-      wakeWordForRecallDetectedRef.current = false; // Reset flag
-      // Speech recognition restart is handled by its 'onend' logic if isListening is still true.
     }
   };
 
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    wakeWordForRecallDetectedRef.current = false; 
     await processThoughtInputWithAI();
   };
 
@@ -103,23 +92,18 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
     }
     setIsBrowserUnsupported(false);
 
-    if (!isListening) {
-      if (recognitionRef.current) {
+    // Conditions to stop or not start recognition
+    if (!isListening || hasMicPermission === false || isLoading) {
+      if (recognitionRef.current && isRecognizingSpeech) {
         recognitionRef.current.stop();
       }
-      setIsRecognizingSpeech(false);
-      return;
-    }
-
-    if (isRecognizingSpeech || hasMicPermission === false || isLoading) {
       return;
     }
     
+    // Request microphone permission if not yet determined
     if (hasMicPermission === null) {
       navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(() => {
-          setHasMicPermission(true);
-        })
+        .then(() => setHasMicPermission(true))
         .catch(err => {
           console.error("Microphone permission error:", err);
           setHasMicPermission(false);
@@ -128,122 +112,115 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
       return; 
     }
 
-    recognitionRef.current = new SpeechRecognitionAPI();
-    const recognition = recognitionRef.current;
+    // Initialize and start recognition if not already running
+    if (!recognitionRef.current && !isRecognizingSpeech) {
+      recognitionRef.current = new SpeechRecognitionAPI();
+      const recognition = recognitionRef.current;
 
-    recognition.continuous = true;
-    recognition.interimResults = false; 
-    recognition.lang = 'en-US';
+      recognition.continuous = true;
+      recognition.interimResults = false; 
+      recognition.lang = 'en-US';
 
-    let restartTimer: NodeJS.Timeout | null = null;
+      recognition.onstart = () => {
+        setIsRecognizingSpeech(true);
+      };
 
-    recognition.onstart = () => {
-      setIsRecognizingSpeech(true);
-    };
+      recognition.onend = () => {
+        setIsRecognizingSpeech(false);
+        recognitionRef.current = null; // Allow re-initialization by useEffect
+        // useEffect will handle restart if conditions (isListening, !isLoading, hasMicPermission) are met
+      };
 
-    recognition.onend = () => {
-      setIsRecognizingSpeech(false);
-      if (isListening && hasMicPermission && !isLoading && recognitionRef.current && !wakeWordForRecallDetectedRef.current) {
-        if (restartTimer) clearTimeout(restartTimer);
-        restartTimer = setTimeout(() => {
-          if (isListening && hasMicPermission && !isLoading && recognitionRef.current) { 
-            try {
-              if (!isRecognizingSpeech) recognitionRef.current.start(); 
-            } catch (e) {
-              console.warn("Recognition restart prevented or failed:", e);
-            }
+      recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+        console.error('Speech recognition error:', event.error, event.message);
+        setIsRecognizingSpeech(false); // Ensure state is updated
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          setHasMicPermission(false);
+          toast({ title: "Microphone Access Denied", description: "Please enable microphone access in browser settings for voice commands.", variant: "destructive" });
+        } else if (event.error === 'no-speech' || event.error === 'aborted') {
+          // These are normal, onend will handle state, useEffect will handle restart if needed
+        } else if (event.error === 'network') {
+          toast({ title: "Network Error", description: "Speech recognition might require a network connection.", variant: "destructive"});
+        } else {
+          toast({ title: "Speech Error", description: `Voice recognition faced an issue: ${event.error}`, variant: "destructive"});
+        }
+        recognitionRef.current = null; // Prepare for re-init if needed
+      };
+
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
+        let finalTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
           }
-        }, 300); 
-      }
-    };
-
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      console.error('Speech recognition error:', event.error, event.message);
-      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-        setHasMicPermission(false);
-        toast({ title: "Microphone Access Denied", description: "Please enable microphone access in browser settings for voice commands.", variant: "destructive" });
-      } else if (event.error === 'no-speech') {
-        // Normal, onend will handle restart
-      } else if (event.error === 'network') {
-        toast({ title: "Network Error", description: "Speech recognition might require a network connection.", variant: "destructive"});
-      } else if (event.error === 'aborted') {
-        // Usually means stop() was called, which is fine.
-      } else {
-        toast({ title: "Speech Error", description: `Voice recognition faced an issue: ${event.error}`, variant: "destructive"});
-      }
-    };
-
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      let finalTranscript = '';
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
         }
-      }
-      const command = finalTranscript.trim().toLowerCase();
+        const command = finalTranscript.trim().toLowerCase();
 
-      if (command.startsWith(WAKE_WORD_SHOPPING_ADD)) {
-        const itemToAdd = command.substring(WAKE_WORD_SHOPPING_ADD.length).trim();
-        if (itemToAdd) {
-          toast({ title: "Shopping List Command Detected!", description: `Adding "${itemToAdd}"...` });
-          addShoppingListItem(itemToAdd);
-        } else {
-          toast({ title: "Shopping List Command", description: "Please specify an item to add after '...add to my shopping list'.", variant: "default" });
+        if (command.startsWith(WAKE_WORD_SHOPPING_ADD)) {
+          recognitionRef.current?.stop(); // Stop before processing
+          const itemToAdd = command.substring(WAKE_WORD_SHOPPING_ADD.length).trim();
+          if (itemToAdd) {
+            toast({ title: "Shopping List Command Detected!", description: `Adding "${itemToAdd}"...` });
+            addShoppingListItem(itemToAdd);
+          } else {
+            toast({ title: "Shopping List Command", description: "Please specify an item to add after '...add to my shopping list'.", variant: "default" });
+          }
+        } else if (command.includes(WAKE_WORD_RECALL)) {
+          if (inputText.trim()) {
+            recognitionRef.current?.stop(); // Stop before processing
+            toast({ title: "Recall Wake Word Detected!", description: "Processing your thought from the text area..." });
+            processThoughtInputWithAI(); 
+          } else {
+            toast({ title: "Input Empty for Recall", description: "Please type or paste the thought to process before using the 'replay that' command.", variant: "default" });
+            // Don't stop recognition here, let user try again or type
+          }
         }
-        // Recognition will auto-restart via onend if isListening is still true
-      } else if (command.includes(WAKE_WORD_RECALL)) {
-        toast({ title: "Recall Wake Word Detected!", description: "Processing your thought from the text area..." });
-        if (inputText.trim()) {
-          wakeWordForRecallDetectedRef.current = true; 
-          processThoughtInputWithAI(); 
-        } else {
-          toast({ title: "Input Empty for Recall", description: "Please type or paste the thought to process before using the 'replay that' command.", variant: "default" });
-          wakeWordForRecallDetectedRef.current = false; 
-        }
+      };
+      
+      try {
+        recognition.start();
+      } catch (e) {
+        console.error("Failed to start speech recognition:", e);
+        // onend or onerror should handle cleanup and state update
       }
-    };
-
-    try {
-      if(!isRecognizingSpeech) recognition.start();
-    } catch (e) {
-      console.error("Failed to start speech recognition:", e);
-      setHasMicPermission(false); 
-      toast({ title: "Mic Init Failed", description: "Could not start voice recognition. Check mic & browser permissions.", variant: "destructive" });
     }
-
+    
     return () => {
-      if (restartTimer) clearTimeout(restartTimer);
-      if (recognitionRef.current) {
-        recognitionRef.current.onstart = null;
-        recognitionRef.current.onend = null;
-        recognitionRef.current.onerror = null;
-        recognitionRef.current.onresult = null;
-        recognitionRef.current.stop();
-        recognitionRef.current = null;
+      if (recognitionRef.current && isRecognizingSpeech) {
+         // Check isRecognizingSpeech before calling stop if onstart hasn't fired yet.
+        try {
+            recognitionRef.current.onstart = null;
+            recognitionRef.current.onend = null;
+            recognitionRef.current.onerror = null;
+            recognitionRef.current.onresult = null;
+            recognitionRef.current.stop();
+        } catch(e) {
+            console.warn("Error stopping recognition in cleanup:", e);
+        }
       }
-      setIsRecognizingSpeech(false);
+      recognitionRef.current = null;
+      setIsRecognizingSpeech(false); // Ensure state is reset on unmount or dependency change
     };
-  // Removed processThoughtInputWithAI from dependencies to prevent re-renders during speech recognition init
   // eslint-disable-next-line react-hooks/exhaustive-deps 
-  }, [isListening, toast, inputText, isLoading, hasMicPermission, onThoughtRecalled]); 
+  }, [isListening, hasMicPermission, isLoading]); // Key dependencies that control the lifecycle
 
   return (
     <Card className="w-full shadow-lg">
       <CardHeader>
         <div className="flex justify-between items-center">
           <CardTitle className="text-xl">Recall Thought / Add to List</CardTitle>
-          {isListening && hasMicPermission && !isBrowserUnsupported && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground" title={isRecognizingSpeech ? "Listening for voice commands" : "Voice commands inactive"}>
+          {isListening && hasMicPermission === true && !isBrowserUnsupported && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground" title={isRecognizingSpeech ? "Listening for voice commands" : "Voice commands inactive/starting..."}>
               {isRecognizingSpeech ? <Mic className="h-5 w-5 text-primary animate-pulse" /> : <MicOff className="h-5 w-5" />}
-              <span>{isRecognizingSpeech ? "Listening..." : "Voice Paused"}</span>
+              <span>{isRecognizingSpeech ? "Listening..." : (isLoading ? "Processing..." : "Voice Paused")}</span>
             </div>
           )}
         </div>
         <CardDescription>
           {isListening
-            ? `Use the text area and "Process with AI" for recalling thoughts. Or say:
-              "${WAKE_WORD_RECALL}" to process text area content.
-              "${WAKE_WORD_SHOPPING_ADD} [item name]" to add to your shopping list.`
+            ? `Use the text area and "Process Thought" for recalling. Or say:
+              "${WAKE_WORD_RECALL}" (uses text area content).
+              "${WAKE_WORD_SHOPPING_ADD} [item name]".`
             : "Enable passive listening above to recall thoughts or use voice commands."}
         </CardDescription>
       </CardHeader>
@@ -285,7 +262,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
               aria-label="Process thought with AI (uses text area content)"
               title="Process thought with AI (uses text area content)"
             >
-              {isLoading && wakeWordForRecallDetectedRef.current ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Brain className="mr-2 h-4 w-4" />}
+              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Brain className="mr-2 h-4 w-4" />}
               Process Thought (from text)
             </Button>
             <Button
@@ -296,7 +273,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
               aria-label="Process thought with AI (uses text area content)"
               title="Process thought with AI (uses text area content)"
             >
-              <Brain className={`h-5 w-5 ${isLoading && wakeWordForRecallDetectedRef.current ? 'animate-pulse' : ''}`} />
+              <Brain className={`h-5 w-5 ${isLoading ? 'animate-pulse' : ''}`} />
             </Button>
           </div>
         </form>
