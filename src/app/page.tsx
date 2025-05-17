@@ -1,14 +1,16 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
 import type { Thought, PinnedThought } from '@/lib/types';
 import { PassiveListenerControls } from '@/components/hegsync/PassiveListenerControls';
-import { ThoughtInputForm } from '@/components/hegsync/ThoughtInputForm';
+import { ThoughtInputForm, type ThoughtInputFormHandle } from '@/components/hegsync/ThoughtInputForm';
 import { RecentThoughtsList } from '@/components/hegsync/RecentThoughtsList';
 import { ThoughtClarifierDialog } from '@/components/hegsync/ThoughtClarifierDialog';
 import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
+import { Mic } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { pinThoughtAndSuggestCategories } from '@/lib/actions';
 import { useRouter } from 'next/navigation';
@@ -22,13 +24,15 @@ export default function DashboardPage() {
   const [clarifyingThought, setClarifyingThought] = useState<Thought | null>(null);
   const [isClarifierOpen, setIsClarifierOpen] = useState(false);
 
+  const thoughtInputFormRef = useRef<ThoughtInputFormHandle>(null);
+
   const { toast } = useToast();
   const router = useRouter();
 
   const handleToggleListening = useCallback((active: boolean) => {
     setIsListening(active);
     toast({ title: `Passive Listening ${active ? "Enabled" : "Disabled"}`, description: active ? "Ready to recall thoughts and listen for commands." : "Voice commands and recording are off." });
-  }, [toast]); // setIsListening is stable, toast might change if useToast itself re-renders its context, but generally stable.
+  }, [toast]); 
 
   const handleThoughtRecalled = (newThought: Thought) => {
     setRecalledThoughts(prevThoughts => [newThought, ...prevThoughts].sort((a,b) => b.timestamp - a.timestamp));
@@ -42,10 +46,9 @@ export default function DashboardPage() {
         pinnedTimestamp: Date.now(),
       };
       setPinnedThoughts(prev => [newPinnedThought, ...prev].sort((a,b) => b.pinnedTimestamp - a.timestamp));
-      // Optionally remove from recalledThoughts or mark as pinned
       setRecalledThoughts(prev => prev.filter(t => t.id !== thoughtToPin.id));
       toast({ title: "Thought Pinned", description: "Successfully saved to Memory Vault." });
-      router.push('/memory-vault'); // Navigate to memory vault after pinning
+      router.push('/memory-vault'); 
     } catch (error) {
       toast({ title: "Error Pinning Thought", description: (error as Error).message, variant: "destructive" });
     }
@@ -57,9 +60,7 @@ export default function DashboardPage() {
   };
   
   const handleClarificationComplete = (updatedThought: Thought) => {
-    // Update the thought in recalledThoughts list
     setRecalledThoughts(prev => prev.map(t => t.id === updatedThought.id ? updatedThought : t));
-    // Update in pinnedThoughts if it exists there too
     setPinnedThoughts(prev => prev.map(t => t.id === updatedThought.id ? { ...t, ...updatedThought } : t));
     setIsClarifierOpen(false);
   };
@@ -69,24 +70,41 @@ export default function DashboardPage() {
     toast({ title: "Thought Deleted", description: "The recalled thought has been removed." });
   };
 
-
-  // Ensure client-side only execution for localStorage access if needed for initial load
   const [isClient, setIsClient] = useState(false);
   useEffect(() => {
     setIsClient(true);
   }, []);
 
   if (!isClient) {
-    return null; // Or a loading spinner
+    return null; 
   }
+
+  const handleSimulateWakeWord = () => {
+    if (thoughtInputFormRef.current) {
+      thoughtInputFormRef.current.simulateWakeWordAndListen();
+    }
+  };
 
   return (
     <div className="space-y-8">
-      <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+      <div className="flex items-center mb-6">
+        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="p-0 ml-3 h-9 w-9 sm:h-10 sm:w-10"
+          onClick={handleSimulateWakeWord}
+          disabled={!isListening}
+          title="Activate HegSync Listener (Simulates Wake Word)"
+        >
+          <Mic className="h-6 w-6 sm:h-7 sm:w-7 text-primary" />
+        </Button>
+      </div>
       
       <PassiveListenerControls isListening={isListening} onToggleListening={handleToggleListening} />
       
       <ThoughtInputForm 
+        ref={thoughtInputFormRef}
         onThoughtRecalled={handleThoughtRecalled} 
         isListening={isListening}
         onToggleListeningParent={handleToggleListening} 
