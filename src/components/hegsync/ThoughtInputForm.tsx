@@ -69,8 +69,8 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
 
   const handleProcessRecordedAudio = async (audioDataUrl: string) => {
     setIsLoading(true);
-    setPartialWakeWordDetected(false);
-    setIsCapturingAudio(false);
+    setPartialWakeWordDetected(false); // Reset this as we are now processing
+    setIsCapturingAudio(false); // Recording has finished
     try {
       const processedData = await processRecordedAudio(audioDataUrl);
       const newThought: Thought = {
@@ -87,44 +87,17 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
     }
   };
   
-  const handleSimulatedRecall = async () => {
-    setIsLoading(true);
-    setPartialWakeWordDetected(false);
-    try {
-      let bufferTimeLabel = DEFAULT_BUFFER_TIME;
-      if (typeof window !== 'undefined') {
-        const storedBufferTime = localStorage.getItem(LOCALSTORAGE_KEYS.BUFFER_TIME);
-        const currentBufferTimeValue = storedBufferTime ? JSON.parse(storedBufferTime) as BufferTimeValue : DEFAULT_BUFFER_TIME;
-        const matchedOption = BUFFER_TIME_OPTIONS.find(opt => opt.value === currentBufferTimeValue);
-        bufferTimeLabel = matchedOption ? matchedOption.label : `${currentBufferTimeValue} buffer`;
-      }
-      const simulatedText = `${SIMULATED_RECALL_PREFIX} ${bufferTimeLabel} ${SIMULATED_RECALL_SUFFIX}`;
-      
-      // For simulated recall, we use the same processing as text thoughts.
-      const processedData = await processTextThought(simulatedText);
-      const newThought: Thought = {
-        id: crypto.randomUUID(),
-        timestamp: Date.now(),
-        originalText: simulatedText, // Use the generated simulated text
-        summary: processedData.summary,
-        keywords: processedData.keywords,
-      };
-      onThoughtRecalled(newThought);
-      toast({ title: "Simulated Recall Processed", description: `Generated thought from ${bufferTimeLabel}.` });
-    } catch (error) {
-      toast({ title: "Error in Simulated Recall", description: (error as Error).message, variant: "destructive" });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
 
   const startAudioRecording = async () => {
     if (isCapturingAudio || !hasMicPermission) {
       toast({ title: "Recording Issue", description: isCapturingAudio ? "Already capturing audio." : "Microphone permission needed.", variant: "default" });
       return;
     }
-    setPartialWakeWordDetected(false);
+    // Stop speech recognition before starting recording to avoid conflicts
+    if (recognitionRef.current && isRecognizingSpeech) {
+        recognitionRef.current.stop();
+    }
+    setPartialWakeWordDetected(false); // Reset as we transition to recording
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -145,11 +118,12 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
         reader.readAsDataURL(audioBlob);
         reader.onloadend = () => {
           const base64AudioData = reader.result as string;
-          handleProcessRecordedAudio(base64AudioData);
+          handleProcessRecordedAudio(base64AudioData); // This will set isLoading and then unset it
         };
 
-        stream.getTracks().forEach(track => track.stop());
+        stream.getTracks().forEach(track => track.stop()); // Stop the microphone stream tracks
         audioChunksRef.current = [];
+        // Note: isCapturingAudio is set to false in handleProcessRecordedAudio or its finally block
       };
 
       toast({ title: "Recording Started", description: `Capturing audio for ${RECORDING_DURATION_MS / 1000} seconds...`, duration: RECORDING_DURATION_MS });
@@ -189,6 +163,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
       };
       const updatedItems = [...currentItems, newItem];
       localStorage.setItem(LOCALSTORAGE_KEYS.SHOPPING_LIST, JSON.stringify(updatedItems));
+      window.dispatchEvent(new StorageEvent('storage', { key: LOCALSTORAGE_KEYS.SHOPPING_LIST, newValue: JSON.stringify(updatedItems) }));
       toast({ title: "Item Added to Shopping List", description: `"${itemText.trim()}" added.` });
     } catch (error) {
       console.error("Error adding to shopping list:", error);
@@ -205,10 +180,12 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
 
     for (const option of BUFFER_TIME_OPTIONS) {
       if (option.value !== 'continuous') {
-        if (cleanedSpoken.includes(option.value) && (cleanedSpoken.includes('minute') || cleanedSpoken.includes('min'))) {
+        // Check for phrases like "1 minute", "5 minutes"
+        if (cleanedSpoken.startsWith(option.value) && (cleanedSpoken.includes('minute') || cleanedSpoken.includes('min'))) {
           return option.value;
         }
-        if (cleanedSpoken === option.value) { // e.g., user just says "1" or "5"
+        // Check for just the number if it matches an option value
+        if (cleanedSpoken === option.value) { 
             return option.value;
         }
       }
@@ -220,14 +197,13 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
     const parsedValue = parseSpokenBufferTime(spokenDuration);
     if (parsedValue) {
       localStorage.setItem(LOCALSTORAGE_KEYS.BUFFER_TIME, JSON.stringify(parsedValue));
-      // Dispatch a custom event to notify other components (like PassiveListenerControls)
       window.dispatchEvent(new StorageEvent('storage', { key: LOCALSTORAGE_KEYS.BUFFER_TIME, newValue: JSON.stringify(parsedValue) }));
       const matchedOption = BUFFER_TIME_OPTIONS.find(opt => opt.value === parsedValue);
-      toast({ title: "Buffer Time Set", description: `Conceptual buffer time set to ${matchedOption?.label || parsedValue}.` });
+      toast({ title: "Buffer Time Set", description: <>Conceptual buffer time set to <strong>{matchedOption?.label || parsedValue}</strong>.</> });
     } else {
       const currentBufferTime = localStorage.getItem(LOCALSTORAGE_KEYS.BUFFER_TIME);
       const defaultOption = BUFFER_TIME_OPTIONS.find(opt => opt.value === (currentBufferTime ? JSON.parse(currentBufferTime) : DEFAULT_BUFFER_TIME));
-      toast({ title: "Buffer Time Not Understood", description: `Could not parse "${spokenDuration}". Please try e.g., "1 minute", "always on". Current is ${defaultOption?.label}.`, variant: "default" });
+      toast({ title: "Buffer Time Not Understood", description: <>Could not parse "<q>{spokenDuration}</q>". Please try e.g., "<q>1 minute</q>", "<q>always on</q>". Current is <strong>{defaultOption?.label}</strong>.</>, variant: "default" });
     }
   };
 
@@ -318,26 +294,27 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
       recognitionRef.current = new SpeechRecognitionAPI();
       const recognition = recognitionRef.current;
 
-      recognition.continuous = true;
+      recognition.continuous = true; // Keep listening even after a pause
       recognition.interimResults = true;
       recognition.lang = 'en-US';
 
       recognition.onstart = () => {
         setIsRecognizingSpeech(true);
-        setPartialWakeWordDetected(false);
+        setPartialWakeWordDetected(false); // Reset on start
       };
 
       recognition.onend = () => {
         setIsRecognizingSpeech(false);
-        setPartialWakeWordDetected(false);
+        setPartialWakeWordDetected(false); // Reset on end
         recognitionRef.current = null; 
+        // The main useEffect will attempt to restart if conditions are still met
       };
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
         if (event.error === 'no-speech' || event.error === 'aborted') {
           console.warn('Speech recognition warning:', event.error, event.message || "(No specific message)");
         } else {
-          console.error('Speech recognition error:', event.error, event.message);
+          console.error('Speech recognition error:', event.error, event.message || "(No specific message)");
         }
 
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
@@ -345,10 +322,9 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
           toast({ title: "Microphone Access Issue", description: "Speech recognition service denied. Check browser settings or permissions.", variant: "destructive" });
         } else if (event.error === 'network') {
           toast({ title: "Network Error", description: "Speech recognition might require a network connection.", variant: "destructive"});
-        } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
-          // toast({ title: "Speech Error", description: `Voice recognition faced an issue: ${event.error}`, variant: "destructive"});
         }
-        setPartialWakeWordDetected(false);
+        // No specific toast for 'no-speech' or 'aborted' as they are common and handled by onend restart logic
+        setPartialWakeWordDetected(false); // Reset on error
       };
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
@@ -364,29 +340,19 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
           }
         }
 
-        const interimLower = combinedInterimTranscript.toLowerCase();
+        const interimLower = combinedInterimTranscript.toLowerCase().trim();
         const finalLower = combinedFinalTranscript.trim().toLowerCase();
 
         if (finalLower) {
-          setPartialWakeWordDetected(false);
-          if (recognitionRef.current) recognitionRef.current.stop(); // Stop recognition to process command
+          setPartialWakeWordDetected(false); // Reset as we have a final result
+          if (recognitionRef.current) { recognitionRef.current.stop(); } // Stop current recognition to process command
 
+          // Order of checks: More specific/longer commands first, then more general prefixes
           if (finalLower.startsWith(WAKE_WORDS.ADD_TO_SHOPPING_LIST.toLowerCase())) {
             const itemToAdd = finalLower.substring(WAKE_WORDS.ADD_TO_SHOPPING_LIST.length).trim();
             addShoppingListItem(itemToAdd);
-          } else if (finalLower.includes(WAKE_WORDS.RECALL_THOUGHT.toLowerCase())) {
-            toast({ title: "Recall Command Detected!", description: "Starting audio capture..." });
-            startAudioRecording();
-          } else if (finalLower.startsWith(WAKE_WORDS.SET_BUFFER_TIME.toLowerCase())) {
-            const spokenDuration = finalLower.substring(WAKE_WORDS.SET_BUFFER_TIME.length).trim();
-            setBufferTimeByVoice(spokenDuration);
-          } else if (finalLower.includes(WAKE_WORDS.TURN_LISTENING_OFF.toLowerCase())) {
-            onToggleListeningParent(false);
-          } else if (finalLower.includes(WAKE_WORDS.TURN_LISTENING_ON.toLowerCase())) {
-            onToggleListeningParent(true);
           } else if (finalLower.startsWith(WAKE_WORDS.DELETE_ITEM_PREFIX.toLowerCase())) {
-            const commandArgs = finalLower.substring(WAKE_WORDS.DELETE_ITEM_PREFIX.length).trim(); // e.g., "apples from my shopping list" or "item number 2 from my to do list"
-            
+            const commandArgs = finalLower.substring(WAKE_WORDS.DELETE_ITEM_PREFIX.length).trim();
             let listType: 'shopping' | 'todo' | null = null;
             let itemIdentifierString = "";
 
@@ -412,28 +378,38 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
                   toast({ title: "Invalid Item Number", description: `Please say a valid number for the ${itemTypeName}.`, variant: "destructive" });
                 }
               } else {
-                // Delete by name
                 deleteListItem(listKey, itemIdentifierString, listName, itemTypeName);
               }
             } else {
               toast({ title: "Deletion Command Unclear", description: "Please specify the item and list clearly. E.g., 'delete apples from my shopping list' or 'delete item number 1 from my to do list'.", variant: "default" });
             }
+          } else if (finalLower.startsWith(WAKE_WORDS.SET_BUFFER_TIME.toLowerCase())) {
+            const spokenDuration = finalLower.substring(WAKE_WORDS.SET_BUFFER_TIME.length).trim();
+            setBufferTimeByVoice(spokenDuration);
+          } else if (finalLower === WAKE_WORDS.RECALL_THOUGHT.toLowerCase()) {
+            toast({ title: "Recall Command Detected!", description: "Starting audio capture..." });
+            startAudioRecording(); // This will handle isLoading state internally
+          } else if (finalLower === WAKE_WORDS.TURN_LISTENING_OFF.toLowerCase()) {
+            onToggleListeningParent(false);
+          } else if (finalLower === WAKE_WORDS.TURN_LISTENING_ON.toLowerCase()) {
+            onToggleListeningParent(true);
           }
-          // No need to manually restart recognition here, onend and useEffect will handle it if conditions are met
+          // recognitionRef.current.stop() was called. useEffect will handle restart if needed.
         } else if (interimLower.includes("hegsync")) {
            if (!partialWakeWordDetected) setPartialWakeWordDetected(true);
         } else {
-           if(partialWakeWordDetected) {
+           if(partialWakeWordDetected) { // If "hegsync" was detected but then something else was said
              setPartialWakeWordDetected(false);
            }
         }
       };
 
       try {
-        if (isListening && hasMicPermission && !isLoading && !isCapturingAudio) {
+        if (isListening && hasMicPermission && !isLoading && !isCapturingAudio && !isRecognizingSpeech) { // Check !isRecognizingSpeech
           recognition.start();
         }
       } catch (e) {
+        // This catch is for errors during .start()
         console.error("Failed to start speech recognition:", e);
         toast({title: "Speech Recognition Error", description: "Could not start voice listener.", variant: "destructive"});
       }
@@ -445,19 +421,19 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
         recognitionRef.current.onend = null;
         recognitionRef.current.onerror = null;
         recognitionRef.current.onresult = null;
-        if (isRecognizingSpeech) { // Check if it was actually started
+        if (isRecognizingSpeech) { 
             try { recognitionRef.current.stop(); } catch(e) { console.warn("Error stopping recognition in cleanup:", e); }
         }
-        recognitionRef.current = null; // Ensure it's cleared for next setup
+        recognitionRef.current = null;
       }
-      setIsRecognizingSpeech(false); // Reset recognition state
-      setPartialWakeWordDetected(false); // Reset partial detection state
+      setIsRecognizingSpeech(false);
+      setPartialWakeWordDetected(false);
 
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-        mediaRecorderRef.current.stop(); // Stop media recorder if active
+        mediaRecorderRef.current.stop();
         mediaRecorderRef.current = null;
       }
-      setIsCapturingAudio(false); // Reset audio capture state
+      setIsCapturingAudio(false);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isListening, hasMicPermission, isLoading, isCapturingAudio, onToggleListeningParent]); // Dependencies that control the listening lifecycle
@@ -560,7 +536,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
           />
           <div className="flex items-stretch gap-2">
             <Button
-              type="button" // Changed from submit to prevent form submission on its own
+              type="submit" 
               onClick={handleManualSubmit}
               disabled={!isListening || isLoading || isCapturingAudio || !inputText.trim()}
               className="flex-grow"
@@ -570,7 +546,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
               Process Thought (from text)
             </Button>
              <Button
-              type="button" // Changed from submit
+              type="submit" 
               onClick={handleManualSubmit}
               disabled={!isListening || isLoading || isCapturingAudio || !inputText.trim()}
               size="icon"
@@ -590,3 +566,6 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
     </Card>
   );
 }
+
+
+    
