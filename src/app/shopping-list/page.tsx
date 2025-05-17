@@ -110,11 +110,12 @@ export default function ShoppingListPage() {
           </CardHeader>
           <CardContent>
             <ul className="space-y-3">
-              {items.map((item) => (
+              {items.map((item, index) => (
                 <li
                   key={item.id}
                   className="flex items-center gap-3 p-3 bg-card-foreground/5 rounded-md transition-all hover:bg-card-foreground/10"
                 >
+                  <span className="mr-1 font-medium text-muted-foreground w-6 text-right">{(index + 1)}.</span>
                   <Checkbox
                     id={`item-${item.id}`}
                     checked={item.completed}
