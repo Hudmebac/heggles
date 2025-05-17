@@ -6,31 +6,58 @@ import { summarizeAudio } from "@/ai/flows/summarize-audio";
 import { extractKeywords } from "@/ai/flows/extract-keywords";
 import { suggestCategory } from "@/ai/flows/suggest-category";
 import { refineThought } from "@/ai/flows/refine-thought";
+import { ACTUAL_RECORDING_SIMULATED_TRANSCRIPTION } from "@/lib/constants";
 
-// Simulate processing recalled audio
-export async function processRecalledAudio(
+// Process text-based thoughts (e.g., manual input)
+export async function processTextThought(
   rawText: string
 ): Promise<Omit<Thought, "id" | "timestamp">> {
   try {
-    // In a real app, rawText might be a transcription from Speech-to-Text
-    const transcription = rawText; // Assuming rawText is the transcription
+    const transcription = rawText;
 
     const summaryResult = await summarizeAudio({ transcription });
-    // Keywords can also be extracted separately if summarizeAudio doesn't provide enough, or use its keywords
     const keywordsResult = await extractKeywords({ text: transcription });
     
     return {
       originalText: transcription,
       summary: summaryResult.summary,
-      keywords: keywordsResult.keywords, // Or summaryResult.keywords if preferred
+      keywords: keywordsResult.keywords,
     };
   } catch (error) {
-    console.error("Error processing recalled audio:", error);
-    throw new Error("Failed to process audio with AI.");
+    console.error("Error processing text thought:", error);
+    throw new Error("Failed to process text input with AI.");
   }
 }
 
-// Simulate pinning a thought and getting category suggestions
+// Process recorded audio data (simulates STT for now)
+export async function processRecordedAudio(
+  audioDataUrl: string // In a real scenario, this might be sent to an STT service
+): Promise<Omit<Thought, "id" | "timestamp">> {
+  try {
+    // Simulate Speech-to-Text: In a real app, you'd send audioDataUrl to an STT API.
+    // For now, we use a placeholder transcription.
+    const transcription = ACTUAL_RECORDING_SIMULATED_TRANSCRIPTION;
+    console.log("Processing recorded audio - Data URL received (first 100 chars):", audioDataUrl.substring(0,100));
+
+
+    const summaryResult = await summarizeAudio({ transcription });
+    const keywordsResult = await extractKeywords({ text: transcription });
+    
+    return {
+      originalText: transcription, // This will be the placeholder text
+      summary: summaryResult.summary,
+      keywords: keywordsResult.keywords,
+      // Optionally, you could store the audioDataUrl or a reference if needed later
+      // audioSource: "recorded_snippet", // Example metadata
+    };
+  } catch (error) {
+    console.error("Error processing recorded audio:", error);
+    throw new Error("Failed to process recorded audio with AI.");
+  }
+}
+
+
+// Pin a thought and get category suggestions
 export async function pinThoughtAndSuggestCategories(
   thought: Thought
 ): Promise<Omit<PinnedThought, "pinnedTimestamp">> {
@@ -43,7 +70,6 @@ export async function pinThoughtAndSuggestCategories(
   } catch (error)
     {
     console.error("Error pinning thought and suggesting categories:", error);
-    // Return thought without categories if AI fails
     return {
       ...thought,
       categories: ["Uncategorized"],

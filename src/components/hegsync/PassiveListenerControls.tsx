@@ -2,14 +2,14 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Mic, MicOff, AlertTriangle, Timer } from 'lucide-react';
+import { Mic, MicOff, AlertTriangle, Timer, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
-import { BUFFER_TIME_OPTIONS, LOCALSTORAGE_KEYS, DEFAULT_BUFFER_TIME } from '@/lib/constants';
+import { BUFFER_TIME_OPTIONS, LOCALSTORAGE_KEYS, DEFAULT_BUFFER_TIME, RECORDING_DURATION_MS } from '@/lib/constants';
 
 interface PassiveListenerControlsProps {
   isListening: boolean;
@@ -42,6 +42,7 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
   };
   
   const selectedBufferTimeLabel = BUFFER_TIME_OPTIONS.find(opt => opt.value === bufferTime)?.label || `${bufferTime} Minutes`;
+  const recordingDurationSeconds = RECORDING_DURATION_MS / 1000;
 
   return (
     <Card className="w-full shadow-lg">
@@ -67,7 +68,7 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
         <div className="space-y-2 p-4 border rounded-lg bg-secondary/30">
           <Label htmlFor="buffer-time-select" className="text-md font-medium flex items-center">
             <Timer className="mr-2 h-5 w-5 text-muted-foreground" />
-            Conceptual Buffer Time
+            Conceptual Buffer Time (for reference)
           </Label>
           <Select value={bufferTime} onValueChange={setBufferTime}>
             <SelectTrigger id="buffer-time-select" aria-label="Select buffer time period">
@@ -81,20 +82,28 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
               ))}
             </SelectContent>
           </Select>
+           <p className="text-xs text-muted-foreground pt-1">
+            This setting is currently for conceptual reference. The "replay that" voice command records a fixed {recordingDurationSeconds}-second snippet.
+          </p>
         </div>
 
         {showWarning && (
           <div className="flex items-center p-3 border border-yellow-400 bg-yellow-50 text-yellow-700 rounded-md text-sm">
             <AlertTriangle className="h-5 w-5 mr-2" />
             <span>
-              Passive listening is active. Audio is being temporarily buffered locally.
+              Passive listening is active. The app will listen for wake words.
             </span>
           </div>
         )}
-        <p className="text-sm text-muted-foreground">
-          Toggle to {isListening ? "disable" : "enable"} passive listening. When active, the app (conceptually) maintains a temporary local audio buffer for the selected period of <span className="font-semibold">{selectedBufferTimeLabel}</span>.
-          The "replay that" voice command will use this conceptual buffer. The "Process Thought" button uses text from the area below.
-        </p>
+        <div className="flex items-start p-3 border rounded-lg bg-secondary/30 text-sm text-muted-foreground">
+            <Info className="h-5 w-5 mr-2 mt-0.5 shrink-0 text-primary" />
+            <div>
+                Toggle to {isListening ? "disable" : "enable"} passive listening for wake words. <br />
+                - Saying "{WAKE_WORDS.RECALL_THOUGHT}" will record a new {recordingDurationSeconds}-second audio snippet for AI processing. <br />
+                - Saying "{WAKE_WORDS.ADD_TO_SHOPPING_LIST} [item]" will add to your shopping list. <br />
+                - The "Process Thought (from text)" button uses text from the input area below.
+            </div>
+        </div>
       </CardContent>
     </Card>
   );
