@@ -36,9 +36,8 @@ export const WAKE_WORDS = {
   FROM_TODO_LIST_TRIGGER: "from my to do list",
   ITEM_NUMBER_KEYWORD: "item number",
   END_DICTATION: "hegsync end",
+  STOP_DICTATION: "hegsync stop", // Added this line
 };
 
 
 export const RECORDING_DURATION_MS = 10000; // 10 seconds for audio snippet
-// Placeholder for actual recorded audio transcription
-export const ACTUAL_RECORDING_SIMULATED_TRANSCRIPTION = "Recorded audio (simulated transcription for AI processing).";
