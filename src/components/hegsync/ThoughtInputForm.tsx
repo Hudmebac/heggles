@@ -14,11 +14,6 @@ import {
   WAKE_WORDS, 
   LOCALSTORAGE_KEYS,
   RECORDING_DURATION_MS,
-  ACTUAL_RECORDING_SIMULATED_TRANSCRIPTION, // Added for clarity
-  SIMULATED_RECALL_PREFIX, // Added for clarity
-  SIMULATED_RECALL_SUFFIX, // Added for clarity
-  BUFFER_TIME_OPTIONS, // Added for clarity
-  DEFAULT_BUFFER_TIME // Added for clarity
 } from '@/lib/constants';
 
 interface ThoughtInputFormProps {
@@ -33,8 +28,9 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
 
   const [hasMicPermission, setHasMicPermission] = useState<boolean | null>(null);
   const [isRecognizingSpeech, setIsRecognizingSpeech] = useState(false);
-  const [isCapturingAudio, setIsCapturingAudio] = useState(false); // For actual audio recording
+  const [isCapturingAudio, setIsCapturingAudio] = useState(false);
   const [isBrowserUnsupported, setIsBrowserUnsupported] = useState(false);
+  const [partialWakeWordDetected, setPartialWakeWordDetected] = useState(false);
   
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -46,6 +42,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
       return;
     }
     setIsLoading(true);
+    setPartialWakeWordDetected(false); // Ensure this is reset
     try {
       const processedData = await processTextThought(textToProcess);
       const newThought: Thought = {
@@ -65,7 +62,8 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
 
   const handleProcessRecordedAudio = async (audioDataUrl: string) => {
     setIsLoading(true);
-    setIsCapturingAudio(false); // Done capturing
+    setPartialWakeWordDetected(false); // Ensure this is reset
+    setIsCapturingAudio(false); 
     try {
       const processedData = await processRecordedAudio(audioDataUrl);
       const newThought: Thought = {
@@ -87,6 +85,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
       toast({ title: "Recording Issue", description: isCapturingAudio ? "Already capturing audio." : "Microphone permission needed.", variant: "default" });
       return;
     }
+    setPartialWakeWordDetected(false); // Stop showing partial detection message
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -111,7 +110,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
         };
         
         stream.getTracks().forEach(track => track.stop()); 
-        setIsCapturingAudio(false);
+        // setIsCapturingAudio(false); // Moved to handleProcessRecordedAudio finally block implicitly
         audioChunksRef.current = [];
       };
       
@@ -131,35 +130,6 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
       setHasMicPermission(false); 
     }
   };
-
-  const simulateRecallFromBuffer = async () => {
-    setIsLoading(true);
-    try {
-      const bufferTimeSetting = localStorage.getItem(LOCALSTORAGE_KEYS.BUFFER_TIME) || DEFAULT_BUFFER_TIME;
-      const bufferTimeOption = BUFFER_TIME_OPTIONS.find(opt => opt.value === bufferTimeSetting);
-      const bufferLabel = bufferTimeOption ? bufferTimeOption.label : `${bufferTimeSetting} Minute(s)`;
-
-      const simulatedText = `${SIMULATED_RECALL_PREFIX} ${bufferLabel} ${SIMULATED_RECALL_SUFFIX}`;
-      
-      // For "replay that" with simulated buffer, we use processTextThought
-      // as we are generating text to simulate the buffer.
-      const processedData = await processTextThought(simulatedText);
-      const newThought: Thought = {
-        id: crypto.randomUUID(),
-        timestamp: Date.now(),
-        ...processedData,
-        originalText: simulatedText, // Ensure originalText is the simulated buffer text
-      };
-      onThoughtRecalled(newThought);
-      toast({ title: "Simulated Recall Processed", description: `Conceptual recall from ${bufferLabel} buffer.` });
-
-    } catch (error) {
-      toast({ title: "Error Simulating Recall", description: (error as Error).message, variant: "destructive" });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
 
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -202,6 +172,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
       if (recognitionRef.current && isRecognizingSpeech) {
         recognitionRef.current.stop();
       }
+      setPartialWakeWordDetected(false); // Ensure reset if conditions not met
       return;
     }
     
@@ -225,22 +196,23 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
       const recognition = recognitionRef.current;
 
       recognition.continuous = true; 
-      recognition.interimResults = false; 
+      recognition.interimResults = true; // Enable interim results
       recognition.lang = 'en-US';
 
       recognition.onstart = () => {
         setIsRecognizingSpeech(true);
+        setPartialWakeWordDetected(false); // Reset on start
       };
 
       recognition.onend = () => {
         setIsRecognizingSpeech(false);
+        setPartialWakeWordDetected(false); // Reset on end
         recognitionRef.current = null; 
       };
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
         if (event.error === 'no-speech' || event.error === 'aborted') {
           console.warn('Speech recognition warning:', event.error, event.message || "(No specific message)");
-          // These are common, onend will handle cleanup and useEffect will attempt restart
         } else {
           console.error('Speech recognition error:', event.error, event.message);
         }
@@ -250,28 +222,48 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
           toast({ title: "Microphone Access Issue", description: "Speech recognition service denied. Check browser settings or permissions.", variant: "destructive" });
         } else if (event.error === 'network') {
           toast({ title: "Network Error", description: "Speech recognition might require a network connection.", variant: "destructive"});
-        } else if (event.error !== 'no-speech' && event.error !== 'aborted') { // Don't toast for common non-errors
+        } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
           toast({ title: "Speech Error", description: `Voice recognition faced an issue: ${event.error}`, variant: "destructive"});
         }
+        setPartialWakeWordDetected(false); // Reset on error too
       };
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
-        let finalTranscript = '';
+        let combinedInterimTranscript = '';
+        let combinedFinalTranscript = '';
+
         for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const transcriptPart = event.results[i][0].transcript;
           if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
+            combinedFinalTranscript += transcriptPart;
+          } else {
+            combinedInterimTranscript += transcriptPart;
           }
         }
-        const command = finalTranscript.trim().toLowerCase();
 
-        if (command.startsWith(WAKE_WORDS.ADD_TO_SHOPPING_LIST)) {
-          if (recognitionRef.current) recognitionRef.current.stop(); 
-          const itemToAdd = command.substring(WAKE_WORDS.ADD_TO_SHOPPING_LIST.length).trim();
-          addShoppingListItem(itemToAdd);
-        } else if (command.includes(WAKE_WORDS.RECALL_THOUGHT)) {
-          if (recognitionRef.current) recognitionRef.current.stop(); 
-          toast({ title: "Recall Command Detected!", description: "Starting audio capture..." });
-          startAudioRecording();
+        const interimLower = combinedInterimTranscript.toLowerCase();
+        const finalLower = combinedFinalTranscript.trim().toLowerCase();
+
+        if (finalLower) { // If there's any final transcript, we are done with partial detection
+          setPartialWakeWordDetected(false);
+          if (finalLower.startsWith(WAKE_WORDS.ADD_TO_SHOPPING_LIST.toLowerCase())) {
+            if (recognitionRef.current) recognitionRef.current.stop(); 
+            const itemToAdd = finalLower.substring(WAKE_WORDS.ADD_TO_SHOPPING_LIST.length).trim();
+            addShoppingListItem(itemToAdd);
+          } else if (finalLower.includes(WAKE_WORDS.RECALL_THOUGHT.toLowerCase())) { 
+            if (recognitionRef.current) recognitionRef.current.stop(); 
+            toast({ title: "Recall Command Detected!", description: "Starting audio capture..." });
+            startAudioRecording();
+          }
+          // If final transcript is just "hegsync" or something not a command, it will do nothing and restart.
+        } else if (interimLower.includes("hegsync")) {
+          setPartialWakeWordDetected(true);
+        } else {
+          // If interim doesn't contain "hegsync" anymore, and we were in partial state, reset.
+          // This handles cases where "hegsync" was misrecognized and then corrected.
+          if(partialWakeWordDetected) {
+            setPartialWakeWordDetected(false);
+          }
         }
       };
       
@@ -297,6 +289,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
         recognitionRef.current = null;
       }
       setIsRecognizingSpeech(false);
+      setPartialWakeWordDetected(false);
 
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
         mediaRecorderRef.current.stop();
@@ -309,17 +302,25 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
 
   const getMicIcon = () => {
     if (isCapturingAudio) return <Radio className="h-5 w-5 text-red-500 animate-pulse" />;
+    if (partialWakeWordDetected) return <Mic className="h-5 w-5 text-yellow-500 animate-pulse" />; // Indicate "Hegsync" heard
     if (isRecognizingSpeech) return <Mic className="h-5 w-5 text-primary animate-pulse" />;
     return <MicOff className="h-5 w-5" />;
   };
 
   const getMicStatusText = () => {
-    if (isCapturingAudio) return "Recording...";
-    if (isRecognizingSpeech) return "Listening...";
+    if (isCapturingAudio) return "Recording audio...";
     if (isLoading) return "Processing...";
+
     if (!isListening) return "Voice Inactive";
+
+    if (isBrowserUnsupported) return "Voice N/A";
     if (hasMicPermission === false) return "Mic Denied";
-    return "Voice Paused";
+    if (hasMicPermission === null) return "Mic Awaiting Permission...";
+    
+    if (partialWakeWordDetected) return "'Hegsync' detected, awaiting command...";
+    if (isRecognizingSpeech) return "Say 'Hegsync' + command";
+    
+    return "Voice Ready";
   };
 
   return (
@@ -367,7 +368,9 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
               isListening 
                 ? isCapturingAudio 
                   ? "Recording audio snippet..." 
-                  : "Type or paste text for manual processing, or use voice commands..." 
+                  : partialWakeWordDetected
+                    ? "'Hegsync' detected. Finish your command..."
+                    : "Type or paste text for manual processing, or use voice commands..." 
                 : "Enable listening to activate input..."
             }
             value={inputText}
@@ -379,7 +382,8 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
           />
           <div className="flex items-stretch gap-2">
             <Button 
-              type="submit" 
+              type="button" // Changed to button to prevent form submit if not desired
+              onClick={handleManualSubmit} // Kept explicit handler
               disabled={!isListening || isLoading || isCapturingAudio || !inputText.trim()} 
               className="flex-grow"
               title="Process thought from text area with AI"
@@ -388,7 +392,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
               Process Thought (from text)
             </Button>
              <Button
-              type="button" 
+              type="button" // Changed to button
               onClick={handleManualSubmit} 
               disabled={!isListening || isLoading || isCapturingAudio || !inputText.trim()}
               size="icon"
@@ -408,6 +412,4 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
     </Card>
   );
 }
-    
-
     
