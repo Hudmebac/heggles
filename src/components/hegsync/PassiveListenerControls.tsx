@@ -66,12 +66,12 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
 
   const recordingDurationSeconds = RECORDING_DURATION_MS / 1000;
 
-  const recallCmdSuffix = WAKE_WORDS.RECALL_THOUGHT.substring("hegsync".length);
-  const addShopCmdSuffix = WAKE_WORDS.ADD_TO_SHOPPING_LIST.substring("hegsync add to my shopping list".length);
-  const setBufferCmdSuffix = WAKE_WORDS.SET_BUFFER_TIME.substring("hegsync set buffer".length);
-  const turnOnCmdSuffix = WAKE_WORDS.TURN_LISTENING_ON.substring("hegsync".length);
-  const turnOffCmdSuffix = WAKE_WORDS.TURN_LISTENING_OFF.substring("hegsync".length);
-  const deleteItemSuffix = WAKE_WORDS.DELETE_ITEM_PREFIX.substring("hegsync".length);
+  const recallCmdSuffix = WAKE_WORDS.RECALL_THOUGHT.substring(WAKE_WORDS.HEGSYNC_BASE.length);
+  const addShopCmdSuffix = WAKE_WORDS.ADD_TO_SHOPPING_LIST.substring(WAKE_WORDS.HEGSYNC_BASE.length);
+  const setBufferCmdSuffix = WAKE_WORDS.SET_BUFFER_TIME.substring(WAKE_WORDS.HEGSYNC_BASE.length);
+  const turnOnCmdSuffix = WAKE_WORDS.TURN_LISTENING_ON.substring(WAKE_WORDS.HEGSYNC_BASE.length);
+  const turnOffCmdSuffix = WAKE_WORDS.TURN_LISTENING_OFF.substring(WAKE_WORDS.HEGSYNC_BASE.length);
+  const deleteItemSuffix = WAKE_WORDS.DELETE_ITEM_PREFIX.substring(WAKE_WORDS.HEGSYNC_BASE.length);
 
 
   return (
@@ -113,7 +113,7 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
             </SelectContent>
           </Select>
            <p className="text-xs text-muted-foreground pt-1">
-            The <q><strong>HegSync</strong>{recallCmdSuffix}</q> voice command records a {recordingDurationSeconds}-second audio snippet. You can also set this via voice: <q><strong>HegSync</strong>{setBufferCmdSuffix} [duration]</q>.
+            The <q><strong>HegSync</strong>{recallCmdSuffix}</q> voice command records a {recordingDurationSeconds}-second audio snippet. You can also set this buffer time via voice: <q><strong>HegSync</strong>{setBufferCmdSuffix} [duration]</q>.
           </p>
         </div>
 
@@ -128,15 +128,19 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
         <div className="flex items-start p-3 border rounded-lg bg-secondary/30 text-sm text-muted-foreground">
             <Info className="h-5 w-5 mr-2 mt-0.5 shrink-0 text-primary" />
             <div>
-                Toggle to {isListening ? "disable" : "enable"} passive listening. Or say <q><strong>HegSync</strong>{turnOnCmdSuffix}</q> / <q><strong>HegSync</strong>{turnOffCmdSuffix}</q>. <br />
-                - Say <q><strong>HegSync</strong>{recallCmdSuffix}</q> (records a {recordingDurationSeconds}s audio snippet). <br />
-                - Say <q><strong>HegSync</strong> add to my shopping list [item]</q>. <br />
-                - Say <q><strong>HegSync</strong>{setBufferCmdSuffix} [e.g., 5 minutes / always on]</q>. <br />
-                - Say <q><strong>HegSync</strong>{deleteItemSuffix} [item/item number X] from [shopping list/to do list]</q>. <br />
-                - The "Process Thought (from text)" button uses text from the input area.
+                Toggle the switch above or say <q><strong>HegSync</strong>{turnOnCmdSuffix}</q> / <q><strong>HegSync</strong>{turnOffCmdSuffix}</q> to manage passive listening.
+                <ul className="list-disc pl-5 mt-1 space-y-0.5">
+                  <li>Say <q><strong>HegSync</strong>{recallCmdSuffix}</q> to record a {recordingDurationSeconds}s audio snippet for AI processing.</li>
+                  <li>Say <q><strong>HegSync</strong>{addShopCmdSuffix} [item]</q> to add to your shopping list.</li>
+                  <li>Say <q><strong>HegSync</strong>{setBufferCmdSuffix} [e.g., 5 minutes / always on]</q> to set the conceptual buffer time.</li>
+                  <li>Say <q><strong>HegSync</strong>{deleteItemSuffix} [item/item number X] from [shopping list/to do list]</q> to remove an item.</li>
+                </ul>
+                 The "Process Thought (from text)" button uses text from the input area on the dashboard.
             </div>
         </div>
       </CardContent>
     </Card>
   );
 }
+
+    
