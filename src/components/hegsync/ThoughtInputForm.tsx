@@ -22,8 +22,8 @@ import {
 
 interface ThoughtInputFormProps {
   onThoughtRecalled: (thought: Thought) => void;
-  isListening: boolean; // Global passive listening state from parent
-  onToggleListeningParent: (isListening: boolean) => void; // Callback to toggle parent's listening state
+  isListening: boolean;
+  onToggleListeningParent: (isListening: boolean) => void;
 }
 
 export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListeningParent }: ThoughtInputFormProps) {
@@ -40,6 +40,8 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const utteranceTranscriptRef = useRef<string>('');
+
 
   const handleProcessTextThoughtSubmit = async (textToProcess: string) => {
     if (!textToProcess.trim()) {
@@ -67,8 +69,8 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
 
   const handleProcessRecordedAudio = async (audioDataUrl: string) => {
     setIsLoading(true);
-    setPartialWakeWordDetected(false); 
-    setIsCapturingAudio(false); 
+    setPartialWakeWordDetected(false);
+    setIsCapturingAudio(false);
     try {
       const processedData = await processRecordedAudio(audioDataUrl);
       const newThought: Thought = {
@@ -84,7 +86,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
       setIsLoading(false);
     }
   };
-  
+
 
   const startAudioRecording = async () => {
     if (isCapturingAudio || !hasMicPermission) {
@@ -92,9 +94,9 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
       return;
     }
     if (recognitionRef.current && isRecognizingSpeech) {
-        recognitionRef.current.stop();
+        recognitionRef.current.stop(); // This will trigger its onend
     }
-    setPartialWakeWordDetected(false);
+    setPartialWakeWordDetected(false); // Ensure this is reset before recording
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -114,10 +116,11 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
         reader.readAsDataURL(audioBlob);
         reader.onloadend = () => {
           const base64AudioData = reader.result as string;
-          handleProcessRecordedAudio(base64AudioData); 
+          handleProcessRecordedAudio(base64AudioData);
         };
-        stream.getTracks().forEach(track => track.stop()); 
+        stream.getTracks().forEach(track => track.stop());
         audioChunksRef.current = [];
+        // setIsCapturingAudio(false); // handleProcessRecordedAudio sets isLoading, which stops recognition restart
       };
 
       toast({ title: "Recording Started", description: `Capturing audio for ${RECORDING_DURATION_MS / 1000} seconds...`, duration: RECORDING_DURATION_MS });
@@ -137,14 +140,14 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
     }
   };
 
-  const handleManualSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleManualSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     await handleProcessTextThoughtSubmit(inputText);
   };
 
   const addShoppingListItem = (itemText: string) => {
     if (!itemText.trim()) {
-      toast({ title: "No item specified", description: <>Please say the item you want to add after '<q><strong>HegSync</strong>{WAKE_WORDS.ADD_TO_SHOPPING_LIST.substring("hegsync".length).substring(" add to my shopping list".length)}</q>'.</>, variant: "default" });
+      toast({ title: "No item specified", description: <>Please say the item you want to add after '<q><strong>HegSync</strong>{WAKE_WORDS.ADD_TO_SHOPPING_LIST.substring(WAKE_WORDS.HEGSYNC_BASE.length).substring(" add to my shopping list".length)}</q>'.</>, variant: "default" });
       return;
     }
     try {
@@ -175,7 +178,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
         if (cleanedSpoken.startsWith(option.value) && (cleanedSpoken.includes('minute') || cleanedSpoken.includes('min'))) {
           return option.value;
         }
-        if (cleanedSpoken === option.value) { 
+        if (cleanedSpoken === option.value) {
             return option.value;
         }
       }
@@ -209,7 +212,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
       let itemDeleted = false;
       let deletedItemText = "";
 
-      if (typeof identifier === 'string') { 
+      if (typeof identifier === 'string') {
         const originalLength = currentItems.length;
         const searchName = identifier.trim().toLowerCase();
         const itemFound = currentItems.find(item => item.text.toLowerCase() === searchName);
@@ -218,8 +221,8 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
           currentItems = currentItems.filter(item => item.text.toLowerCase() !== searchName);
           itemDeleted = currentItems.length < originalLength;
         }
-      } else { 
-        const indexToDelete = identifier - 1; 
+      } else {
+        const indexToDelete = identifier - 1;
         if (indexToDelete >= 0 && indexToDelete < currentItems.length) {
           deletedItemText = currentItems[indexToDelete].text;
           currentItems.splice(indexToDelete, 1);
@@ -230,7 +233,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
       if (itemDeleted) {
         localStorage.setItem(listKey, JSON.stringify(currentItems));
         window.dispatchEvent(new StorageEvent('storage', { key: listKey, newValue: JSON.stringify(currentItems) }));
-        const description = typeof identifier === 'string' 
+        const description = typeof identifier === 'string'
           ? `"${deletedItemText}" deleted from your ${listName}.`
           : `${itemType.charAt(0).toUpperCase() + itemType.slice(1)} #${identifier} ("${deletedItemText}") deleted from your ${listName}.`;
         toast({ title: `${itemType.charAt(0).toUpperCase() + itemType.slice(1)} Deleted`, description });
@@ -259,9 +262,10 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
 
     if (!isListening || hasMicPermission === false || isLoading || isCapturingAudio) {
       if (recognitionRef.current && isRecognizingSpeech) {
-        recognitionRef.current.stop();
+        recognitionRef.current.stop(); // This will trigger its onend
       }
-      setPartialWakeWordDetected(false);
+      // utteranceTranscriptRef.current = ''; // onend should handle this
+      // setPartialWakeWordDetected(false); // onend should handle this
       return;
     }
 
@@ -283,20 +287,23 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
     if (!recognitionRef.current && hasMicPermission === true && !isRecognizingSpeech && !isCapturingAudio && !isLoading) {
       recognitionRef.current = new SpeechRecognitionAPI();
       const recognition = recognitionRef.current;
+      utteranceTranscriptRef.current = ''; // Clear for new session
 
-      recognition.continuous = true; 
+      recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'en-US';
 
       recognition.onstart = () => {
         setIsRecognizingSpeech(true);
-        setPartialWakeWordDetected(false);
+        setPartialWakeWordDetected(false); // Reset on actual start
+        utteranceTranscriptRef.current = ''; // Clear for new session
       };
 
       recognition.onend = () => {
         setIsRecognizingSpeech(false);
-        setPartialWakeWordDetected(false); 
-        recognitionRef.current = null; 
+        setPartialWakeWordDetected(false);
+        utteranceTranscriptRef.current = '';
+        recognitionRef.current = null;
       };
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -312,37 +319,54 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
         } else if (event.error === 'network') {
           toast({ title: "Network Error", description: "Speech recognition might require a network connection.", variant: "destructive"});
         }
-        setPartialWakeWordDetected(false);
+        // onend will handle cleanup of partialWakeWordDetected, utteranceTranscriptRef
       };
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
-        let combinedInterimTranscript = '';
-        let combinedFinalTranscript = '';
+        let latestInterimTranscriptForPartialCheck = '';
+        let fullTranscriptForThisEventSession = '';
 
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const transcriptPart = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            combinedFinalTranscript += transcriptPart;
-          } else {
-            combinedInterimTranscript += transcriptPart;
+        // Reconstruct the full transcript for the current session up to this event
+        for (let i = 0; i < event.results.length; ++i) {
+          fullTranscriptForThisEventSession += event.results[i][0].transcript;
+          // Get the newest interim part for partial wake word detection
+          if (!event.results[i].isFinal && i >= event.resultIndex) {
+            latestInterimTranscriptForPartialCheck += event.results[i][0].transcript;
           }
         }
+        utteranceTranscriptRef.current = fullTranscriptForThisEventSession.trim();
 
-        const interimLower = combinedInterimTranscript.toLowerCase().trim();
-        const finalLower = combinedFinalTranscript.trim().toLowerCase();
+        // Update partialWakeWordDetected based on the newest interim part
+        const interimLower = latestInterimTranscriptForPartialCheck.toLowerCase().trim();
+        if (interimLower.includes(WAKE_WORDS.HEGSYNC_BASE.toLowerCase())) {
+          if (!partialWakeWordDetected) setPartialWakeWordDetected(true);
+        } else if (partialWakeWordDetected && !utteranceTranscriptRef.current.toLowerCase().includes(WAKE_WORDS.HEGSYNC_BASE.toLowerCase())) {
+          // If "hegsync" is no longer in current interim AND not in the full utterance, reset.
+          setPartialWakeWordDetected(false);
+        }
 
-        if (finalLower) {
-          setPartialWakeWordDetected(false); 
-          if (recognitionRef.current) { recognitionRef.current.stop(); }
+        const lastResultIsFinal = event.results[event.results.length - 1].isFinal;
 
-          if (finalLower === WAKE_WORDS.RECALL_THOUGHT.toLowerCase()) {
+        if (lastResultIsFinal) {
+          const finalUtterance = utteranceTranscriptRef.current.toLowerCase();
+          // Once a final result part is received, we evaluate the whole utterance.
+          // Partial wake word detection is less relevant now, it will be reset by onend or next onstart.
+          // For clarity, we can set it false here as we are processing a "final" utterance.
+          setPartialWakeWordDetected(false);
+
+
+          let commandProcessed = false;
+
+          if (finalUtterance === WAKE_WORDS.RECALL_THOUGHT.toLowerCase()) {
             toast({ title: "Recall Command Detected!", description: "Starting audio capture..." });
-            startAudioRecording();
-          } else if (finalLower.startsWith(WAKE_WORDS.ADD_TO_SHOPPING_LIST.toLowerCase())) {
-            const itemToAdd = finalLower.substring(WAKE_WORDS.ADD_TO_SHOPPING_LIST.length).trim();
+            startAudioRecording(); // This also stops recognition internally if needed
+            commandProcessed = true;
+          } else if (finalUtterance.startsWith(WAKE_WORDS.ADD_TO_SHOPPING_LIST.toLowerCase())) {
+            const itemToAdd = finalUtterance.substring(WAKE_WORDS.ADD_TO_SHOPPING_LIST.length).trim();
             addShoppingListItem(itemToAdd);
-          } else if (finalLower.startsWith(WAKE_WORDS.DELETE_ITEM_PREFIX.toLowerCase())) {
-            const commandArgs = finalLower.substring(WAKE_WORDS.DELETE_ITEM_PREFIX.length).trim();
+            commandProcessed = true;
+          } else if (finalUtterance.startsWith(WAKE_WORDS.DELETE_ITEM_PREFIX.toLowerCase())) {
+            const commandArgs = finalUtterance.substring(WAKE_WORDS.DELETE_ITEM_PREFIX.length).trim();
             let listType: 'shopping' | 'todo' | null = null;
             let itemIdentifierString = "";
 
@@ -371,27 +395,39 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
                 deleteListItem(listKey, itemIdentifierString, listName, itemTypeName);
               }
             } else {
-              toast({ title: "Deletion Command Unclear", description: "Please specify the item and list clearly. E.g., 'delete apples from my shopping list' or 'delete item number 1 from my to do list'.", variant: "default" });
+               toast({ title: "Deletion Command Unclear", description: <>Please specify the item and list clearly. E.g., <q><strong>HegSync</strong> delete apples from my shopping list</q> or <q><strong>HegSync</strong> delete item number 1 from my to do list</q>.</>, variant: "default" });
             }
-          } else if (finalLower.startsWith(WAKE_WORDS.SET_BUFFER_TIME.toLowerCase())) {
-            const spokenDuration = finalLower.substring(WAKE_WORDS.SET_BUFFER_TIME.length).trim();
+            commandProcessed = true;
+          } else if (finalUtterance.startsWith(WAKE_WORDS.SET_BUFFER_TIME.toLowerCase())) {
+            const spokenDuration = finalUtterance.substring(WAKE_WORDS.SET_BUFFER_TIME.length).trim();
             setBufferTimeByVoice(spokenDuration);
-          } else if (finalLower === WAKE_WORDS.TURN_LISTENING_OFF.toLowerCase()) {
+            commandProcessed = true;
+          } else if (finalUtterance === WAKE_WORDS.TURN_LISTENING_OFF.toLowerCase()) {
             onToggleListeningParent(false);
-          } else if (finalLower === WAKE_WORDS.TURN_LISTENING_ON.toLowerCase()) {
+            commandProcessed = true;
+          } else if (finalUtterance === WAKE_WORDS.TURN_LISTENING_ON.toLowerCase()) {
             onToggleListeningParent(true);
+            commandProcessed = true;
           }
-        } else if (interimLower.includes("hegsync")) {
-           if (!partialWakeWordDetected) setPartialWakeWordDetected(true);
-        } else {
-           if(partialWakeWordDetected) { 
-             setPartialWakeWordDetected(false);
-           }
+
+          if (commandProcessed) {
+            if (recognitionRef.current) {
+              recognitionRef.current.stop(); // This will trigger onend, which cleans up utteranceTranscriptRef
+            }
+          } else if (finalUtterance.startsWith(WAKE_WORDS.HEGSYNC_BASE.toLowerCase()) && finalUtterance.length > WAKE_WORDS.HEGSYNC_BASE.length) {
+             // User said "Hegsync" followed by something not recognized.
+             toast({ title: "Command Not Recognized", description: <>Did not understand: "<q>{utteranceTranscriptRef.current}</q>"</>, variant: "default" });
+             if (recognitionRef.current) { // Stop to prevent appending unrelated speech.
+               recognitionRef.current.stop();
+             }
+          }
+          // If finalUtterance is just "hegsync" (or empty, or unrelated), and no commandProcessed,
+          // we don't stop. Continuous recognition will either get more speech or timeout.
         }
       };
 
       try {
-        if (isListening && hasMicPermission && !isLoading && !isCapturingAudio && !isRecognizingSpeech) { 
+        if (isListening && hasMicPermission && !isLoading && !isCapturingAudio && !isRecognizingSpeech) {
           recognition.start();
         }
       } catch (e) {
@@ -406,13 +442,15 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
         recognitionRef.current.onend = null;
         recognitionRef.current.onerror = null;
         recognitionRef.current.onresult = null;
-        if (isRecognizingSpeech) { 
+        if (isRecognizingSpeech) {
             try { recognitionRef.current.stop(); } catch(e) { console.warn("Error stopping recognition in cleanup:", e); }
         }
         recognitionRef.current = null;
       }
+      // Ensure state is reset when effect cleans up or dependencies change leading to stop
       setIsRecognizingSpeech(false);
       setPartialWakeWordDetected(false);
+      utteranceTranscriptRef.current = '';
 
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
         mediaRecorderRef.current.stop();
@@ -421,52 +459,42 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
       setIsCapturingAudio(false);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isListening, hasMicPermission, isLoading, isCapturingAudio, onToggleListeningParent]); 
+  }, [isListening, hasMicPermission, isLoading, isCapturingAudio, onToggleListeningParent]); // Dependencies carefully chosen
 
   const getMicIcon = () => {
     if (isCapturingAudio) return <Radio className="h-5 w-5 text-red-500 animate-pulse" />;
     if (partialWakeWordDetected) return <Mic className="h-5 w-5 text-yellow-500 animate-pulse" />;
     if (isRecognizingSpeech) return <Mic className="h-5 w-5 text-primary animate-pulse" />;
-  
-    // If passive listening is globally enabled, and mic is permitted,
-    // and we are not in a higher-priority state (capturing, partial, recognizing, loading)
-    // This state indicates it's ready and the useEffect should be ensuring recognition starts/restarts.
     if (isListening && hasMicPermission && !isBrowserUnsupported && !isLoading && !isCapturingAudio) {
-      return <Mic className="h-5 w-5 text-primary" />; // Non-pulsing primary mic
+      return <Mic className="h-5 w-5 text-primary" />;
     }
-    return <MicOff className="h-5 w-5 text-muted-foreground" />; // Default, or if mic denied, browser unsupported, listening off.
+    return <MicOff className="h-5 w-5 text-muted-foreground" />;
   };
 
   const getMicStatusText = (): React.ReactNode => {
     if (isCapturingAudio) return "Recording audio...";
-    if (isLoading) return "Processing..."; 
-  
+    if (isLoading) return "Processing...";
+
     if (!isListening) return "Voice Inactive";
-  
+
     if (isBrowserUnsupported) return "Voice N/A";
     if (hasMicPermission === false) return "Mic Denied";
     if (hasMicPermission === null) return "Mic Awaiting Permission...";
-  
+
     if (partialWakeWordDetected) return <>'<strong>HegSync</strong>' detected, awaiting command...</>;
     if (isRecognizingSpeech) return <>Say '<strong>HegSync</strong>' + command</>;
-  
-    // This is the "standby" state: listening is on, mic is ok, not actively recognizing,
-    // not partially detected, not capturing, not loading.
-    // This is when useEffect should be trying to start/restart recognition.
-    if (isListening && hasMicPermission && !isBrowserUnsupported) { // Check if loading/capturing is already handled
+    if (isListening && hasMicPermission && !isBrowserUnsupported) {
          return <>Listener active for '<strong>HegSync</strong>'</>;
     }
-  
-    return "Voice status checking..."; // Should be rare
+    return "Voice status checking...";
   };
-  
 
-  const recallCmdSuffix = WAKE_WORDS.RECALL_THOUGHT.substring("hegsync".length);
-  const addShopCmdSuffix = WAKE_WORDS.ADD_TO_SHOPPING_LIST.substring("hegsync add to my shopping list".length);
-  const setBufferCmdSuffix = WAKE_WORDS.SET_BUFFER_TIME.substring("hegsync set buffer".length);
-  const turnOnCmdSuffix = WAKE_WORDS.TURN_LISTENING_ON.substring("hegsync".length);
-  const turnOffCmdSuffix = WAKE_WORDS.TURN_LISTENING_OFF.substring("hegsync".length);
-  const deleteItemSuffix = WAKE_WORDS.DELETE_ITEM_PREFIX.substring("hegsync".length);
+  const recallCmdSuffix = WAKE_WORDS.RECALL_THOUGHT.substring(WAKE_WORDS.HEGSYNC_BASE.length);
+  const addShopCmdSuffix = WAKE_WORDS.ADD_TO_SHOPPING_LIST.substring(WAKE_WORDS.HEGSYNC_BASE.length);
+  const setBufferCmdSuffix = WAKE_WORDS.SET_BUFFER_TIME.substring(WAKE_WORDS.HEGSYNC_BASE.length);
+  const turnOnCmdSuffix = WAKE_WORDS.TURN_LISTENING_ON.substring(WAKE_WORDS.HEGSYNC_BASE.length);
+  const turnOffCmdSuffix = WAKE_WORDS.TURN_LISTENING_OFF.substring(WAKE_WORDS.HEGSYNC_BASE.length);
+  const deleteItemSuffix = WAKE_WORDS.DELETE_ITEM_PREFIX.substring(WAKE_WORDS.HEGSYNC_BASE.length);
 
 
   return (
@@ -485,7 +513,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
            {isListening
             ? (
               <>
-                Voice: Say <q><strong>HegSync</strong>{recallCmdSuffix}</q>, <q><strong>HegSync</strong> add to my shopping list [item]</q>, <q><strong>HegSync</strong>{setBufferCmdSuffix} [duration]</q>, <q><strong>HegSync</strong>{turnOnCmdSuffix}</q>, <q><strong>HegSync</strong>{turnOffCmdSuffix}</q>, or <q><strong>HegSync</strong>{deleteItemSuffix} [item/item number X] from [shopping list/to do list]</q>.
+                Voice: Say <q><strong>HegSync</strong>{recallCmdSuffix}</q>, <q><strong>HegSync</strong>{addShopCmdSuffix} [item]</q>, <q><strong>HegSync</strong>{setBufferCmdSuffix} [duration]</q>, <q><strong>HegSync</strong>{turnOnCmdSuffix}</q>, <q><strong>HegSync</strong>{turnOffCmdSuffix}</q>, or <q><strong>HegSync</strong>{deleteItemSuffix} [item/item number X] from [shopping list/to do list]</q>.
                 Text: Use area below and "Process Thought (from text)" button.
               </>
             )
@@ -519,17 +547,21 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
         <form onSubmit={handleManualSubmit} className="space-y-4">
           <Textarea
             placeholder={
-              isListening
-                ? isCapturingAudio
-                  ? "Recording audio snippet..."
-                  : partialWakeWordDetected
-                    ? "'HegSync' detected. Finish your command..."
-                    : isLoading 
-                      ? "Processing..."
-                      : isRecognizingSpeech 
-                        ? "Say 'HegSync' + command..."
-                        : "Listener active for 'HegSync'..."
-                : "Enable listening to activate input..."
+              isCapturingAudio
+                ? "Recording audio snippet..."
+                : isLoading
+                  ? "Processing..."
+                  : !isListening
+                    ? "Enable listening to activate input..."
+                    : hasMicPermission === false
+                      ? "Microphone access denied. Enable to use voice."
+                      : hasMicPermission === null
+                        ? "Awaiting microphone permission..."
+                        : partialWakeWordDetected
+                          ? "'HegSync' detected. Finish your command..."
+                          : isRecognizingSpeech
+                            ? "Say 'HegSync' + command..."
+                            : "Listener active for 'HegSync'..."
             }
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
@@ -540,7 +572,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
           />
           <div className="flex items-stretch gap-2">
             <Button
-              type="button" // Changed from submit to prevent form submission on its own
+              type="button"
               onClick={handleManualSubmit}
               disabled={!isListening || isLoading || isCapturingAudio || !inputText.trim()}
               className="flex-grow"
@@ -550,7 +582,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
               Process Thought (from text)
             </Button>
              <Button
-              type="button" // Changed from submit
+              type="button"
               onClick={handleManualSubmit}
               disabled={!isListening || isLoading || isCapturingAudio || !inputText.trim()}
               size="icon"
