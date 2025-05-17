@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, FormEvent, useRef } from 'react';
+import { useState, useEffect, FormEvent, useRef, useCallback } from 'react';
 import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
 import type { ShoppingListItem } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -10,9 +10,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ListChecks, Trash2, Edit3, PlusCircle, Save, Ban, Mic, MicOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { WAKE_WORDS, LOCALSTORAGE_KEYS } from '@/lib/constants';
 
 export default function ShoppingListPage() {
-  const [items, setItems] = useLocalStorage<ShoppingListItem[]>('hegsync-shopping-list', []);
+  const [items, setItems] = useLocalStorage<ShoppingListItem[]>(LOCALSTORAGE_KEYS.SHOPPING_LIST, []);
   const [newItemText, setNewItemText] = useState('');
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingItemText, setEditingItemText] = useState('');
@@ -20,33 +21,39 @@ export default function ShoppingListPage() {
 
   const [isClient, setIsClient] = useState(false);
 
-  // State for inline voice input
+  // State for inline voice input for adding items
   const [isListeningForItemInput, setIsListeningForItemInput] = useState(false);
   const [micPermission, setMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
+  // State for page-level "HegSync" wake word detection
+  const [isListeningForPageHegsync, setIsListeningForPageHegsync] = useState(false);
+  const [pageHegsyncMicPermission, setPageHegsyncMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
+  const pageHegsyncRecognitionRef = useRef<SpeechRecognition | null>(null);
+  // This ref helps control the restart behavior of the pageHegsync listener
+  const pageHegsyncListenerShouldBeActive = useRef(true);
+
+
   useEffect(() => {
     setIsClient(true);
-    // Check for SpeechRecognition support on mount
     const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognitionAPI) {
       setMicPermission('unsupported');
-    }
-
-    // Cleanup function
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.onstart = null;
-        recognitionRef.current.onend = null;
-        recognitionRef.current.onerror = null;
-        recognitionRef.current.onresult = null;
-        if (recognitionRef.current.stop) {
-          try { recognitionRef.current.stop(); } catch (e) { console.warn("Error stopping recognition on unmount:", e); }
+      setPageHegsyncMicPermission('unsupported');
+    } else {
+        // Initial permission check for pageHegsync listener if not already determined
+        if (pageHegsyncMicPermission === 'prompt') {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    stream.getTracks().forEach(track => track.stop());
+                    setPageHegsyncMicPermission('granted');
+                })
+                .catch(() => {
+                    setPageHegsyncMicPermission('denied');
+                });
         }
-        recognitionRef.current = null;
-      }
-    };
-  }, []);
+    }
+  }, [pageHegsyncMicPermission]);
 
 
   const handleAddItem = (e: FormEvent) => {
@@ -93,75 +100,62 @@ export default function ShoppingListPage() {
     setEditingItemText('');
   };
 
-  // Voice Input specific functions
-  const startInputRecognition = () => {
+  const startInputRecognition = useCallback(() => {
     const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognitionAPI || micPermission !== 'granted') {
-      if (micPermission === 'unsupported') toast({ title: "Voice input not supported", variant: "destructive" });
-      else if (micPermission === 'denied') toast({ title: "Mic access denied", variant: "destructive" });
-      return;
-    }
+    if (!SpeechRecognitionAPI || micPermission !== 'granted') return;
 
     if (recognitionRef.current && recognitionRef.current.stop) {
-        try { recognitionRef.current.stop(); } catch(e) { /* ignore */ }
+      try { recognitionRef.current.stop(); } catch(e) { /* ignore */ }
     }
-
+    
     const recognition = new SpeechRecognitionAPI();
     recognitionRef.current = recognition;
     recognition.continuous = false;
     recognition.interimResults = true;
     recognition.lang = 'en-US';
 
-    recognition.onstart = () => {
-      setIsListeningForItemInput(true);
-    };
-
+    recognition.onstart = () => setIsListeningForItemInput(true);
     recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const transcript = Array.from(event.results)
-        .map(result => result[0])
-        .map(result => result.transcript)
-        .join('');
+      const transcript = Array.from(event.results).map(result => result[0]).map(result => result.transcript).join('');
       setNewItemText(transcript);
     };
-
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       console.error('Shopping list item input speech recognition error:', event.error, event.message);
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         setMicPermission('denied');
-        toast({ title: "Microphone Access Denied", description: "Voice input requires microphone access.", variant: "destructive" });
+        toast({ title: "Microphone Access Denied", variant: "destructive" });
       } else if (event.error === 'no-speech') {
-        toast({ title: "No speech detected", description: "Please try speaking again.", variant: "default" });
+        toast({ title: "No speech detected", variant: "default" });
       } else {
         toast({ title: "Voice Input Error", description: event.message || "Could not recognize speech.", variant: "destructive" });
       }
       setIsListeningForItemInput(false);
     };
-
     recognition.onend = () => {
       setIsListeningForItemInput(false);
-      // Consider not nullifying recognitionRef.current here if we want an explicit stop button to work more cleanly with it
+      recognitionRef.current = null;
+      pageHegsyncListenerShouldBeActive.current = true; // Allow page HegSync listener to restart
     };
     
-    setNewItemText(''); // Clear input field before starting voice input
+    setNewItemText(''); 
     recognition.start();
-  };
+  }, [micPermission, toast]);
 
-  const handleMicButtonClick = async () => {
-    if (isListeningForItemInput) {
-      if (recognitionRef.current && recognitionRef.current.stop) {
-        try { recognitionRef.current.stop(); } catch(e) { /* ignore */ }
+  const triggerItemInputMic = useCallback(async () => {
+    if (isListeningForItemInput) { // If already listening for item, stop it
+      if (recognitionRef.current?.stop) {
+        try { recognitionRef.current.stop(); } catch(e) {/* ignore */}
       }
-      setIsListeningForItemInput(false); // Explicitly set, onend might be delayed
+      setIsListeningForItemInput(false);
       return;
     }
 
     if (micPermission === 'unsupported') {
-      toast({ title: "Voice input not supported", description: "Your browser doesn't support speech recognition.", variant: "destructive" });
+      toast({ title: "Voice input not supported", variant: "destructive" });
       return;
     }
-    
     if (micPermission === 'denied') {
-      toast({ title: "Microphone Access Denied", description: "Please enable microphone access in browser settings.", variant: "destructive" });
+      toast({ title: "Microphone Access Denied", variant: "destructive" });
       return;
     }
 
@@ -173,17 +167,81 @@ export default function ShoppingListPage() {
         setMicPermission('granted');
         currentPermission = 'granted';
       } catch (err) {
-        console.error("Mic permission error (shopping input):", err);
         setMicPermission('denied');
-        toast({ title: "Microphone Access Denied", description: "Voice input for items requires microphone access.", variant: "destructive" });
+        toast({ title: "Microphone Access Denied", variant: "destructive" });
         return;
       }
     }
     
     if (currentPermission === 'granted') {
+      pageHegsyncListenerShouldBeActive.current = false; // Stop page HegSync listener
+      if (pageHegsyncRecognitionRef.current?.stop) {
+         try { pageHegsyncRecognitionRef.current.stop(); } catch(e) {/* ignore */}
+      }
       startInputRecognition();
     }
-  };
+  }, [isListeningForItemInput, micPermission, startInputRecognition, toast]);
+
+
+  // useEffect for page-level "Hegsync" wake word listener
+  useEffect(() => {
+    const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI || pageHegsyncMicPermission !== 'granted' || isListeningForItemInput || !pageHegsyncListenerShouldBeActive.current) {
+      if (pageHegsyncRecognitionRef.current?.stop) {
+        try { pageHegsyncRecognitionRef.current.stop(); } catch(e) {/* ignore */}
+      }
+      return;
+    }
+
+    if (!pageHegsyncRecognitionRef.current) {
+      const pageRecognition = new SpeechRecognitionAPI();
+      pageHegsyncRecognitionRef.current = pageRecognition;
+      pageRecognition.continuous = true;
+      pageRecognition.interimResults = false;
+      pageRecognition.lang = 'en-US';
+
+      pageRecognition.onstart = () => setIsListeningForPageHegsync(true);
+      pageRecognition.onresult = (event: SpeechRecognitionEvent) => {
+        const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
+        if (transcript === WAKE_WORDS.HEGSYNC_BASE.toLowerCase()) {
+          toast({ title: `'${WAKE_WORDS.HEGSYNC_BASE}' Detected`, description: "Activating item input microphone..." });
+          pageHegsyncListenerShouldBeActive.current = false; // Prevent auto-restart before item input
+          pageHegsyncRecognitionRef.current?.stop(); // Stop this listener
+          triggerItemInputMic(); // Activate the item input mic
+        }
+      };
+      pageRecognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+        console.warn('Page Hegsync recognition error:', event.error, event.message);
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+            setPageHegsyncMicPermission('denied'); // Update permission state
+        }
+        setIsListeningForPageHegsync(false);
+        pageHegsyncRecognitionRef.current = null;
+      };
+      pageRecognition.onend = () => {
+        setIsListeningForPageHegsync(false);
+        pageHegsyncRecognitionRef.current = null;
+        // The listener will be restarted by this effect if pageHegsyncListenerShouldBeActive.current is true
+        // and other conditions (like isListeningForItemInput being false) are met.
+      };
+      
+      try {
+        if (pageHegsyncListenerShouldBeActive.current) pageRecognition.start();
+      } catch (e) {
+        console.error("Failed to start page Hegsync recognition:", e);
+        setIsListeningForPageHegsync(false);
+        pageHegsyncRecognitionRef.current = null;
+      }
+    }
+    
+    return () => {
+      if (pageHegsyncRecognitionRef.current?.stop) {
+         try { pageHegsyncRecognitionRef.current.stop(); } catch(e) {/* ignore */}
+      }
+      pageHegsyncRecognitionRef.current = null;
+      setIsListeningForPageHegsync(false);
+    };
+  }, [pageHegsyncMicPermission, isListeningForItemInput, triggerItemInputMic, toast]);
 
 
   if (!isClient) {
@@ -195,12 +253,16 @@ export default function ShoppingListPage() {
   }
 
   const micButtonDisabled = micPermission === 'unsupported' || micPermission === 'denied';
+  const pageHegsyncStatusText = isListeningForPageHegsync ? "Listening for 'HegSync'..." : (pageHegsyncMicPermission === 'granted' ? "Say 'HegSync' to activate input" : "Page 'HegSync' listener off");
 
   return (
     <div className="space-y-8 max-w-2xl mx-auto">
-      <div className="flex items-center gap-3">
-        <ListChecks className="h-10 w-10 text-primary" />
-        <h1 className="text-3xl font-bold tracking-tight">Shopping List</h1>
+      <div className="flex flex-col sm:flex-row justify-between items-center">
+        <div className="flex items-center gap-3">
+            <ListChecks className="h-10 w-10 text-primary" />
+            <h1 className="text-3xl font-bold tracking-tight">Shopping List</h1>
+        </div>
+        <p className="text-sm text-muted-foreground mt-2 sm:mt-0">{pageHegsyncMicPermission === 'granted' && !isListeningForItemInput ? pageHegsyncStatusText : ""}</p>
       </div>
 
       <Card className="shadow-lg">
@@ -221,7 +283,7 @@ export default function ShoppingListPage() {
               type="button"
               variant="outline"
               size="icon"
-              onClick={handleMicButtonClick}
+              onClick={triggerItemInputMic}
               disabled={micButtonDisabled && micPermission !== 'prompt'}
               title={micButtonDisabled && micPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForItemInput ? "Stop voice input" : "Add item using voice")}
               aria-label="Add item using voice"
@@ -313,3 +375,6 @@ export default function ShoppingListPage() {
     </div>
   );
 }
+
+
+    

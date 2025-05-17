@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, FormEvent, DragEvent, useMemo, useRef } from 'react';
+import { useState, useEffect, FormEvent, DragEvent, useMemo, useRef, useCallback } from 'react';
 import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
 import type { ToDoListItem, TimePoint, TimeSettingType } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,7 @@ import {
   ChevronUp, ChevronDown, GripVertical, CalendarIcon, AlertTriangle, Mic, MicOff
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { LOCALSTORAGE_KEYS } from '@/lib/constants';
+import { LOCALSTORAGE_KEYS, WAKE_WORDS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 
 const initialTimePoint: TimePoint = { hh: '12', mm: '00', period: 'AM' };
@@ -81,15 +81,32 @@ export default function ToDoListPage() {
   const [taskInputMicPermission, setTaskInputMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
   const recognitionTaskRef = useRef<SpeechRecognition | null>(null);
 
+  // State for page-level "Hegsync" wake word detection
+  const [isListeningForPageHegsync, setIsListeningForPageHegsync] = useState(false);
+  const [pageHegsyncMicPermission, setPageHegsyncMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
+  const pageHegsyncRecognitionRef = useRef<SpeechRecognition | null>(null);
+  const pageHegsyncListenerShouldBeActive = useRef(true);
+
 
   useEffect(() => {
     setIsClient(true);
-    // Check for SpeechRecognition support on mount for task input
     const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognitionAPI) {
       setTaskInputMicPermission('unsupported');
+      setPageHegsyncMicPermission('unsupported');
+    } else {
+        if (pageHegsyncMicPermission === 'prompt') {
+             navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    stream.getTracks().forEach(track => track.stop());
+                    setPageHegsyncMicPermission('granted');
+                })
+                .catch(() => {
+                    setPageHegsyncMicPermission('denied');
+                });
+        }
     }
-    // Cleanup function for task input recognition
+     // Cleanup function for task input recognition
     return () => {
       if (recognitionTaskRef.current) {
         recognitionTaskRef.current.onstart = null;
@@ -102,7 +119,7 @@ export default function ToDoListPage() {
         recognitionTaskRef.current = null;
       }
     };
-  }, []);
+  }, [pageHegsyncMicPermission]);
 
   const handleAddItem = (e: FormEvent) => {
     e.preventDefault();
@@ -167,11 +184,12 @@ export default function ToDoListPage() {
     if (!item || item.completed) return;
     setEditingTimeItemId(itemId);
     setCurrentEditorTimeSettingType(item.timeSettingType || 'not_set');
-    setCurrentEditorStartTime(item.startTime ? {...item.startTime} : null);
-    setCurrentEditorEndTime(item.endTime ? {...item.endTime} : null);
+    setCurrentEditorStartTime(item.startTime ? {...item.startTime} : null); // Ensure new object
+    setCurrentEditorEndTime(item.endTime ? {...item.endTime} : null);     // Ensure new object
     setCurrentEditorDueDate(item.dueDate ? parseISO(item.dueDate) : undefined);
     setEditingItemId(null);
   };
+  
 
   const handleSaveTimeSettings = () => {
     if (!editingTimeItemId) return;
@@ -421,29 +439,25 @@ export default function ToDoListPage() {
               return dateA - dateB;
             }
           }
-          const indexA = items.findIndex(item => item.id === a.id);
-          const indexB = items.findIndex(item => item.id === b.id);
+          const indexA = items.findIndex(item => item.id === a.id); // Use original items for index
+          const indexB = items.findIndex(item => item.id === b.id); // Use original items for index
           return indexA - indexB;
         });
         break;
       case 'default':
       default:
+        // No sort, uses original items array order
         break;
     }
     return displayItems;
   }, [items, sortOrder]);
 
-  // Voice Input specific functions for Tasks
-  const startTaskInputRecognition = () => {
+  const startTaskInputRecognition = useCallback(() => {
     const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognitionAPI || taskInputMicPermission !== 'granted') {
-      if (taskInputMicPermission === 'unsupported') toast({ title: "Voice input not supported", variant: "destructive" });
-      else if (taskInputMicPermission === 'denied') toast({ title: "Mic access denied", variant: "destructive" });
-      return;
-    }
+    if (!SpeechRecognitionAPI || taskInputMicPermission !== 'granted') return;
 
     if (recognitionTaskRef.current && recognitionTaskRef.current.stop) {
-        try { recognitionTaskRef.current.stop(); } catch(e) { /* ignore */ }
+      try { recognitionTaskRef.current.stop(); } catch(e) { /* ignore */ }
     }
 
     const recognition = new SpeechRecognitionAPI();
@@ -452,55 +466,49 @@ export default function ToDoListPage() {
     recognition.interimResults = true;
     recognition.lang = 'en-US';
 
-    recognition.onstart = () => {
-      setIsListeningForTaskInput(true);
-    };
-
+    recognition.onstart = () => setIsListeningForTaskInput(true);
     recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const transcript = Array.from(event.results)
-        .map(result => result[0])
-        .map(result => result.transcript)
-        .join('');
+      const transcript = Array.from(event.results).map(result => result[0]).map(result => result.transcript).join('');
       setNewItemText(transcript);
     };
-
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       console.error('Task input speech recognition error:', event.error, event.message);
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         setTaskInputMicPermission('denied');
-        toast({ title: "Microphone Access Denied", description: "Voice input requires microphone access.", variant: "destructive" });
+        toast({ title: "Microphone Access Denied", variant: "destructive" });
       } else if (event.error === 'no-speech') {
-        toast({ title: "No speech detected", description: "Please try speaking again.", variant: "default" });
+        toast({ title: "No speech detected", variant: "default" });
       } else {
         toast({ title: "Voice Input Error", description: event.message || "Could not recognize speech.", variant: "destructive" });
       }
       setIsListeningForTaskInput(false);
     };
-
     recognition.onend = () => {
       setIsListeningForTaskInput(false);
+      recognitionTaskRef.current = null;
+      pageHegsyncListenerShouldBeActive.current = true; // Allow page HegSync listener to restart
     };
     
-    setNewItemText(''); // Clear input field before starting voice input
+    setNewItemText('');
     recognition.start();
-  };
+  }, [taskInputMicPermission, toast]);
 
-  const handleMicForTaskInputClick = async () => {
+
+  const triggerTaskInputMic = useCallback(async () => {
     if (isListeningForTaskInput) {
-      if (recognitionTaskRef.current && recognitionTaskRef.current.stop) {
-         try { recognitionTaskRef.current.stop(); } catch(e) { /* ignore */ }
+      if (recognitionTaskRef.current?.stop) {
+         try { recognitionTaskRef.current.stop(); } catch(e) {/* ignore */}
       }
       setIsListeningForTaskInput(false);
       return;
     }
 
     if (taskInputMicPermission === 'unsupported') {
-      toast({ title: "Voice input not supported", description: "Your browser doesn't support speech recognition.", variant: "destructive" });
+      toast({ title: "Voice input not supported", variant: "destructive" });
       return;
     }
-    
     if (taskInputMicPermission === 'denied') {
-      toast({ title: "Microphone Access Denied", description: "Please enable microphone access in browser settings.", variant: "destructive" });
+      toast({ title: "Microphone Access Denied", variant: "destructive" });
       return;
     }
 
@@ -512,17 +520,78 @@ export default function ToDoListPage() {
         setTaskInputMicPermission('granted');
         currentPermission = 'granted';
       } catch (err) {
-        console.error("Mic permission error (task input):", err);
         setTaskInputMicPermission('denied');
-        toast({ title: "Microphone Access Denied", description: "Voice input for tasks requires microphone access.", variant: "destructive" });
+        toast({ title: "Microphone Access Denied", variant: "destructive" });
         return;
       }
     }
     
     if (currentPermission === 'granted') {
+      pageHegsyncListenerShouldBeActive.current = false; // Stop page HegSync listener
+      if (pageHegsyncRecognitionRef.current?.stop) {
+         try { pageHegsyncRecognitionRef.current.stop(); } catch(e) {/* ignore */}
+      }
       startTaskInputRecognition();
     }
-  };
+  }, [isListeningForTaskInput, taskInputMicPermission, startTaskInputRecognition, toast]);
+
+  // useEffect for page-level "Hegsync" wake word listener
+  useEffect(() => {
+    const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI || pageHegsyncMicPermission !== 'granted' || isListeningForTaskInput || !pageHegsyncListenerShouldBeActive.current) {
+      if (pageHegsyncRecognitionRef.current?.stop) {
+        try { pageHegsyncRecognitionRef.current.stop(); } catch(e) {/* ignore */}
+      }
+      return;
+    }
+
+    if (!pageHegsyncRecognitionRef.current) {
+      const pageRecognition = new SpeechRecognitionAPI();
+      pageHegsyncRecognitionRef.current = pageRecognition;
+      pageRecognition.continuous = true;
+      pageRecognition.interimResults = false;
+      pageRecognition.lang = 'en-US';
+
+      pageRecognition.onstart = () => setIsListeningForPageHegsync(true);
+      pageRecognition.onresult = (event: SpeechRecognitionEvent) => {
+        const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
+        if (transcript === WAKE_WORDS.HEGSYNC_BASE.toLowerCase()) {
+          toast({ title: `'${WAKE_WORDS.HEGSYNC_BASE}' Detected`, description: "Activating task input microphone..." });
+          pageHegsyncListenerShouldBeActive.current = false;
+          pageHegsyncRecognitionRef.current?.stop();
+          triggerTaskInputMic();
+        }
+      };
+      pageRecognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+        console.warn('Page Hegsync recognition error:', event.error, event.message);
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+            setPageHegsyncMicPermission('denied');
+        }
+        setIsListeningForPageHegsync(false);
+        pageHegsyncRecognitionRef.current = null;
+      };
+      pageRecognition.onend = () => {
+        setIsListeningForPageHegsync(false);
+        pageHegsyncRecognitionRef.current = null;
+      };
+      
+      try {
+        if (pageHegsyncListenerShouldBeActive.current) pageRecognition.start();
+      } catch (e) {
+        console.error("Failed to start page Hegsync recognition:", e);
+        setIsListeningForPageHegsync(false);
+        pageHegsyncRecognitionRef.current = null;
+      }
+    }
+    
+    return () => {
+      if (pageHegsyncRecognitionRef.current?.stop) {
+         try { pageHegsyncRecognitionRef.current.stop(); } catch(e) {/* ignore */}
+      }
+      pageHegsyncRecognitionRef.current = null;
+      setIsListeningForPageHegsync(false);
+    };
+  }, [pageHegsyncMicPermission, isListeningForTaskInput, triggerTaskInputMic, toast]);
 
 
   if (!isClient) {
@@ -548,6 +617,8 @@ export default function ToDoListPage() {
   };
 
   const taskMicButtonDisabled = taskInputMicPermission === 'unsupported' || taskInputMicPermission === 'denied';
+  const pageHegsyncStatusText = isListeningForPageHegsync ? "Listening for 'HegSync'..." : (pageHegsyncMicPermission === 'granted' ? "Say 'HegSync' to activate input" : "Page 'HegSync' listener off");
+
 
   return (
     <div className="space-y-8 max-w-3xl mx-auto">
@@ -556,20 +627,23 @@ export default function ToDoListPage() {
           <ClipboardList className="h-10 w-10 text-primary" />
           <h1 className="text-3xl font-bold tracking-tight">To-Do List</h1>
         </div>
-        <div className="w-full sm:w-auto">
-          <Select value={sortOrder} onValueChange={setSortOrder}>
-            <SelectTrigger className="w-full sm:w-[200px]" aria-label="Sort tasks by">
-              <SelectValue placeholder="Sort by..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="default">Default Order</SelectItem>
-              <SelectItem value="priority">Priority</SelectItem>
-              <SelectItem value="dueDateAsc">Due Date (Oldest First)</SelectItem>
-              <SelectItem value="dueDateDesc">Due Date (Newest First)</SelectItem>
-              <SelectItem value="alphaAsc">Alphabetical (A-Z)</SelectItem>
-              <SelectItem value="alphaDesc">Alphabetical (Z-A)</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+            <p className="text-xs text-muted-foreground flex-grow sm:flex-grow-0 text-right sm:text-left">
+                {pageHegsyncMicPermission === 'granted' && !isListeningForTaskInput ? pageHegsyncStatusText : ""}
+            </p>
+            <Select value={sortOrder} onValueChange={setSortOrder}>
+                <SelectTrigger className="w-full sm:w-[200px]" aria-label="Sort tasks by">
+                <SelectValue placeholder="Sort by..." />
+                </SelectTrigger>
+                <SelectContent>
+                <SelectItem value="default">Default Order</SelectItem>
+                <SelectItem value="priority">Priority</SelectItem>
+                <SelectItem value="dueDateAsc">Due Date (Oldest First)</SelectItem>
+                <SelectItem value="dueDateDesc">Due Date (Newest First)</SelectItem>
+                <SelectItem value="alphaAsc">Alphabetical (A-Z)</SelectItem>
+                <SelectItem value="alphaDesc">Alphabetical (Z-A)</SelectItem>
+                </SelectContent>
+            </Select>
         </div>
       </div>
 
@@ -591,7 +665,7 @@ export default function ToDoListPage() {
               type="button"
               variant="outline"
               size="icon"
-              onClick={handleMicForTaskInputClick}
+              onClick={triggerTaskInputMic}
               disabled={taskMicButtonDisabled && taskInputMicPermission !== 'prompt'}
               title={taskMicButtonDisabled && taskInputMicPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForTaskInput ? "Stop voice input" : "Add task using voice")}
               aria-label="Add task using voice"
@@ -796,3 +870,5 @@ export default function ToDoListPage() {
     </div>
   );
 }
+
+    
