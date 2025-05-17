@@ -14,7 +14,7 @@ import { pinThoughtAndSuggestCategories } from '@/lib/actions';
 import { useRouter } from 'next/navigation';
 
 export default function DashboardPage() {
-  const [isListening, setIsListening] = useState(false);
+  const [isListening, setIsListening] = useState(true); // Enabled by default
   const [recalledThoughts, setRecalledThoughts] = useLocalStorage<Thought[]>('hegsync-recalled-thoughts', []);
   const [pinnedThoughts, setPinnedThoughts] = useLocalStorage<PinnedThought[]>('hegsync-memory-vault', []);
   
@@ -41,7 +41,7 @@ export default function DashboardPage() {
         ...processedPinnedThoughtData,
         pinnedTimestamp: Date.now(),
       };
-      setPinnedThoughts(prev => [newPinnedThought, ...prev].sort((a,b) => b.pinnedTimestamp - a.pinnedTimestamp));
+      setPinnedThoughts(prev => [newPinnedThought, ...prev].sort((a,b) => b.pinnedTimestamp - a.timestamp));
       // Optionally remove from recalledThoughts or mark as pinned
       setRecalledThoughts(prev => prev.filter(t => t.id !== thoughtToPin.id));
       toast({ title: "Thought Pinned", description: "Successfully saved to Memory Vault." });

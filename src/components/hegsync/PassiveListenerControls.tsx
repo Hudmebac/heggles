@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Mic, MicOff, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,14 +16,31 @@ interface PassiveListenerControlsProps {
 export function PassiveListenerControls({ isListening, onToggleListening }: PassiveListenerControlsProps) {
   const [showWarning, setShowWarning] = useState(false);
 
-  const handleToggle = (checked: boolean) => {
-    onToggleListening(checked);
-    if (checked) {
+  // Handles the warning display logic, including initial state and subsequent toggles.
+  useEffect(() => {
+    let timerId: NodeJS.Timeout | undefined;
+    if (isListening) {
       setShowWarning(true);
-      setTimeout(() => setShowWarning(false), 5000); // Hide warning after 5 seconds
+      timerId = setTimeout(() => {
+        setShowWarning(false);
+      }, 5000); // Hide warning after 5 seconds
     } else {
+      // If isListening is false (either initially or after a toggle), ensure warning is hidden.
       setShowWarning(false);
     }
+
+    // Cleanup function to clear the timer if the component unmounts or isListening changes
+    return () => {
+      if (timerId) {
+        clearTimeout(timerId);
+      }
+    };
+  }, [isListening]); // Re-run this effect whenever the `isListening` prop changes.
+
+  // This function is called by the Switch component when its state changes by user interaction.
+  const handleToggleSwitch = (checked: boolean) => {
+    onToggleListening(checked); // Inform the parent component about the state change.
+    // The useEffect above will handle updating `showWarning` based on the new `isListening` prop value.
   };
   
   return (
@@ -42,11 +59,12 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
           <Switch
             id="listening-mode-switch"
             checked={isListening}
-            onCheckedChange={handleToggle}
+            onCheckedChange={handleToggleSwitch}
             aria-label="Toggle passive listening mode"
           />
         </div>
-        {isListening && showWarning && (
+        {/* Warning is shown based on showWarning state, which is managed by the useEffect */}
+        {showWarning && (
           <div className="flex items-center p-3 border border-yellow-400 bg-yellow-50 text-yellow-700 rounded-md text-sm">
             <AlertTriangle className="h-5 w-5 mr-2" />
             <span>
