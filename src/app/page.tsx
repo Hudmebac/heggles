@@ -10,7 +10,7 @@ import { RecentThoughtsList } from '@/components/hegsync/RecentThoughtsList';
 import { ThoughtClarifierDialog } from '@/components/hegsync/ThoughtClarifierDialog';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Mic, PlayCircle, StopCircle } from 'lucide-react';
+import { PlayCircle, StopCircle } from 'lucide-react'; // Mic icon removed from here
 import { useToast } from '@/hooks/use-toast';
 import { pinThoughtAndSuggestCategories } from '@/lib/actions';
 import { useRouter } from 'next/navigation';
@@ -33,12 +33,12 @@ export default function DashboardPage() {
 
   const handleToggleListening = useCallback((active: boolean) => {
     setIsListening(active);
-    if (!active && isLongRecording) { // If passive listening is turned off, stop long recording
+    if (!active && isLongRecording) { 
       thoughtInputFormRef.current?.stopLongRecordingAndProcess();
       setIsLongRecording(false);
       toast({ title: "Recording Stopped", description: "Passive listening was disabled." });
     }
-    toast({ title: `Passive Listening ${active ? "Enabled" : "Disabled"}`, description: active ? "Ready to recall thoughts and listen for commands." : "Voice commands and recording are off." });
+    toast({ title: `Passive Listening ${active ? "Enabled" : "Disabled"}`, description: active ? "Ready for voice commands." : "Voice commands and recording are off." });
   }, [toast, isLongRecording]); 
 
   const handleThoughtRecalled = (newThought: Thought) => {
@@ -82,15 +82,6 @@ export default function DashboardPage() {
     setIsClient(true);
   }, []);
 
-  const handleSimulateWakeWord = () => {
-    if (isLongRecording) {
-      toast({ title: "Action unavailable", description: "Stop continuous recording first.", variant: "default"});
-      return;
-    }
-    if (thoughtInputFormRef.current) {
-      thoughtInputFormRef.current.simulateWakeWordAndListen();
-    }
-  };
 
   const handleToggleLongRecording = () => {
     if (!isListening) {
@@ -100,14 +91,16 @@ export default function DashboardPage() {
     if (!isLongRecording) {
       if (thoughtInputFormRef.current?.startLongRecording()) {
         setIsLongRecording(true);
-        toast({ title: "Continuous Recording Started", description: "Click stop to process." });
+        toast({ title: "Continuous Recording Started", description: "Say your thoughts. Click stop to populate input for processing." });
       } else {
         toast({ title: "Could Not Start Recording", description: "System might be busy or microphone unavailable.", variant: "destructive" });
       }
     } else {
+      // stopLongRecordingAndProcess will now populate inputText in ThoughtInputForm.
+      // The user then clicks the Brain icon there.
       thoughtInputFormRef.current?.stopLongRecordingAndProcess();
       setIsLongRecording(false);
-      // Toast for stopping and processing is handled within stopLongRecordingAndProcess or its callees
+      toast({ title: "Recording Stopped", description: "Transcript populated in input area. Click the Brain icon to process." });
     }
   };
 
@@ -119,16 +112,7 @@ export default function DashboardPage() {
     <div className="space-y-8">
       <div className="flex items-center mb-6 gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="p-0 h-9 w-9 sm:h-10 sm:w-10"
-          onClick={handleSimulateWakeWord}
-          disabled={!isListening || isLongRecording}
-          title="Activate HegSync Listener (Simulates Wake Word)"
-        >
-          <Mic className="h-6 w-6 sm:h-7 sm:w-7 text-primary" />
-        </Button>
+        {/* Removed Mic button that simulated wake word */}
         <Button
           variant="ghost"
           size="icon"
@@ -153,6 +137,7 @@ export default function DashboardPage() {
         isListening={isListening}
         onToggleListeningParent={handleToggleListening}
         isExternallyLongRecording={isLongRecording}
+        onStopLongRecordingParent={() => setIsLongRecording(false)} // To sync state if stopped internally
       />
 
       <Separator />

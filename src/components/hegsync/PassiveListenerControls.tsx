@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Mic, MicOff, AlertTriangle, Timer, Info, Brain, PlayCircle, StopCircle } from 'lucide-react';
+import { Mic, MicOff, AlertTriangle, Timer, Info, Brain } from 'lucide-react'; // Removed PlayCircle, StopCircle
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -44,19 +44,12 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
           const newBufferTimeValue = JSON.parse(event.newValue) as BufferTimeValue;
           if (BUFFER_TIME_OPTIONS.some(opt => opt.value === newBufferTimeValue)) {
             setBufferTime(newBufferTimeValue);
-          } else {
-            console.warn("Invalid buffer time value received from storage event:", newBufferTimeValue);
           }
-        } catch (e) {
-          console.error("Error parsing buffer time from storage event:", e);
-        }
+        } catch (e) { /* ignore */ }
       }
     };
-
     window.addEventListener('storage', handleStorageChange);
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-    };
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, [setBufferTime]);
 
 
@@ -66,6 +59,7 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
 
   const recallCmdSuffix = WAKE_WORDS.RECALL_THOUGHT.substring(WAKE_WORDS.HEGSYNC_BASE.length);
   const addShopCmdSuffix = WAKE_WORDS.ADD_TO_SHOPPING_LIST.substring(WAKE_WORDS.HEGSYNC_BASE.length);
+  const addToDoCmdSuffix = WAKE_WORDS.ADD_TO_TODO_LIST.substring(WAKE_WORDS.HEGSYNC_BASE.length);
   const setBufferCmdSuffix = WAKE_WORDS.SET_BUFFER_TIME.substring(WAKE_WORDS.HEGSYNC_BASE.length);
   const turnOnCmdSuffix = WAKE_WORDS.TURN_LISTENING_ON.substring(WAKE_WORDS.HEGSYNC_BASE.length);
   const turnOffCmdSuffix = WAKE_WORDS.TURN_LISTENING_OFF.substring(WAKE_WORDS.HEGSYNC_BASE.length);
@@ -96,7 +90,7 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
         <div className="space-y-2 p-4 border rounded-lg bg-secondary/30">
           <Label htmlFor="buffer-time-select" className="text-md font-medium flex items-center">
             <Timer className="mr-2 h-5 w-5 text-muted-foreground" />
-            Conceptual Buffer Time (for "Replay That" voice command)
+            Conceptual Buffer Time (for "<strong>HegSync</strong>{recallCmdSuffix}" voice command)
           </Label>
           <Select value={bufferTime} onValueChange={(value) => setBufferTime(value as BufferTimeValue)}>
             <SelectTrigger id="buffer-time-select" aria-label="Select buffer time period">
@@ -111,7 +105,7 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
             </SelectContent>
           </Select>
            <p className="text-xs text-muted-foreground pt-1">
-            The <q><strong>HegSync</strong>{recallCmdSuffix}</q> voice command simulates recalling from this conceptual buffer.
+            The <q><strong>HegSync</strong>{recallCmdSuffix}</q> voice command simulates recalling from this conceptual buffer. The transcript appears in the input area for processing.
           </p>
         </div>
 
@@ -126,16 +120,16 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
         <div className="flex items-start p-3 border rounded-lg bg-secondary/30 text-sm text-muted-foreground">
             <Info className="h-5 w-5 mr-2 mt-0.5 shrink-0 text-primary" />
             <div>
-                Toggle the switch above or say <q><strong>HegSync</strong>{turnOnCmdSuffix}</q> / <q><strong>HegSync</strong>{turnOffCmdSuffix}</q> to manage passive listening.
+                Voice commands populate the input area on the dashboard. Click the <Brain className="inline-block h-3 w-3 mx-0.5"/> icon to process.
                 <ul className="list-disc pl-5 mt-1 space-y-0.5">
-                  <li>Say <q><strong>HegSync</strong>{recallCmdSuffix}</q> for a simulated thought recall from the conceptual buffer.</li>
-                  <li>Say <q><strong>HegSync</strong>{addShopCmdSuffix} [item]</q> to add to your shopping list.</li>
-                  <li>Say <q><strong>HegSync</strong>{setBufferCmdSuffix} [e.g., 5 minutes / always on]</q> to set conceptual buffer time.</li>
-                  <li>Say <q><strong>HegSync</strong>{deleteItemSuffix} [item/item number X] from [shopping list/to do list]</q> to remove an item.</li>
-                  <li>The <Mic className="inline-block h-3 w-3 mx-0.5"/> button (next to Dashboard title) simulates the "<strong>HegSync</strong>" wake word.</li>
-                  <li>The <PlayCircle className="inline-block h-3 w-3 mx-0.5 text-green-500"/> / <StopCircle className="inline-block h-3 w-3 mx-0.5 text-red-500"/> button (next to Dashboard title) starts/stops continuous recording for AI processing.</li>
-                  <li>The <Brain className="inline-block h-3 w-3 mx-0.5"/> icon button on the dashboard processes text from the input area.</li>
-                  <li>The <Mic className="inline-block h-3 w-3 mx-0.5 text-red-500"/> icon button (in Input & Recall card) is for direct dictation into the input area.</li>
+                  <li>Toggle listening: <q><strong>HegSync</strong>{turnOnCmdSuffix}</q> / <q><strong>HegSync</strong>{turnOffCmdSuffix}</q>.</li>
+                  <li>Simulated recall: <q><strong>HegSync</strong>{recallCmdSuffix}</q>.</li>
+                  <li>Add to shopping list: <q><strong>HegSync</strong>{addShopCmdSuffix} [item]</q>.</li>
+                  <li>Add to to-do list: <q><strong>HegSync</strong>{addToDoCmdSuffix} [task]</q>.</li>
+                  <li>Set buffer: <q><strong>HegSync</strong>{setBufferCmdSuffix} [e.g., 5 minutes / always on]</q>.</li>
+                  <li>Delete item: <q><strong>HegSync</strong>{deleteItemSuffix} [item/item number X] from [shopping list/to do list]</q>.</li>
+                  <li>The Microphone icon button on the dashboard (in Input & Recall card) is for direct dictation into the input area.</li>
+                  <li>The Play/Stop icon button (next to Dashboard title) is for continuous recording; its transcript also populates the input area when stopped.</li>
                 </ul>
             </div>
         </div>
