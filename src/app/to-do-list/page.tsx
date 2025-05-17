@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, FormEvent, DragEvent, useMemo } from 'react';
+import { useState, useEffect, FormEvent, DragEvent, useMemo, useRef } from 'react';
 import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
 import type { ToDoListItem, TimePoint, TimeSettingType } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { format, parseISO, isValid, isPast, isToday, isTomorrow } from 'date-fns';
 import { 
   ClipboardList, Trash2, Edit3, PlusCircle, Save, Ban, CheckSquare, Clock, 
-  ChevronUp, ChevronDown, GripVertical, CalendarIcon, AlertTriangle 
+  ChevronUp, ChevronDown, GripVertical, CalendarIcon, AlertTriangle, Mic, MicOff
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { LOCALSTORAGE_KEYS } from '@/lib/constants';
@@ -23,7 +23,6 @@ import { cn } from '@/lib/utils';
 
 const initialTimePoint: TimePoint = { hh: '12', mm: '00', period: 'AM' };
 
-// Helper to parse time strings like "HH:MM AM/PM" into TimePoint or handle AM/PM only
 const parseTimeToTimePoint = (timeStr?: string | null): TimePoint | null => {
   if (!timeStr) return null;
   try {
@@ -40,7 +39,6 @@ const parseTimeToTimePoint = (timeStr?: string | null): TimePoint | null => {
   }
 };
 
-// Helper to format TimePoint into "HH:MM AM/PM" string
 const formatTimePointToString = (timePoint?: TimePoint | null): string | null => {
   if (!timePoint || !timePoint.period) return null; 
   const hInput = timePoint.hh;
@@ -50,11 +48,10 @@ const formatTimePointToString = (timePoint?: TimePoint | null): string | null =>
   const mVal = (mInput === '' || mInput === null) ? 0 : parseInt(mInput, 10);
 
   if (isNaN(hVal) || isNaN(mVal) || hVal < 1 || hVal > 12 || mVal < 0 || mVal > 59) {
-     // Allow saving with just period by defaulting hh/mm if they are empty
      if ((hInput === '' || hInput === null) && (mInput === '' || mInput === null) && timePoint.period) {
         return `12:00 ${timePoint.period}`;
      }
-     return null; // Truly invalid
+     return null; 
   }
   
   return `${String(hVal).padStart(2, '0')}:${String(mVal).padStart(2, '0')} ${timePoint.period}`;
@@ -78,8 +75,33 @@ export default function ToDoListPage() {
   const { toast } = useToast();
 
   const [isClient, setIsClient] = useState(false);
+
+  // State for inline voice input for tasks
+  const [isListeningForTaskInput, setIsListeningForTaskInput] = useState(false);
+  const [taskInputMicPermission, setTaskInputMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
+  const recognitionTaskRef = useRef<SpeechRecognition | null>(null);
+
+
   useEffect(() => {
     setIsClient(true);
+    // Check for SpeechRecognition support on mount for task input
+    const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI) {
+      setTaskInputMicPermission('unsupported');
+    }
+    // Cleanup function for task input recognition
+    return () => {
+      if (recognitionTaskRef.current) {
+        recognitionTaskRef.current.onstart = null;
+        recognitionTaskRef.current.onend = null;
+        recognitionTaskRef.current.onerror = null;
+        recognitionTaskRef.current.onresult = null;
+        if (recognitionTaskRef.current.stop) {
+           try { recognitionTaskRef.current.stop(); } catch (e) { console.warn("Error stopping task recognition on unmount:", e); }
+        }
+        recognitionTaskRef.current = null;
+      }
+    };
   }, []);
 
   const handleAddItem = (e: FormEvent) => {
@@ -170,17 +192,15 @@ export default function ToDoListPage() {
                 toast({ title: "Invalid Start Time", description: "Start time hours (1-12) or minutes (00-59) are invalid.", variant: "destructive" });
                 return;
             }
-            // If only period is set, default hh and mm
             const hFinal = (currentEditorStartTime.hh === '' || currentEditorStartTime.hh === null) ? '12' : String(hNum).padStart(2,'0');
             const mFinal = (currentEditorStartTime.mm === '' || currentEditorStartTime.mm === null) ? '00' : String(mNum).padStart(2,'0');
             if (currentEditorStartTime.period) {
                  newStartTime = { hh: hFinal, mm: mFinal, period: currentEditorStartTime.period };
-            } else if (currentEditorStartTime.hh || currentEditorStartTime.mm) { // HH or MM set, but no period
+            } else if (currentEditorStartTime.hh || currentEditorStartTime.mm) { 
                 toast({ title: "Missing AM/PM", description: "Please select AM or PM for the start time.", variant: "destructive" });
                 return;
-            } // else, if all are blank, newStartTime remains null
+            } 
         }
-         // If newStartTime is still null but type requires it, maybe user cleared fields - revert type or handle
         if (!newStartTime && currentEditorTimeSettingType === 'specific_start') finalTimeSettingType = 'not_set';
     }
 
@@ -205,11 +225,10 @@ export default function ToDoListPage() {
                 return;
             }
         }
-        // If start time is set but end time isn't (or vice-versa for specific_start_end), maybe revert type
         if (currentEditorTimeSettingType === 'specific_start_end' && (!newStartTime || !newEndTime)) {
-            if (newStartTime && !newEndTime) finalTimeSettingType = 'specific_start'; // Downgrade to specific_start
-            else if (!newStartTime && newEndTime) { /* invalid state, maybe clear end or warn */ newEndTime = null; finalTimeSettingType = 'not_set';}
-            else finalTimeSettingType = 'not_set'; // both null
+            if (newStartTime && !newEndTime) finalTimeSettingType = 'specific_start'; 
+            else if (!newStartTime && newEndTime) { newEndTime = null; finalTimeSettingType = 'not_set';}
+            else finalTimeSettingType = 'not_set';
         }
     }
     
@@ -280,7 +299,7 @@ export default function ToDoListPage() {
       const formattedEnd = formatTimePointToString(item.endTime);
        if (formattedEnd) displayStr += displayStr ? ` - Ends ${formattedEnd}` : `Ends ${formattedEnd}`;
     }
-    return displayStr || 'Time setting issue'; // Fallback for unexpected data
+    return displayStr || 'Time setting issue';
   };
   
   const displayDueDate = (dueDate: string | null | undefined): React.ReactNode => {
@@ -308,7 +327,6 @@ export default function ToDoListPage() {
       return <span className="text-red-500">Error parsing date</span>;
     }
   };
-
 
   const handleMoveItem = (index: number, direction: 'up' | 'down') => {
     if (sortOrder !== 'default') {
@@ -364,7 +382,7 @@ export default function ToDoListPage() {
   };
 
   const sortedItems = useMemo(() => {
-    let displayItems = [...items]; // Use a mutable copy for sorting
+    let displayItems = [...items];
     switch (sortOrder) {
       case 'dueDateAsc':
         displayItems.sort((a, b) => {
@@ -393,17 +411,16 @@ export default function ToDoListPage() {
           const aHasDueDate = !!a.dueDate;
           const bHasDueDate = !!b.dueDate;
 
-          if (aHasDueDate && !bHasDueDate) return -1; // a comes first
-          if (!aHasDueDate && bHasDueDate) return 1;  // b comes first
+          if (aHasDueDate && !bHasDueDate) return -1;
+          if (!aHasDueDate && bHasDueDate) return 1;  
           
           if (aHasDueDate && bHasDueDate) {
             const dateA = new Date(a.dueDate!).getTime();
             const dateB = new Date(b.dueDate!).getTime();
             if (dateA !== dateB) {
-              return dateA - dateB; // Earlier date comes first
+              return dateA - dateB;
             }
           }
-          // If due dates are the same (or both null), use original order from `items`
           const indexA = items.findIndex(item => item.id === a.id);
           const indexB = items.findIndex(item => item.id === b.id);
           return indexA - indexB;
@@ -411,12 +428,101 @@ export default function ToDoListPage() {
         break;
       case 'default':
       default:
-        // For 'default', we want the order as it is in `items` (user-managed)
-        // displayItems is already a copy of items, so no further sort needed here
         break;
     }
     return displayItems;
   }, [items, sortOrder]);
+
+  // Voice Input specific functions for Tasks
+  const startTaskInputRecognition = () => {
+    const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI || taskInputMicPermission !== 'granted') {
+      if (taskInputMicPermission === 'unsupported') toast({ title: "Voice input not supported", variant: "destructive" });
+      else if (taskInputMicPermission === 'denied') toast({ title: "Mic access denied", variant: "destructive" });
+      return;
+    }
+
+    if (recognitionTaskRef.current && recognitionTaskRef.current.stop) {
+        try { recognitionTaskRef.current.stop(); } catch(e) { /* ignore */ }
+    }
+
+    const recognition = new SpeechRecognitionAPI();
+    recognitionTaskRef.current = recognition;
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+      setIsListeningForTaskInput(true);
+    };
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      const transcript = Array.from(event.results)
+        .map(result => result[0])
+        .map(result => result.transcript)
+        .join('');
+      setNewItemText(transcript);
+    };
+
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      console.error('Task input speech recognition error:', event.error, event.message);
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        setTaskInputMicPermission('denied');
+        toast({ title: "Microphone Access Denied", description: "Voice input requires microphone access.", variant: "destructive" });
+      } else if (event.error === 'no-speech') {
+        toast({ title: "No speech detected", description: "Please try speaking again.", variant: "default" });
+      } else {
+        toast({ title: "Voice Input Error", description: event.message || "Could not recognize speech.", variant: "destructive" });
+      }
+      setIsListeningForTaskInput(false);
+    };
+
+    recognition.onend = () => {
+      setIsListeningForTaskInput(false);
+    };
+    
+    setNewItemText(''); // Clear input field before starting voice input
+    recognition.start();
+  };
+
+  const handleMicForTaskInputClick = async () => {
+    if (isListeningForTaskInput) {
+      if (recognitionTaskRef.current && recognitionTaskRef.current.stop) {
+         try { recognitionTaskRef.current.stop(); } catch(e) { /* ignore */ }
+      }
+      setIsListeningForTaskInput(false);
+      return;
+    }
+
+    if (taskInputMicPermission === 'unsupported') {
+      toast({ title: "Voice input not supported", description: "Your browser doesn't support speech recognition.", variant: "destructive" });
+      return;
+    }
+    
+    if (taskInputMicPermission === 'denied') {
+      toast({ title: "Microphone Access Denied", description: "Please enable microphone access in browser settings.", variant: "destructive" });
+      return;
+    }
+
+    let currentPermission = taskInputMicPermission;
+    if (taskInputMicPermission === 'prompt') {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop());
+        setTaskInputMicPermission('granted');
+        currentPermission = 'granted';
+      } catch (err) {
+        console.error("Mic permission error (task input):", err);
+        setTaskInputMicPermission('denied');
+        toast({ title: "Microphone Access Denied", description: "Voice input for tasks requires microphone access.", variant: "destructive" });
+        return;
+      }
+    }
+    
+    if (currentPermission === 'granted') {
+      startTaskInputRecognition();
+    }
+  };
 
 
   if (!isClient) {
@@ -441,6 +547,7 @@ export default function ToDoListPage() {
     );
   };
 
+  const taskMicButtonDisabled = taskInputMicPermission === 'unsupported' || taskInputMicPermission === 'denied';
 
   return (
     <div className="space-y-8 max-w-3xl mx-auto">
@@ -471,7 +578,7 @@ export default function ToDoListPage() {
           <CardTitle className="text-xl">Add New Task</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleAddItem} className="flex items-center gap-3">
+          <form onSubmit={handleAddItem} className="flex items-center gap-2 sm:gap-3">
             <Input
               type="text"
               value={newItemText}
@@ -480,8 +587,21 @@ export default function ToDoListPage() {
               className="flex-grow"
               aria-label="New to-do list item"
             />
-            <Button type="submit" aria-label="Add task">
-              <PlusCircle className="mr-2 h-5 w-5" /> Add Task
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={handleMicForTaskInputClick}
+              disabled={taskMicButtonDisabled && taskInputMicPermission !== 'prompt'}
+              title={taskMicButtonDisabled && taskInputMicPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForTaskInput ? "Stop voice input" : "Add task using voice")}
+              aria-label="Add task using voice"
+            >
+              {isListeningForTaskInput ? <Mic className="h-5 w-5 text-primary animate-pulse" /> :
+               (taskMicButtonDisabled ? <MicOff className="h-5 w-5 text-muted-foreground" /> : <Mic className="h-5 w-5" />)}
+            </Button>
+            <Button type="submit" aria-label="Add task" className="px-3 sm:px-4">
+              <PlusCircle className="mr-0 sm:mr-2 h-5 w-5" />
+               <span className="hidden sm:inline">Add Task</span>
             </Button>
           </form>
         </CardContent>
@@ -676,5 +796,3 @@ export default function ToDoListPage() {
     </div>
   );
 }
-
-    

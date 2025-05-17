@@ -1,14 +1,14 @@
 
 "use client";
 
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect, FormEvent, useRef } from 'react';
 import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
 import type { ShoppingListItem } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ListChecks, Trash2, Edit3, PlusCircle, Save, Ban } from 'lucide-react';
+import { ListChecks, Trash2, Edit3, PlusCircle, Save, Ban, Mic, MicOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function ShoppingListPage() {
@@ -19,9 +19,35 @@ export default function ShoppingListPage() {
   const { toast } = useToast();
 
   const [isClient, setIsClient] = useState(false);
+
+  // State for inline voice input
+  const [isListeningForItemInput, setIsListeningForItemInput] = useState(false);
+  const [micPermission, setMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+
   useEffect(() => {
     setIsClient(true);
+    // Check for SpeechRecognition support on mount
+    const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI) {
+      setMicPermission('unsupported');
+    }
+
+    // Cleanup function
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.onstart = null;
+        recognitionRef.current.onend = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onresult = null;
+        if (recognitionRef.current.stop) {
+          try { recognitionRef.current.stop(); } catch (e) { console.warn("Error stopping recognition on unmount:", e); }
+        }
+        recognitionRef.current = null;
+      }
+    };
   }, []);
+
 
   const handleAddItem = (e: FormEvent) => {
     e.preventDefault();
@@ -67,13 +93,108 @@ export default function ShoppingListPage() {
     setEditingItemText('');
   };
 
+  // Voice Input specific functions
+  const startInputRecognition = () => {
+    const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI || micPermission !== 'granted') {
+      if (micPermission === 'unsupported') toast({ title: "Voice input not supported", variant: "destructive" });
+      else if (micPermission === 'denied') toast({ title: "Mic access denied", variant: "destructive" });
+      return;
+    }
+
+    if (recognitionRef.current && recognitionRef.current.stop) {
+        try { recognitionRef.current.stop(); } catch(e) { /* ignore */ }
+    }
+
+    const recognition = new SpeechRecognitionAPI();
+    recognitionRef.current = recognition;
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+      setIsListeningForItemInput(true);
+    };
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      const transcript = Array.from(event.results)
+        .map(result => result[0])
+        .map(result => result.transcript)
+        .join('');
+      setNewItemText(transcript);
+    };
+
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      console.error('Shopping list item input speech recognition error:', event.error, event.message);
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        setMicPermission('denied');
+        toast({ title: "Microphone Access Denied", description: "Voice input requires microphone access.", variant: "destructive" });
+      } else if (event.error === 'no-speech') {
+        toast({ title: "No speech detected", description: "Please try speaking again.", variant: "default" });
+      } else {
+        toast({ title: "Voice Input Error", description: event.message || "Could not recognize speech.", variant: "destructive" });
+      }
+      setIsListeningForItemInput(false);
+    };
+
+    recognition.onend = () => {
+      setIsListeningForItemInput(false);
+      // Consider not nullifying recognitionRef.current here if we want an explicit stop button to work more cleanly with it
+    };
+    
+    setNewItemText(''); // Clear input field before starting voice input
+    recognition.start();
+  };
+
+  const handleMicButtonClick = async () => {
+    if (isListeningForItemInput) {
+      if (recognitionRef.current && recognitionRef.current.stop) {
+        try { recognitionRef.current.stop(); } catch(e) { /* ignore */ }
+      }
+      setIsListeningForItemInput(false); // Explicitly set, onend might be delayed
+      return;
+    }
+
+    if (micPermission === 'unsupported') {
+      toast({ title: "Voice input not supported", description: "Your browser doesn't support speech recognition.", variant: "destructive" });
+      return;
+    }
+    
+    if (micPermission === 'denied') {
+      toast({ title: "Microphone Access Denied", description: "Please enable microphone access in browser settings.", variant: "destructive" });
+      return;
+    }
+
+    let currentPermission = micPermission;
+    if (micPermission === 'prompt') {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop());
+        setMicPermission('granted');
+        currentPermission = 'granted';
+      } catch (err) {
+        console.error("Mic permission error (shopping input):", err);
+        setMicPermission('denied');
+        toast({ title: "Microphone Access Denied", description: "Voice input for items requires microphone access.", variant: "destructive" });
+        return;
+      }
+    }
+    
+    if (currentPermission === 'granted') {
+      startInputRecognition();
+    }
+  };
+
+
   if (!isClient) {
-    return ( // Basic loading state
+    return (
       <div className="flex justify-center items-center min-h-[calc(100vh-200px)]">
         <ListChecks className="h-16 w-16 animate-pulse text-primary" />
       </div>
     );
   }
+
+  const micButtonDisabled = micPermission === 'unsupported' || micPermission === 'denied';
 
   return (
     <div className="space-y-8 max-w-2xl mx-auto">
@@ -87,7 +208,7 @@ export default function ShoppingListPage() {
           <CardTitle className="text-xl">Add New Item</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleAddItem} className="flex items-center gap-3">
+          <form onSubmit={handleAddItem} className="flex items-center gap-2 sm:gap-3">
             <Input
               type="text"
               value={newItemText}
@@ -96,8 +217,21 @@ export default function ShoppingListPage() {
               className="flex-grow"
               aria-label="New shopping list item"
             />
-            <Button type="submit" aria-label="Add item">
-              <PlusCircle className="mr-2 h-5 w-5" /> Add Item
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={handleMicButtonClick}
+              disabled={micButtonDisabled && micPermission !== 'prompt'}
+              title={micButtonDisabled && micPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForItemInput ? "Stop voice input" : "Add item using voice")}
+              aria-label="Add item using voice"
+            >
+              {isListeningForItemInput ? <Mic className="h-5 w-5 text-primary animate-pulse" /> :
+               (micButtonDisabled ? <MicOff className="h-5 w-5 text-muted-foreground" /> : <Mic className="h-5 w-5" />)}
+            </Button>
+            <Button type="submit" aria-label="Add item" className="px-3 sm:px-4">
+              <PlusCircle className="mr-0 sm:mr-2 h-5 w-5" />
+              <span className="hidden sm:inline">Add Item</span>
             </Button>
           </form>
         </CardContent>
@@ -127,7 +261,7 @@ export default function ShoppingListPage() {
                       type="text"
                       value={editingItemText}
                       onChange={(e) => setEditingItemText(e.target.value)}
-                      onBlur={handleSaveEdit} // Save on blur
+                      onBlur={handleSaveEdit} 
                       onKeyDown={(e) => e.key === 'Enter' && handleSaveEdit()}
                       autoFocus
                       className="flex-grow h-9"
