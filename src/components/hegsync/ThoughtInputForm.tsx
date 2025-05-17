@@ -14,6 +14,9 @@ import {
   WAKE_WORDS, 
   LOCALSTORAGE_KEYS,
   RECORDING_DURATION_MS,
+  BUFFER_TIME_OPTIONS,
+  type BufferTimeValue,
+  DEFAULT_BUFFER_TIME, // For toast message
 } from '@/lib/constants';
 
 interface ThoughtInputFormProps {
@@ -42,7 +45,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
       return;
     }
     setIsLoading(true);
-    setPartialWakeWordDetected(false); // Ensure this is reset
+    setPartialWakeWordDetected(false);
     try {
       const processedData = await processTextThought(textToProcess);
       const newThought: Thought = {
@@ -62,7 +65,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
 
   const handleProcessRecordedAudio = async (audioDataUrl: string) => {
     setIsLoading(true);
-    setPartialWakeWordDetected(false); // Ensure this is reset
+    setPartialWakeWordDetected(false); 
     setIsCapturingAudio(false); 
     try {
       const processedData = await processRecordedAudio(audioDataUrl);
@@ -85,7 +88,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
       toast({ title: "Recording Issue", description: isCapturingAudio ? "Already capturing audio." : "Microphone permission needed.", variant: "default" });
       return;
     }
-    setPartialWakeWordDetected(false); // Stop showing partial detection message
+    setPartialWakeWordDetected(false);
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -110,7 +113,6 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
         };
         
         stream.getTracks().forEach(track => track.stop()); 
-        // setIsCapturingAudio(false); // Moved to handleProcessRecordedAudio finally block implicitly
         audioChunksRef.current = [];
       };
       
@@ -158,6 +160,38 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
     }
   };
 
+  const parseSpokenBufferTime = (spokenDuration: string): BufferTimeValue | null => {
+    const cleanedSpoken = spokenDuration.toLowerCase().trim();
+  
+    if (cleanedSpoken.includes('always on') || cleanedSpoken.includes('continuous')) {
+      return 'continuous';
+    }
+  
+    for (const option of BUFFER_TIME_OPTIONS) {
+      if (option.value !== 'continuous') {
+        if (cleanedSpoken.includes(option.value) && (cleanedSpoken.includes('minute') || cleanedSpoken.includes('min'))) {
+          return option.value;
+        }
+        if (cleanedSpoken === option.value) {
+            return option.value;
+        }
+      }
+    }
+    return null; 
+  };
+
+  const setBufferTimeByVoice = (spokenDuration: string) => {
+    const parsedValue = parseSpokenBufferTime(spokenDuration);
+    if (parsedValue) {
+      localStorage.setItem(LOCALSTORAGE_KEYS.BUFFER_TIME, JSON.stringify(parsedValue));
+      const matchedOption = BUFFER_TIME_OPTIONS.find(opt => opt.value === parsedValue);
+      toast({ title: "Buffer Time Set", description: `Conceptual buffer time set to ${matchedOption?.label || parsedValue}.` });
+    } else {
+      const defaultOption = BUFFER_TIME_OPTIONS.find(opt => opt.value === DEFAULT_BUFFER_TIME);
+      toast({ title: "Buffer Time Not Understood", description: `Could not parse "${spokenDuration}". Please try e.g., "1 minute", "always on". Current is ${defaultOption?.label}.`, variant: "default" });
+    }
+  };
+
   useEffect(() => {
     const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
 
@@ -172,7 +206,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
       if (recognitionRef.current && isRecognizingSpeech) {
         recognitionRef.current.stop();
       }
-      setPartialWakeWordDetected(false); // Ensure reset if conditions not met
+      setPartialWakeWordDetected(false);
       return;
     }
     
@@ -196,17 +230,17 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
       const recognition = recognitionRef.current;
 
       recognition.continuous = true; 
-      recognition.interimResults = true; // Enable interim results
+      recognition.interimResults = true;
       recognition.lang = 'en-US';
 
       recognition.onstart = () => {
         setIsRecognizingSpeech(true);
-        setPartialWakeWordDetected(false); // Reset on start
+        setPartialWakeWordDetected(false);
       };
 
       recognition.onend = () => {
         setIsRecognizingSpeech(false);
-        setPartialWakeWordDetected(false); // Reset on end
+        setPartialWakeWordDetected(false);
         recognitionRef.current = null; 
       };
 
@@ -225,7 +259,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
         } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
           toast({ title: "Speech Error", description: `Voice recognition faced an issue: ${event.error}`, variant: "destructive"});
         }
-        setPartialWakeWordDetected(false); // Reset on error too
+        setPartialWakeWordDetected(false);
       };
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
@@ -244,7 +278,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
         const interimLower = combinedInterimTranscript.toLowerCase();
         const finalLower = combinedFinalTranscript.trim().toLowerCase();
 
-        if (finalLower) { // If there's any final transcript, we are done with partial detection
+        if (finalLower) {
           setPartialWakeWordDetected(false);
           if (finalLower.startsWith(WAKE_WORDS.ADD_TO_SHOPPING_LIST.toLowerCase())) {
             if (recognitionRef.current) recognitionRef.current.stop(); 
@@ -254,13 +288,14 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
             if (recognitionRef.current) recognitionRef.current.stop(); 
             toast({ title: "Recall Command Detected!", description: "Starting audio capture..." });
             startAudioRecording();
+          } else if (finalLower.startsWith(WAKE_WORDS.SET_BUFFER_TIME.toLowerCase())) {
+            if (recognitionRef.current) recognitionRef.current.stop();
+            const spokenDuration = finalLower.substring(WAKE_WORDS.SET_BUFFER_TIME.length).trim();
+            setBufferTimeByVoice(spokenDuration);
           }
-          // If final transcript is just "hegsync" or something not a command, it will do nothing and restart.
         } else if (interimLower.includes("hegsync")) {
           setPartialWakeWordDetected(true);
         } else {
-          // If interim doesn't contain "hegsync" anymore, and we were in partial state, reset.
-          // This handles cases where "hegsync" was misrecognized and then corrected.
           if(partialWakeWordDetected) {
             setPartialWakeWordDetected(false);
           }
@@ -302,7 +337,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
 
   const getMicIcon = () => {
     if (isCapturingAudio) return <Radio className="h-5 w-5 text-red-500 animate-pulse" />;
-    if (partialWakeWordDetected) return <Mic className="h-5 w-5 text-yellow-500 animate-pulse" />; // Indicate "Hegsync" heard
+    if (partialWakeWordDetected) return <Mic className="h-5 w-5 text-yellow-500 animate-pulse" />; 
     if (isRecognizingSpeech) return <Mic className="h-5 w-5 text-primary animate-pulse" />;
     return <MicOff className="h-5 w-5" />;
   };
@@ -337,7 +372,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
         </div>
         <CardDescription>
            {isListening
-            ? `Voice: Say "${WAKE_WORDS.RECALL_THOUGHT}" (records live audio) or "${WAKE_WORDS.ADD_TO_SHOPPING_LIST} [item]".
+            ? `Voice: Say "${WAKE_WORDS.RECALL_THOUGHT}", "${WAKE_WORDS.ADD_TO_SHOPPING_LIST} [item]", or "${WAKE_WORDS.SET_BUFFER_TIME} [duration]".
                Text: Use area below and "Process Thought (from text)" button.`
             : "Enable passive listening above to use voice commands or text input."}
         </CardDescription>
@@ -382,8 +417,8 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
           />
           <div className="flex items-stretch gap-2">
             <Button 
-              type="button" // Changed to button to prevent form submit if not desired
-              onClick={handleManualSubmit} // Kept explicit handler
+              type="submit" 
+              onClick={handleManualSubmit} 
               disabled={!isListening || isLoading || isCapturingAudio || !inputText.trim()} 
               className="flex-grow"
               title="Process thought from text area with AI"
@@ -392,7 +427,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
               Process Thought (from text)
             </Button>
              <Button
-              type="button" // Changed to button
+              type="submit" 
               onClick={handleManualSubmit} 
               disabled={!isListening || isLoading || isCapturingAudio || !inputText.trim()}
               size="icon"
@@ -405,11 +440,10 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening }: ThoughtInpu
           </div>
         </form>
         <p className="text-xs text-muted-foreground mt-2">
-          The "{WAKE_WORDS.RECALL_THOUGHT}" voice command records a {RECORDING_DURATION_MS / 1000}-second audio snippet for processing.
-          The shopping list voice command operates independently.
+          The "{WAKE_WORDS.RECALL_THOUGHT}" voice command records a {RECORDING_DURATION_MS / 1000}-second audio snippet. 
+          Shopping list and buffer time commands operate based on your speech.
         </p>
       </CardContent>
     </Card>
   );
 }
-    

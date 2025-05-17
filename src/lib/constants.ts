@@ -18,16 +18,17 @@ export const LOCALSTORAGE_KEYS = {
   MEMORY_VAULT: 'hegsync-memory-vault',
   BUFFER_TIME: 'hegsync-buffer-time',
   SHOPPING_LIST: 'hegsync-shopping-list',
-  TODO_LIST: 'hegsync-todo-list', // Added new key
+  TODO_LIST: 'hegsync-todo-list', 
   THEME: 'hegsync-theme',
 };
 
 export const WAKE_WORDS = {
   RECALL_THOUGHT: "hegsync replay that",
   ADD_TO_SHOPPING_LIST: "hegsync add to my shopping list",
+  SET_BUFFER_TIME: "hegsync set buffer", // New wake word
 };
 
-// Placeholder text for simulated recall based on buffer time (no longer used by "replay that" with actual recording)
+// Placeholder text for simulated recall based on buffer time
 export const SIMULATED_RECALL_PREFIX = "This is a simulated recall from the";
 export const SIMULATED_RECALL_SUFFIX = "audio buffer. Key points include discussing the upcoming project milestones, brainstorming marketing strategies for the new product launch, and remembering to schedule the team meeting for next week. Also, don't forget to pick up groceries after work and check the AI conference deadline.";
 
