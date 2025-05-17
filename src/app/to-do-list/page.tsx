@@ -87,7 +87,7 @@ export default function ToDoListPage() {
   const pauseTaskTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
 
-  // State for page-level "HegSync" or "Heggles" wake word detection
+  // State for page-level "Heggles" wake word detection
   const [isListeningForPageWakeWord, setIsListeningForPageWakeWord] = useState(false);
   const [pageWakeWordMicPermission, setPageWakeWordMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
   const pageWakeWordRecognitionRef = useRef<SpeechRecognition | null>(null);
@@ -624,11 +624,9 @@ export default function ToDoListPage() {
       pageRecognition.onstart = () => setIsListeningForPageWakeWord(true);
       pageRecognition.onresult = (event: SpeechRecognitionEvent) => {
         const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
-        const detectedWakeWord = transcript === WAKE_WORDS.HEGSYNC_BASE.toLowerCase() 
-          ? WAKE_WORDS.HEGSYNC_BASE 
-          : transcript === WAKE_WORDS.HEGGLES_BASE.toLowerCase() 
+         const detectedWakeWord = transcript === WAKE_WORDS.HEGGLES_BASE.toLowerCase() 
           ? WAKE_WORDS.HEGGLES_BASE 
-          : null;
+          : null; // Only listen for Heggles now
 
         if (detectedWakeWord) {
           toast({ title: `'${detectedWakeWord.charAt(0).toUpperCase() + detectedWakeWord.slice(1)}' Detected`, description: "Activating task input microphone..." });
@@ -696,7 +694,7 @@ export default function ToDoListPage() {
   };
 
   const taskMicButtonDisabled = taskInputMicPermission === 'unsupported' || taskInputMicPermission === 'denied';
-  const pageWakeWordStatusText = isListeningForPageWakeWord ? "Listening for 'HegSync' or 'Heggles'..." : (pageWakeWordMicPermission === 'granted' && pageWakeWordListenerShouldBeActive.current ? "Say 'HegSync' or 'Heggles' to activate input" : "Page Wake Word listener off");
+  const pageWakeWordStatusText = isListeningForPageWakeWord ? "Listening for 'Heggles'..." : (pageWakeWordMicPermission === 'granted' && pageWakeWordListenerShouldBeActive.current ? "Say 'Heggles' to activate input" : "Page Wake Word listener off");
 
 
   return (
@@ -746,7 +744,7 @@ export default function ToDoListPage() {
               size="icon"
               onClick={triggerTaskInputMic}
               disabled={taskMicButtonDisabled && taskInputMicPermission !== 'prompt'}
-              title={taskMicButtonDisabled && taskInputMicPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForTaskInput ? "Stop voice input (or say 'Hegsync end')" : "Add task using voice")}
+              title={taskMicButtonDisabled && taskInputMicPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForTaskInput ? "Stop voice input (or say 'Heggles end')" : "Add task using voice")}
               aria-label="Add task using voice"
             >
               {isListeningForTaskInput ? <Mic className="h-5 w-5 text-primary animate-pulse" /> :

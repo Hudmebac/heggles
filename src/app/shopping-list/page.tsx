@@ -28,7 +28,7 @@ export default function ShoppingListPage() {
   const pauseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
 
-  // State for page-level "HegSync" or "Heggles" wake word detection
+  // State for page-level "Heggles" wake word detection
   const [isListeningForPageWakeWord, setIsListeningForPageWakeWord] = useState(false);
   const [pageWakeWordMicPermission, setPageWakeWordMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
   const pageWakeWordRecognitionRef = useRef<SpeechRecognition | null>(null);
@@ -250,11 +250,9 @@ export default function ShoppingListPage() {
       pageRecognition.onstart = () => setIsListeningForPageWakeWord(true);
       pageRecognition.onresult = (event: SpeechRecognitionEvent) => {
         const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
-        const detectedWakeWord = transcript === WAKE_WORDS.HEGSYNC_BASE.toLowerCase() 
-          ? WAKE_WORDS.HEGSYNC_BASE 
-          : transcript === WAKE_WORDS.HEGGLES_BASE.toLowerCase() 
+        const detectedWakeWord = transcript === WAKE_WORDS.HEGGLES_BASE.toLowerCase() 
           ? WAKE_WORDS.HEGGLES_BASE 
-          : null;
+          : null; // Only listen for Heggles now
 
         if (detectedWakeWord) {
           toast({ title: `'${detectedWakeWord.charAt(0).toUpperCase() + detectedWakeWord.slice(1)}' Detected`, description: "Activating item input microphone..." });
@@ -311,7 +309,7 @@ export default function ShoppingListPage() {
   }
 
   const micButtonDisabled = micPermission === 'unsupported' || micPermission === 'denied';
-  const pageWakeWordStatusText = isListeningForPageWakeWord ? "Listening for 'HegSync' or 'Heggles'..." : (pageWakeWordMicPermission === 'granted' && pageWakeWordListenerShouldBeActive.current ? "Say 'HegSync' or 'Heggles' to activate input" : "Page Wake Word listener off");
+  const pageWakeWordStatusText = isListeningForPageWakeWord ? "Listening for 'Heggles'..." : (pageWakeWordMicPermission === 'granted' && pageWakeWordListenerShouldBeActive.current ? "Say 'Heggles' to activate input" : "Page Wake Word listener off");
 
   return (
     <div className="space-y-8 max-w-2xl mx-auto">
@@ -343,7 +341,7 @@ export default function ShoppingListPage() {
               size="icon"
               onClick={triggerItemInputMic}
               disabled={micButtonDisabled && micPermission !== 'prompt'}
-              title={micButtonDisabled && micPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForItemInput ? "Stop voice input (or say 'Hegsync end')" : "Add item using voice")}
+              title={micButtonDisabled && micPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForItemInput ? "Stop voice input (or say 'Heggles end')" : "Add item using voice")}
               aria-label="Add item using voice"
             >
               {isListeningForItemInput ? <Mic className="h-5 w-5 text-primary animate-pulse" /> :
