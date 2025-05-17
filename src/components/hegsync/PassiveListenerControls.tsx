@@ -2,14 +2,14 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Mic, MicOff, AlertTriangle, Timer, Info, Brain, PlayCircle, StopCircle } from 'lucide-react';
+import { Mic, MicOff, AlertTriangle, Info, Brain, PlayCircle, StopCircle } from 'lucide-react'; // Timer icon removed
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
-import { BUFFER_TIME_OPTIONS, LOCALSTORAGE_KEYS, DEFAULT_BUFFER_TIME, WAKE_WORDS, type BufferTimeValue, RECORDING_DURATION_MS } from '@/lib/constants';
+// Select, SelectContent, SelectItem, SelectTrigger, SelectValue removed
+// useLocalStorage, BUFFER_TIME_OPTIONS, DEFAULT_BUFFER_TIME removed as direct dependencies for UI
+import { LOCALSTORAGE_KEYS, WAKE_WORDS, RECORDING_DURATION_MS } from '@/lib/constants';
 
 interface PassiveListenerControlsProps {
   isListening: boolean;
@@ -18,7 +18,7 @@ interface PassiveListenerControlsProps {
 
 export function PassiveListenerControls({ isListening, onToggleListening }: PassiveListenerControlsProps) {
   const [showWarning, setShowWarning] = useState(false);
-  const [bufferTime, setBufferTime] = useLocalStorage<BufferTimeValue>(LOCALSTORAGE_KEYS.BUFFER_TIME, DEFAULT_BUFFER_TIME);
+  // Removed bufferTime state and useLocalStorage hook for it, as UI is removed from here.
 
   useEffect(() => {
     let timerId: NodeJS.Timeout | undefined;
@@ -37,21 +37,7 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
     };
   }, [isListening]);
 
-  useEffect(() => {
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === LOCALSTORAGE_KEYS.BUFFER_TIME && event.newValue) {
-        try {
-          const newBufferTimeValue = JSON.parse(event.newValue) as BufferTimeValue;
-          if (BUFFER_TIME_OPTIONS.some(opt => opt.value === newBufferTimeValue)) {
-            setBufferTime(newBufferTimeValue);
-          }
-        } catch (e) { /* ignore */ }
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [setBufferTime]);
-
+  // Removed useEffect that listened to storage changes for bufferTime, as this component no longer displays/sets it.
 
   const handleToggleSwitch = (checked: boolean) => {
     onToggleListening(checked);
@@ -88,28 +74,7 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
           />
         </div>
 
-        <div className="space-y-2 p-4 border rounded-lg bg-secondary/30">
-          <Label htmlFor="buffer-time-select" className="text-md font-medium flex items-center">
-            <Timer className="mr-2 h-5 w-5 text-muted-foreground" />
-            Conceptual Buffer Time (used by '<strong>Heggles</strong>{setBufferCmdSuffix} [duration]' voice command)
-          </Label>
-          <Select value={bufferTime} onValueChange={(value) => setBufferTime(value as BufferTimeValue)}>
-            <SelectTrigger id="buffer-time-select" aria-label="Select buffer time period">
-              <SelectValue placeholder="Select buffer time" />
-            </SelectTrigger>
-            <SelectContent>
-              {BUFFER_TIME_OPTIONS.map(option => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-           <p className="text-xs text-muted-foreground pt-1">
-            This setting is used when you say "<strong>Heggles</strong>{setBufferCmdSuffix} [duration]".
-            The "<strong>Heggles</strong>{recallCmdSuffix}" voice command now triggers a {recordingDurationSeconds}-second live recording.
-          </p>
-        </div>
+        {/* Conceptual Buffer Time Select and description removed from here */}
 
         {showWarning && (
           <div className="flex items-center p-3 border border-yellow-400 bg-yellow-50 text-yellow-700 rounded-md text-sm">
@@ -123,15 +88,16 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
             <Info className="h-5 w-5 mr-2 mt-0.5 shrink-0 text-primary" />
             <div>
                 Voice commands starting with '<strong>Heggles</strong>' usually populate the input area on the dashboard. Click the <Brain className="inline-block h-3 w-3 mx-0.5"/> icon to process.
+                The "Conceptual Buffer Time" (used by the 'replay that' voice command) can be configured on the <Button variant="link" asChild className="p-0 h-auto text-sm text-muted-foreground underline"><a href="/settings">Settings page</a></Button>.
                 <ul className="list-disc pl-5 mt-1 space-y-0.5">
                   <li>Toggle listening: <q><strong>Heggles</strong>{turnOnCmdSuffix}</q> / <q><strong>Heggles</strong>{turnOffCmdSuffix}</q>. (Immediate action)</li>
-                  <li>Live snippet recall: <q><strong>Heggles</strong>{recallCmdSuffix}</q>. (Triggers {recordingDurationSeconds}s live recording, then AI processing. This is different from the dashboard mic button for dictation.)</li>
-                  <li>Add to shopping list: <q><strong>Heggles</strong>{addShopCmdSuffix} [item] to my shopping list</q>. (Populates input for Brain processing)</li>
-                  <li>Add to to-do list: <q><strong>Heggles</strong>{addToDoCmdSuffix} [task] to my to do list</q>. (Populates input for Brain processing)</li>
-                  <li>Set buffer: <q><strong>Heggles</strong>{setBufferCmdSuffix} [e.g., 5 minutes / always on]</q>. (Immediate action)</li>
-                  <li>Delete item: <q><strong>Heggles</strong>{deleteItemSuffix} [item/item number X] from [shopping list/to do list]</q>. (Populates input for Brain processing)</li>
-                  <li>The Microphone icon button (<Mic className="inline-block h-3 w-3 mx-0.5"/>) on the dashboard (in Input & Recall card) is for direct dictation into the input area.</li>
-                  <li>The Play/Stop icon button (<PlayCircle className="inline-block h-3 w-3 mx-0.5 text-green-500"/>/<StopCircle className="inline-block h-3 w-3 mx-0.5 text-red-500"/>) (next to Dashboard title) is for continuous recording; its transcript also populates the input area when stopped.</li>
+                  <li>Live snippet recall: <q><strong>Heggles</strong>{recallCmdSuffix}</q>. (Triggers {recordingDurationSeconds}s live recording & transcription, then AI processing of that transcript.)</li>
+                  <li>Add to shopping list: <q><strong>Heggles</strong>{addShopCmdSuffix} [item] to my shopping list</q>. (Populates input for <Brain className="inline-block h-3 w-3 mx-0.5"/> processing)</li>
+                  <li>Add to to-do list: <q><strong>Heggles</strong>{addToDoCmdSuffix} [task] to my to do list</q>. (Populates input for <Brain className="inline-block h-3 w-3 mx-0.5"/> processing)</li>
+                  <li>Set buffer: <q><strong>Heggles</strong>{setBufferCmdSuffix} [e.g., 5 minutes / always on]</q>. (Immediate action, updates setting on Settings page)</li>
+                  <li>Delete item: <q><strong>Heggles</strong>{deleteItemSuffix} [item/item number X] from [shopping list/to do list]</q>. (Populates input for <Brain className="inline-block h-3 w-3 mx-0.5"/> processing)</li>
+                  <li>The <Mic className="inline-block h-3 w-3 mx-0.5"/> icon button on the dashboard (in Input & Recall card) is for direct dictation into the input area.</li>
+                  <li>The <PlayCircle className="inline-block h-3 w-3 mx-0.5 text-green-500"/>/<StopCircle className="inline-block h-3 w-3 mx-0.5 text-red-500"/> button (next to Dashboard title) is for continuous recording; its transcript also populates the input area when stopped.</li>
                 </ul>
             </div>
         </div>
@@ -139,3 +105,5 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
     </Card>
   );
 }
+
+    
