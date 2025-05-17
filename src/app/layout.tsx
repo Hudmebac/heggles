@@ -18,8 +18,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'HegSync',
-  description: 'Sync your thoughts with AI.',
+  title: 'Heggles',
+  description: 'Sync your thoughts with AI using Heggles.',
 };
 
 export default function RootLayout({

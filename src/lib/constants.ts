@@ -23,21 +23,20 @@ export const LOCALSTORAGE_KEYS = {
 };
 
 export const WAKE_WORDS = {
-  HEGSYNC_BASE: "hegsync",
-  HEGGLES_BASE: "heggles", // Changed from QUARTERMASTER_BASE
-  RECALL_THOUGHT: "hegsync replay that",
-  ADD_TO_SHOPPING_LIST: "hegsync add to my shopping list",
-  ADD_TO_TODO_LIST: "hegsync add to my to do list",
-  SET_BUFFER_TIME: "hegsync set buffer",
-  TURN_LISTENING_OFF: "hegsync turn off",
-  TURN_LISTENING_ON: "hegsync turn on",
+  HEGGLES_BASE: "heggles", 
+  RECALL_THOUGHT: "heggles replay that",
+  ADD_TO_SHOPPING_LIST: "heggles add to my shopping list",
+  ADD_TO_TODO_LIST: "heggles add to my to do list",
+  SET_BUFFER_TIME: "heggles set buffer",
+  TURN_LISTENING_OFF: "heggles turn off",
+  TURN_LISTENING_ON: "heggles turn on",
 
-  DELETE_ITEM_PREFIX: "hegsync delete",
+  DELETE_ITEM_PREFIX: "heggles delete",
   FROM_SHOPPING_LIST_TRIGGER: "from my shopping list",
   FROM_TODO_LIST_TRIGGER: "from my to do list",
   ITEM_NUMBER_PREFIX: "item number ",
-  END_DICTATION: "hegsync end",
-  STOP_DICTATION: "hegsync stop",
+  END_DICTATION: "heggles end",
+  STOP_DICTATION: "heggles stop",
 };
 
-export const RECORDING_DURATION_MS = 10000; // 10 seconds for audio snippet (though this specific flow is changing)
+export const RECORDING_DURATION_MS = 10000; // 10 seconds for audio snippet

@@ -10,7 +10,7 @@ export function Header() {
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <Link href="/" className="flex items-center gap-2 text-xl font-bold">
           <BrainCircuit className="h-7 w-7 text-primary" />
-          HegSync
+          Heggles
         </Link>
         <nav className="flex items-center gap-1 sm:gap-2">
           <Button variant="ghost" asChild>
