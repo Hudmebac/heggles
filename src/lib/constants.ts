@@ -23,18 +23,33 @@ export const LOCALSTORAGE_KEYS = {
 };
 
 export const WAKE_WORDS = {
-  HEGGLES_BASE: "heggles", 
-  RECALL_THOUGHT: "heggles replay that",
-  ADD_TO_SHOPPING_LIST: "heggles add to my shopping list",
-  ADD_TO_TODO_LIST: "heggles add to my to do list",
-  SET_BUFFER_TIME: "heggles set buffer",
-  TURN_LISTENING_OFF: "heggles turn off",
-  TURN_LISTENING_ON: "heggles turn on",
+  HEGGLES_BASE: "heggles", // Primary wake word
 
-  DELETE_ITEM_PREFIX: "heggles delete",
+  // For UI display suffix generation in PassiveListenerControls
+  HEGGLES_REPLAY_THAT: "heggles replay that",
+  HEGGLES_ADD_TO_SHOPPING_LIST_PREFIX: "heggles add", // Used by PassiveListenerControls for suffix, actual command is longer
+  HEGGLES_ADD_TO_TODO_LIST_PREFIX: "heggles add",   // Used by PassiveListenerControls for suffix, actual command is longer
+  HEGGLES_SET_BUFFER: "heggles set buffer",
+  HEGGLES_TURN_OFF: "heggles turn off",
+  HEGGLES_TURN_ON: "heggles turn on",
+  DELETE_ITEM_PREFIX: "heggles delete", // Used by PassiveListenerControls for suffix
+
+  // Full commands or critical parts for parsing in ThoughtInputForm
+  // HEGGLES_REPLAY_THAT is already defined above
+
+  // For parsing "add X to Y list" in ThoughtInputForm
+  ADD_TO_SHOPPING_LIST_FULL_PREFIX_REGEX_PART: "add", // "heggles add " is the full prefix
+  TO_SHOPPING_LIST_SUFFIX_REGEX_PART: "to my shopping list",
+  ADD_TO_TODO_LIST_FULL_PREFIX_REGEX_PART: "add", // "heggles add " is the full prefix
+  TO_TODO_LIST_SUFFIX_REGEX_PART: "to my to do list",
+  
+  // For parsing "delete X from Y list" in ThoughtInputForm
+  // DELETE_ITEM_PREFIX is already defined above
   FROM_SHOPPING_LIST_TRIGGER: "from my shopping list",
   FROM_TODO_LIST_TRIGGER: "from my to do list",
   ITEM_NUMBER_PREFIX: "item number ",
+
+  // Dictation control
   END_DICTATION: "heggles end",
   STOP_DICTATION: "heggles stop",
 };
