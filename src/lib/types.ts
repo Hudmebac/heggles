@@ -53,6 +53,12 @@ export interface ToDoListItem {
   dueDate?: string | null; // Store as "YYYY-MM-DD"
 }
 
+export type DataFormat = 'json' | 'csv' | 'excel' | 'text';
+
+export interface ExportImportOptions {
+  format: DataFormat;
+}
+
 // Corresponds to the output of analyzeThoughtIntentFlow
 export interface IntentAnalysisOutput {
   isQuestion: boolean;

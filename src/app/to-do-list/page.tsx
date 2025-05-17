@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Label } from '@/components/ui/label';
-import { format, parseISO, isValid, isPast, isToday, isTomorrow } from 'date-fns';
+import { format, parseISO, isValid, isPast, isToday, isTomorrow, parse } from 'date-fns';
 import { 
   ClipboardList, Trash2, Edit3, PlusCircle, Save, Ban, CheckSquare, Clock, 
   ChevronUp, ChevronDown, GripVertical, CalendarIcon, AlertTriangle, Mic, MicOff 
@@ -20,13 +20,14 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { LOCALSTORAGE_KEYS, WAKE_WORDS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import * as XLSX from 'xlsx';
 
 const initialTimePoint: TimePoint = { hh: '12', mm: '00', period: 'AM' };
 
 const formatTimePointToString = (timePoint?: TimePoint | null): string | null => {
   if (!timePoint || !timePoint.period) return null; 
   const hInput = timePoint.hh;
-  const mInput = timePoint.mm;
+  const mInput = timePoint.mm; 
 
   const hVal = (hInput === '' || hInput === null) ? 12 : parseInt(hInput, 10);
   const mVal = (mInput === '' || mInput === null) ? 0 : parseInt(mInput, 10);
@@ -48,6 +49,9 @@ export default function ToDoListPage() {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingItemText, setEditingItemText] = useState('');
   
+  const [exportFormat, setExportFormat] = useState<'csv' | 'excel' | 'json' | 'text'>('csv');
+  const [importFormat, setImportFormat] = useState<'csv' | 'excel' | 'json' | 'text'>('csv');
+
   const [editingTimeItemId, setEditingTimeItemId] = useState<string | null>(null);
   const [currentEditorTimeSettingType, setCurrentEditorTimeSettingType] = useState<TimeSettingType>('not_set');
   const [currentEditorStartTime, setCurrentEditorStartTime] = useState<TimePoint | null>(null);
@@ -396,6 +400,406 @@ export default function ToDoListPage() {
     setDraggedItemId(null);
   };
 
+  const handleExportTemplate = async () => {
+    if (exportFormat === 'excel') {
+      await handleExportExcelTemplate();
+    } else if (exportFormat === 'text') {
+      // TODO: Implement text export template logic
+       toast({ title: "Export Template Failed", description: "Text template export is not yet implemented.", variant: "destructive" });
+    } else { // CSV template
+    const csvContent = `text,completed,timeSettingType,startTime,endTime,dueDate
+# This is a CSV template for importing To-Do List items.
+# Each row represents a single task.
+#
+# text: The description of the task (required). Use double quotes "" around text containing commas or double quotes. Double quotes within text should be escaped by doubling them (e.g., "He said ""Hello""").
+# completed: Task completion status. Must be 'true' or 'false'.
+# timeSettingType: The type of time setting. Accepted values: 'not_set', 'all_day', 'am_period', 'pm_period', 'specific_start', 'specific_start_end'. (Optional, default 'not_set')
+# startTime: The start time of the task. Format as "hh:mm AM/PM" (e.g., "09:30 AM", "01:00 PM"). Required if timeSettingType is 'specific_start' or 'specific_start_end'. (Optional)
+# endTime: The end time of the task. Format as "hh:mm AM/PM" (e.g., "11:00 AM", "05:00 PM"). Required if timeSettingType is 'specific_start_end'. (Optional)
+# dueDate: The due date of the task. Format as "YYYY-MM-DD" (e.g., "2023-10-27"). (Optional)
+#
+# Example Rows:
+# Task 1,false,specific_start,09:00 AM,,2023-11-15
+# Buy groceries,true,not_set,,,
+# Finish report,"false",specific_start_end,"02:00 PM","05:30 PM",2023-10-31
+`;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'todo-list_template.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({ title: "To-Do List Template Exported", description: `A ${exportFormat.toUpperCase()} template has been downloaded.` });
+    }
+  };
+
+ const handleExportExcelTemplate = () => {
+    const templateComments = [
+      ["# This is an Excel template for importing To-Do List items."],
+      ["# Each row starting from row 8 represents a single task."],
+      ["#"],
+      ["# Column Explanations:"],
+      ["# text: The description of the task (required)."],
+      ["# completed: Task completion status. Must be 'true' or 'false'."],
+      ["# timeSettingType: The type of time setting. Accepted values: 'not_set', 'all_day', 'am_period', 'pm_period', 'specific_start', 'specific_start_end'. (Optional, default 'not_set')"],
+      ["# startTime: The start time of the task. Format as 'HH:MM AM/PM' (e.g., '09:30 AM', '01:00 PM'). Required if timeSettingType is 'specific_start' or 'specific_start_end'. (Optional)"],
+      ["# endTime: The end time of the task. Format as 'HH:MM AM/PM' (e.g., '11:00 AM', '05:00 PM'). Required if timeSettingType is 'specific_start_end'. (Optional)"],
+      ["# dueDate: The due date of the task. Format as 'YYYY-MM-DD' (e.g., '2023-10-27'). (Optional)"],
+      []
+    ];
+
+    const header = ["text", "completed", "timeSettingType", "startTime", "endTime", "dueDate"];
+
+    const exampleRows = [
+      ["Task 1", "false", "specific_start", "09:00 AM", "", "2023-11-15"],
+      ["Buy groceries", "true", "not_set", "", "", ""],
+      ["Finish report", "false", "specific_start_end", "02:00 PM", "05:30 PM", "2023-10-31"]
+    ];
+
+    const worksheetData = [...templateComments, header, ...exampleRows];
+
+    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "To-Do List Template");
+
+    // Set column widths (optional)
+     worksheet['!cols'] = [
+      { wch: 30 }, // text
+      { wch: 10 }, // completed
+      { wch: 15 }, // timeSettingType
+      { wch: 10 }, // startTime
+      { wch: 10 }, // endTime
+      { wch: 12 }  // dueDate
+    ];
+
+    XLSX.writeFile(workbook, "todo-list_template.xlsx");
+     toast({ title: "To-Do List Template Exported", description: `An Excel template has been downloaded.` });
+ };
+
+
+
+  const handleExportList = async () => {
+    if (exportFormat === 'json') {
+       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(items, null, 2));
+       const downloadAnchorNode = document.createElement('a');
+       downloadAnchorNode.setAttribute("href", dataStr);
+       downloadAnchorNode.setAttribute("download", "todo-list.json");
+       document.body.appendChild(downloadAnchorNode); 
+       downloadAnchorNode.click();
+       downloadAnchorNode.remove();
+       toast({ title: "To-Do List Exported", description: "Your list has been downloaded as a JSON file." });
+    } else if (exportFormat === 'excel') {
+      await handleExportExcel();
+    } else if (exportFormat === 'text') {
+      // TODO: Implement text export logic
+      toast({ title: "Export Failed", description: "Text export is not yet implemented.", variant: "destructive" });
+    } else { // CSV Export
+
+    const headers = ["text", "completed", "timeSettingType", "startTime", "endTime", "dueDate"];
+    const csvRows = items.map(item => {
+      const values = [
+        `"${item.text.replace(/"/g, '""')}"`, // Escape double quotes in text
+        item.completed ? 'true' : 'false',
+        item.timeSettingType || '',
+        item.startTime ? formatTimePointToString(item.startTime) || '' : '',
+        item.endTime ? formatTimePointToString(item.endTime) || '' : '',
+        item.dueDate || '',
+      ];
+      return values.join(',');
+    });
+
+    const csvContent = [headers.join(','), ...csvRows].join('\\n'); // Use \\n for newline in JS string literal
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'todo-list.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({ title: "To-Do List Exported", description: "Your list has been downloaded as a CSV file." });
+    }
+  };
+
+  const handleExportExcel = () => {
+    const data = items.map(item => ({
+      text: item.text,
+      completed: item.completed ? 'true' : 'false',
+      timeSettingType: item.timeSettingType || '',
+      startTime: item.startTime ? formatTimePointToString(item.startTime) || '' : '',
+      endTime: item.endTime ? formatTimePointToString(item.endTime) || '' : '',
+      dueDate: item.dueDate || '',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "To-Do List");
+
+    // Set column widths (optional)
+     worksheet['!cols'] = [
+      { wch: 30 }, // text
+      { wch: 10 }, // completed
+      { wch: 15 }, // timeSettingType
+      { wch: 10 }, // startTime
+      { wch: 10 }, // endTime
+      { wch: 12 }  // dueDate
+    ];
+
+    // Auto-filter (optional)
+    worksheet['!autofilter'] = { ref: "A1:F" + (data.length + 1) };
+
+    // Freeze header row (optional)
+    worksheet['!freeze'] = 'A2';
+
+    XLSX.writeFile(workbook, "todo-list.xlsx");
+  };
+
+  const handleImportCSV = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const csvText = e.target?.result as string;
+        const lines = csvText.split(/\\r?\\n/).filter(line => line.trim() !== '' && !line.trim().startsWith('#')); // Handle potential \\r and skip comments
+        
+        if (lines.length === 0) {
+           toast({ title: "Import Failed", description: "The selected file is empty.", variant: "destructive" });
+           return;
+        }
+
+        const headers = lines[0].split(',').map(h => h.trim());
+        const expectedHeaders = ["text", "completed", "timeSettingType", "startTime", "endTime", "dueDate"];
+
+         if (!expectedHeaders.every(h => headers.includes(h))) {
+             toast({ title: "Import Failed", description: "Invalid CSV format. Missing required columns: " + expectedHeaders.filter(h => !headers.includes(h)).join(', '), variant: "destructive" });
+             return;
+         }
+
+        const importedItems: ToDoListItem[] = [];
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split(',');
+          const itemData: Record<string, string> = {};
+          headers.forEach((header, index) => {
+             let value = values[index];
+             // Remove surrounding quotes if present
+             if (value && value.startsWith('"') && value.endsWith('"')) {
+                 value = value.substring(1, value.length - 1).replace(/""/g, '"'); // Unescape double quotes
+             }
+             itemData[header] = value;
+          });
+
+          const startTimeString = itemData['startTime'];
+          const endTimeString = itemData['endTime'];
+
+          importedItems.push({
+            id: crypto.randomUUID(), // Always generate new IDs on import
+            text: itemData['text'] || 'Unnamed Task',
+            completed: itemData['completed']?.toLowerCase() === 'true',
+            timeSettingType: (itemData['timeSettingType'] as TimeSettingType) || 'not_set',
+            startTime: startTimeString ? (parse(startTimeString, 'hh:mm a', new Date()) ? { hh: format(parse(startTimeString, 'hh:mm a', new Date()), 'hh'), mm: format(parse(startTimeString, 'hh:mm a', new Date()), 'mm'), period: format(parse(startTimeString, 'hh:mm a', new Date()), 'a') as 'AM' | 'PM' } : null) : null,
+            endTime: endTimeString ? (parse(endTimeString, 'hh:mm a', new Date()) ? { hh: format(parse(endTimeString, 'hh:mm a', new Date()), 'hh'), mm: format(parse(endTimeString, 'hh:mm a', new Date()), 'mm'), period: format(parse(endTimeString, 'hh:mm a', new Date()), 'a') as 'AM' | 'PM' } : null) : null,
+            dueDate: itemData['dueDate'] && isValid(parseISO(itemData['dueDate'])) ? itemData['dueDate'] : null,
+          });
+        }
+
+        setItems(importedItems);
+        toast({ title: "To-Do List Imported", description: `${importedItems.length} tasks loaded from CSV.` });
+
+      } catch (error) {
+        toast({ title: "Import Failed", description: "Could not process CSV file. Please check the format.", variant: "destructive" });
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImportJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const jsonText = e.target?.result as string;
+        const importedItems: ToDoListItem[] = JSON.parse(jsonText);
+
+        // Basic validation to ensure imported data looks like ToDoListItem[]
+        if (!Array.isArray(importedItems) || importedItems.some(item => !item.id || typeof item.text !== 'string' || typeof item.completed !== 'boolean')) {
+             toast({ title: "Import Failed", description: "Invalid JSON format. File does not contain a valid list of tasks.", variant: "destructive" });
+             return;
+        }
+
+         // Generate new IDs for imported items to prevent conflicts
+        const itemsWithNewIds = importedItems.map(item => ({
+            ...item,
+            id: crypto.randomUUID(),
+            // Ensure timePoint objects have correct structure if they exist
+            startTime: item.startTime && typeof item.startTime === 'object' && item.startTime !== null && 'hh' in item.startTime && 'mm' in item.startTime && 'period' in item.startTime ? {...item.startTime} as TimePoint : null,
+            endTime: item.endTime && typeof item.endTime === 'object' && item.endTime !== null && 'hh' in item.endTime && 'mm' in item.endTime && 'period' in item.endTime ? {...item.endTime} as TimePoint : null,
+            // Validate and format dueDate
+            dueDate: item.dueDate && isValid(parseISO(item.dueDate)) ? item.dueDate : null,
+             // Ensure timeSettingType is valid
+            timeSettingType: ['not_set', 'all_day', 'am_period', 'pm_period', 'specific_start', 'specific_start_end'].includes(item.timeSettingType as string) ? item.timeSettingType : 'not_set',
+        }));
+
+        setItems(itemsWithNewIds);
+        toast({ title: "To-Do List Imported", description: `${itemsWithNewIds.length} tasks loaded from JSON.` });
+
+      } catch (error) {
+        toast({ title: "Import Failed", description: "Could not parse JSON file. Please check the file content.", variant: "destructive" });
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImportExcel = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = e.target?.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json: any[] = XLSX.utils.sheet_to_json(worksheet);
+
+         // TODO: Parse the 'json' array into ToDoListItem format, handle headers/comments, validate data, and update state
+        const importedItems: ToDoListItem[] = [];
+
+        // Assuming the first row after potential comments/headers is the actual data start
+        // Need to find the row that contains the actual data headers
+        let dataStartIndex = -1;
+        if (json.length > 0) {
+           const firstRowKeys = Object.keys(json[0]).map(key => key.trim().toLowerCase());
+           if (firstRowKeys.includes('text') && firstRowKeys.includes('completed')) {
+              dataStartIndex = 0; // Assuming no header row or header is first row
+           } else {
+              // Attempt to find a header row by looking for 'text' and 'completed'
+              for (let i = 0; i < json.length; i++) {
+                 const rowKeys = Object.keys(json[i]).map(key => key.trim().toLowerCase());
+                 if (rowKeys.includes('text') && rowKeys.includes('completed')) {
+                    dataStartIndex = i;
+                    break;
+                 }
+              }
+           }
+        }
+
+        if (dataStartIndex === -1) {
+            toast({ title: "Import Failed", description: "Could not find valid task data in the Excel file.", variant: "destructive" });
+            return;
+        }
+
+         // Start processing from the identified data start row
+        for (let i = dataStartIndex; i < json.length; i++) {
+             const row = json[i];
+
+            // Map Excel row data to ToDoListItem structure
+            // Ensure column names match those used in sheet_to_json (can vary based on header row)
+            const text = row.text || '';
+            const completed = String(row.completed || '').toLowerCase() === 'true';
+            const timeSettingType = ['not_set', 'all_day', 'am_period', 'pm_period', 'specific_start', 'specific_start_end'].includes(row.timeSettingType as string) ? row.timeSettingType : 'not_set';
+
+            // Attempt to parse time strings, handling potential errors
+            let startTime: TimePoint | null = null;
+            if (row.startTime) {
+               const parsedTime = parse(String(row.startTime), 'hh:mm a', new Date());
+               if (isValid(parsedTime)) {
+                  startTime = { hh: format(parsedTime, 'hh'), mm: format(parsedTime, 'mm'), period: format(parsedTime, 'a') as 'AM' | 'PM' };
+               } else {
+                  console.warn("Invalid startTime in Excel import:", row.startTime);
+               }
+            }
+
+             let endTime: TimePoint | null = null;
+            if (row.endTime) {
+               const parsedTime = parse(String(row.endTime), 'hh:mm a', new Date());
+               if (isValid(parsedTime)) {
+                  endTime = { hh: format(parsedTime, 'hh'), mm: format(parsedTime, 'mm'), period: format(parsedTime, 'a') as 'AM' | 'PM' };
+               } else {
+                  console.warn("Invalid endTime in Excel import:", row.endTime);
+               }
+            }
+
+             // Attempt to parse dueDate string, handling potential errors and different formats
+            let dueDate: string | null = null;
+            if (row.dueDate) {
+                let dateCandidate = String(row.dueDate);
+                let parsedDate = parseISO(dateCandidate); // Try ISO format first
+                if (!isValid(parsedDate)) {
+                    // If not ISO, try dd/MM/yyyy or MM/dd/yyyy (common Excel date formats)
+                    parsedDate = parse(dateCandidate, 'dd/MM/yyyy', new Date());
+                     if (!isValid(parsedDate)) {
+                       parsedDate = parse(dateCandidate, 'MM/dd/yyyy', new Date());
+                     }
+                     // Excel might store dates as numbers (days since 1900)
+                    if (!isValid(parsedDate) && typeof row.dueDate === 'number') {
+                       const excelEpoch = new Date(Date.UTC(1899, 11, 30)); // Excel epoch is Dec 30, 1899
+                       parsedDate = new Date(excelEpoch.getTime() + row.dueDate * 24 * 60 * 60 * 1000);
+                    }
+                }
+                if (isValid(parsedDate)) {
+                    dueDate = format(parsedDate, 'yyyy-MM-dd');
+                } else {
+                     console.warn("Invalid dueDate in Excel import:", row.dueDate);
+                }
+            }
+
+            // Add item to the list if it has a text value
+            if (text.trim()) {
+                importedItems.push({
+                    id: crypto.randomUUID(), // Generate new IDs on import
+                    text: text.trim(),
+                    completed: completed,
+                    timeSettingType: timeSettingType as TimeSettingType,
+                    startTime: startTime,
+                    endTime: endTime,
+                    dueDate: dueDate,
+                });
+            }
+        }
+
+        if (importedItems.length === 0) {
+            toast({ title: "Import Failed", description: "No valid tasks found in the Excel file.", variant: "destructive" });
+            return;
+        }
+
+        setItems(importedItems);
+        toast({ title: "To-Do List Imported", description: `${importedItems.length} tasks loaded from Excel.` });
+
+      } catch (error) {
+         toast({ title: "Import Failed", description: "Could not process Excel file. Please check the format.", variant: "destructive" });
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleImportText = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const textContent = e.target?.result as string;
+        // TODO: Implement text parsing logic into ToDoListItem[]
+         console.log("Imported Text Data:", textContent); // Log data for debugging
+        toast({ title: "Import Failed", description: "Text import is not yet implemented.", variant: "default" }); // Placeholder toast
+      } catch (error) {
+        toast({ title: "Import Failed", description: "Could not process text file.", variant: "destructive" });
+      }
+    };
+    reader.readAsText(file);
+  };
+
+
   const sortedItems = useMemo(() => {
     let displayItems = [...items]; 
     const defaultSortedItems = [...items]; 
@@ -691,6 +1095,49 @@ export default function ToDoListPage() {
                 <SelectItem value="alphaDesc">Alphabetical (Z-A)</SelectItem>
                 </SelectContent>
             </Select>
+             <Select value={exportFormat} onValueChange={setExportFormat}>
+                <SelectTrigger className="w-[120px] h-8" aria-label="Export format">
+                   <SelectValue placeholder="Export As..." />
+                </SelectTrigger>
+                 <SelectContent>
+                   <SelectItem value="csv">CSV</SelectItem>
+                   <SelectItem value="json">JSON</SelectItem>
+                    <SelectItem value="excel">Excel</SelectItem>
+                   <SelectItem value="text">Text (WIP)</SelectItem>
+                </SelectContent>
+                <Button variant="outline" onClick={handleExportList} size="sm" className="ml-2">Export List</Button>
+            </Select>
+
+            <Button variant="outline" onClick={handleExportTemplate} size="sm">Export Template</Button>
+
+             <Select value={importFormat} onValueChange={setImportFormat}>
+                <SelectTrigger className="w-[120px] h-8" aria-label="Import format">
+                   <SelectValue placeholder="Import From..." />
+                </SelectTrigger>
+                 <SelectContent>
+                   <SelectItem value="csv">CSV</SelectItem>
+                   <SelectItem value="json">JSON</SelectItem>
+                   <SelectItem value="excel">Excel (WIP)</SelectItem>
+                   <SelectItem value="text">Text (WIP)</SelectItem>
+                </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm"> 
+                <Label htmlFor="import-todo-list" className="cursor-pointer" asChild>Import List</Label>
+                 <Input
+                    id="import-todo-list"
+                    type="file"
+                    accept={importFormat === 'json' ? '.json' : importFormat === 'csv' ? '.csv' : importFormat === 'excel' ? '.xlsx' : importFormat === 'text' ? '.txt' : ''}
+                    className="hidden"
+                    onChange={(e) => {
+                       if (importFormat === 'json') handleImportJSON(e);
+                       else if (importFormat === 'csv') handleImportCSV(e);
+                       else if (importFormat === 'excel') handleImportExcel(e);
+                       else if (importFormat === 'text') handleImportText(e);
+                       // Clear the file input value so the same file can be imported again if needed
+                       e.target.value = ''; 
+                    }}
+                 />
+           </Button>
         </div>
       </div>
 

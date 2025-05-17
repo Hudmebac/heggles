@@ -6,7 +6,7 @@ import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
 import type { ShoppingListItem } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Checkbox } from '@/components/ui/checkbox';import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ListChecks, Trash2, Edit3, PlusCircle, Save, Ban, Mic, MicOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -105,6 +105,61 @@ export default function ShoppingListPage() {
   const handleCancelEdit = () => {
     setEditingItemId(null);
     setEditingItemText('');
+  };
+
+  const handleExportList = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(items, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", "shopping-list.json");
+    document.body.appendChild(downloadAnchorNode); // Required for Firefox
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+    toast({ title: "Shopping List Exported" });
+  };
+
+  const handleExportTemplate = () => {
+    const comments = "# This is a template for importing your shopping list.\n" +
+                     "# Each row should represent a shopping list item.\n" +
+                     "# The first column ('text') is required and should contain the item name.\n" +
+                     "# The second column ('completed') is required and should be 'true' or 'false'.\n";
+    const header = "text,completed\n";
+    const csvContent = comments + header + "Example Item 1,false\nExample Item 2,true\n";
+    const downloadAnchorNode = document.createElement('a');
+  const handleImportList = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const csvText = e.target?.result as string;
+        const lines = csvText.split(/[\r\n]+/).filter(line => line.trim() !== '' && !line.startsWith('#')); // Split by various line endings and filter empty lines or comments
+        if (lines.length === 0) {
+           toast({ title: "Import Failed", description: "File is empty.", variant: "destructive" });
+           return;
+        }
+        const headerRow = lines[0].split(',');
+        const textIndex = headerRow.findIndex(h => h.trim().toLowerCase() === 'text');
+        const completedIndex = headerRow.findIndex(h => h.trim().toLowerCase() === 'completed');
+
+        if (textIndex === -1 || completedIndex === -1) {
+          toast({ title: "Import Failed", description: "CSV must contain 'text' and 'completed' columns.", variant: "destructive" });
+           return;
+        }
+
+        const importedItems: ShoppingListItem[] = lines.slice(1).map(line => {
+           const values = line.split(','); // Simple split, might need more robust CSV parsing for complex cases
+           return { id: crypto.randomUUID(), text: values[textIndex]?.trim() || '', completed: values[completedIndex]?.trim().toLowerCase() === 'true' };
+        }).filter(item => item.text !== ''); // Filter out items with empty text
+        setItems(importedItems);
+        toast({ title: "Shopping List Imported", description: `${importedItems.length} items loaded.` });
+
+      } catch (error) {
+        toast({ title: "Import Failed", description: "Could not parse CSV file.", variant: "destructive" });
+      }
+    };
+    reader.readAsText(file);
   };
 
   const startInputRecognition = useCallback(() => {
@@ -312,6 +367,16 @@ export default function ShoppingListPage() {
         <div className="flex items-center gap-3">
             <ListChecks className="h-10 w-10 text-primary" />
             <h1 className="text-3xl font-bold tracking-tight">Shopping List</h1>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2 mt-4 sm:mt-0">
+          <Button variant="outline" onClick={handleExportList} size="sm">Export List</Button>
+          <Button variant="outline" onClick={handleExportTemplate} size="sm">Export Template</Button>
+          <Button variant="outline" size="sm" asChild> 
+            <Label htmlFor="import-shopping-list" className="cursor-pointer">Import CSV</Label>
+            <Input id="import-shopping-list" type="file" accept=".json" className="hidden" onChange={handleImportList} />
+          </Button>
+
+
         </div>
         <p className="text-sm text-muted-foreground mt-2 sm:mt-0">{pageWakeWordMicPermission === 'granted' && !isListeningForItemInput ? pageWakeWordStatusText : ""}</p>
       </div>
