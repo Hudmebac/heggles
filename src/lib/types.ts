@@ -26,4 +26,7 @@ export interface ToDoListItem {
   id: string;
   text: string;
   completed: boolean;
+  startTime?: string;
+  endTime?: string;
 }
+
