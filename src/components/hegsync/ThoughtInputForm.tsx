@@ -17,8 +17,6 @@ import {
   BUFFER_TIME_OPTIONS,
   type BufferTimeValue,
   DEFAULT_BUFFER_TIME,
-  SIMULATED_RECALL_PREFIX,
-  SIMULATED_RECALL_SUFFIX,
   ACTUAL_RECORDING_SIMULATED_TRANSCRIPTION
 } from '@/lib/constants';
 
@@ -69,8 +67,8 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
 
   const handleProcessRecordedAudio = async (audioDataUrl: string) => {
     setIsLoading(true);
-    setPartialWakeWordDetected(false); // Reset this as we are now processing
-    setIsCapturingAudio(false); // Recording has finished
+    setPartialWakeWordDetected(false); 
+    setIsCapturingAudio(false); 
     try {
       const processedData = await processRecordedAudio(audioDataUrl);
       const newThought: Thought = {
@@ -93,11 +91,10 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
       toast({ title: "Recording Issue", description: isCapturingAudio ? "Already capturing audio." : "Microphone permission needed.", variant: "default" });
       return;
     }
-    // Stop speech recognition before starting recording to avoid conflicts
     if (recognitionRef.current && isRecognizingSpeech) {
         recognitionRef.current.stop();
     }
-    setPartialWakeWordDetected(false); // Reset as we transition to recording
+    setPartialWakeWordDetected(false);
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -113,17 +110,14 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
 
       mediaRecorderRef.current.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-
         const reader = new FileReader();
         reader.readAsDataURL(audioBlob);
         reader.onloadend = () => {
           const base64AudioData = reader.result as string;
-          handleProcessRecordedAudio(base64AudioData); // This will set isLoading and then unset it
+          handleProcessRecordedAudio(base64AudioData); 
         };
-
-        stream.getTracks().forEach(track => track.stop()); // Stop the microphone stream tracks
+        stream.getTracks().forEach(track => track.stop()); 
         audioChunksRef.current = [];
-        // Note: isCapturingAudio is set to false in handleProcessRecordedAudio or its finally block
       };
 
       toast({ title: "Recording Started", description: `Capturing audio for ${RECORDING_DURATION_MS / 1000} seconds...`, duration: RECORDING_DURATION_MS });
@@ -173,18 +167,14 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
 
   const parseSpokenBufferTime = (spokenDuration: string): BufferTimeValue | null => {
     const cleanedSpoken = spokenDuration.toLowerCase().trim();
-
     if (cleanedSpoken.includes('always on') || cleanedSpoken.includes('continuous')) {
       return 'continuous';
     }
-
     for (const option of BUFFER_TIME_OPTIONS) {
       if (option.value !== 'continuous') {
-        // Check for phrases like "1 minute", "5 minutes"
         if (cleanedSpoken.startsWith(option.value) && (cleanedSpoken.includes('minute') || cleanedSpoken.includes('min'))) {
           return option.value;
         }
-        // Check for just the number if it matches an option value
         if (cleanedSpoken === option.value) { 
             return option.value;
         }
@@ -219,7 +209,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
       let itemDeleted = false;
       let deletedItemText = "";
 
-      if (typeof identifier === 'string') { // Delete by name
+      if (typeof identifier === 'string') { 
         const originalLength = currentItems.length;
         const searchName = identifier.trim().toLowerCase();
         const itemFound = currentItems.find(item => item.text.toLowerCase() === searchName);
@@ -228,8 +218,8 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
           currentItems = currentItems.filter(item => item.text.toLowerCase() !== searchName);
           itemDeleted = currentItems.length < originalLength;
         }
-      } else { // Delete by number (1-based index)
-        const indexToDelete = identifier - 1; // Convert to 0-based
+      } else { 
+        const indexToDelete = identifier - 1; 
         if (indexToDelete >= 0 && indexToDelete < currentItems.length) {
           deletedItemText = currentItems[indexToDelete].text;
           currentItems.splice(indexToDelete, 1);
@@ -290,24 +280,23 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
       return;
     }
 
-    if (!recognitionRef.current && hasMicPermission === true && !isRecognizingSpeech && !isCapturingAudio) {
+    if (!recognitionRef.current && hasMicPermission === true && !isRecognizingSpeech && !isCapturingAudio && !isLoading) {
       recognitionRef.current = new SpeechRecognitionAPI();
       const recognition = recognitionRef.current;
 
-      recognition.continuous = true; // Keep listening even after a pause
+      recognition.continuous = true; 
       recognition.interimResults = true;
       recognition.lang = 'en-US';
 
       recognition.onstart = () => {
         setIsRecognizingSpeech(true);
-        setPartialWakeWordDetected(false); // Reset on start
+        setPartialWakeWordDetected(false);
       };
 
       recognition.onend = () => {
         setIsRecognizingSpeech(false);
-        setPartialWakeWordDetected(false); // Reset on end
+        setPartialWakeWordDetected(false); 
         recognitionRef.current = null; 
-        // The main useEffect will attempt to restart if conditions are still met
       };
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -323,8 +312,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
         } else if (event.error === 'network') {
           toast({ title: "Network Error", description: "Speech recognition might require a network connection.", variant: "destructive"});
         }
-        // No specific toast for 'no-speech' or 'aborted' as they are common and handled by onend restart logic
-        setPartialWakeWordDetected(false); // Reset on error
+        setPartialWakeWordDetected(false);
       };
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
@@ -344,11 +332,13 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
         const finalLower = combinedFinalTranscript.trim().toLowerCase();
 
         if (finalLower) {
-          setPartialWakeWordDetected(false); // Reset as we have a final result
-          if (recognitionRef.current) { recognitionRef.current.stop(); } // Stop current recognition to process command
+          setPartialWakeWordDetected(false); 
+          if (recognitionRef.current) { recognitionRef.current.stop(); }
 
-          // Order of checks: More specific/longer commands first, then more general prefixes
-          if (finalLower.startsWith(WAKE_WORDS.ADD_TO_SHOPPING_LIST.toLowerCase())) {
+          if (finalLower === WAKE_WORDS.RECALL_THOUGHT.toLowerCase()) {
+            toast({ title: "Recall Command Detected!", description: "Starting audio capture..." });
+            startAudioRecording();
+          } else if (finalLower.startsWith(WAKE_WORDS.ADD_TO_SHOPPING_LIST.toLowerCase())) {
             const itemToAdd = finalLower.substring(WAKE_WORDS.ADD_TO_SHOPPING_LIST.length).trim();
             addShoppingListItem(itemToAdd);
           } else if (finalLower.startsWith(WAKE_WORDS.DELETE_ITEM_PREFIX.toLowerCase())) {
@@ -386,30 +376,25 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
           } else if (finalLower.startsWith(WAKE_WORDS.SET_BUFFER_TIME.toLowerCase())) {
             const spokenDuration = finalLower.substring(WAKE_WORDS.SET_BUFFER_TIME.length).trim();
             setBufferTimeByVoice(spokenDuration);
-          } else if (finalLower === WAKE_WORDS.RECALL_THOUGHT.toLowerCase()) {
-            toast({ title: "Recall Command Detected!", description: "Starting audio capture..." });
-            startAudioRecording(); // This will handle isLoading state internally
           } else if (finalLower === WAKE_WORDS.TURN_LISTENING_OFF.toLowerCase()) {
             onToggleListeningParent(false);
           } else if (finalLower === WAKE_WORDS.TURN_LISTENING_ON.toLowerCase()) {
             onToggleListeningParent(true);
           }
-          // recognitionRef.current.stop() was called. useEffect will handle restart if needed.
         } else if (interimLower.includes("hegsync")) {
            if (!partialWakeWordDetected) setPartialWakeWordDetected(true);
         } else {
-           if(partialWakeWordDetected) { // If "hegsync" was detected but then something else was said
+           if(partialWakeWordDetected) { 
              setPartialWakeWordDetected(false);
            }
         }
       };
 
       try {
-        if (isListening && hasMicPermission && !isLoading && !isCapturingAudio && !isRecognizingSpeech) { // Check !isRecognizingSpeech
+        if (isListening && hasMicPermission && !isLoading && !isCapturingAudio && !isRecognizingSpeech) { 
           recognition.start();
         }
       } catch (e) {
-        // This catch is for errors during .start()
         console.error("Failed to start speech recognition:", e);
         toast({title: "Speech Recognition Error", description: "Could not start voice listener.", variant: "destructive"});
       }
@@ -436,30 +421,45 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
       setIsCapturingAudio(false);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isListening, hasMicPermission, isLoading, isCapturingAudio, onToggleListeningParent]); // Dependencies that control the listening lifecycle
+  }, [isListening, hasMicPermission, isLoading, isCapturingAudio, onToggleListeningParent]); 
 
   const getMicIcon = () => {
     if (isCapturingAudio) return <Radio className="h-5 w-5 text-red-500 animate-pulse" />;
     if (partialWakeWordDetected) return <Mic className="h-5 w-5 text-yellow-500 animate-pulse" />;
     if (isRecognizingSpeech) return <Mic className="h-5 w-5 text-primary animate-pulse" />;
-    return <MicOff className="h-5 w-5" />;
+  
+    // If passive listening is globally enabled, and mic is permitted,
+    // and we are not in a higher-priority state (capturing, partial, recognizing, loading)
+    // This state indicates it's ready and the useEffect should be ensuring recognition starts/restarts.
+    if (isListening && hasMicPermission && !isBrowserUnsupported && !isLoading && !isCapturingAudio) {
+      return <Mic className="h-5 w-5 text-primary" />; // Non-pulsing primary mic
+    }
+    return <MicOff className="h-5 w-5 text-muted-foreground" />; // Default, or if mic denied, browser unsupported, listening off.
   };
 
   const getMicStatusText = (): React.ReactNode => {
     if (isCapturingAudio) return "Recording audio...";
-    if (isLoading) return "Processing...";
-
+    if (isLoading) return "Processing..."; 
+  
     if (!isListening) return "Voice Inactive";
-
+  
     if (isBrowserUnsupported) return "Voice N/A";
     if (hasMicPermission === false) return "Mic Denied";
     if (hasMicPermission === null) return "Mic Awaiting Permission...";
-
+  
     if (partialWakeWordDetected) return <>'<strong>HegSync</strong>' detected, awaiting command...</>;
     if (isRecognizingSpeech) return <>Say '<strong>HegSync</strong>' + command</>;
-
-    return "Voice Ready";
+  
+    // This is the "standby" state: listening is on, mic is ok, not actively recognizing,
+    // not partially detected, not capturing, not loading.
+    // This is when useEffect should be trying to start/restart recognition.
+    if (isListening && hasMicPermission && !isBrowserUnsupported) { // Check if loading/capturing is already handled
+         return <>Listener active for '<strong>HegSync</strong>'</>;
+    }
+  
+    return "Voice status checking..."; // Should be rare
   };
+  
 
   const recallCmdSuffix = WAKE_WORDS.RECALL_THOUGHT.substring("hegsync".length);
   const addShopCmdSuffix = WAKE_WORDS.ADD_TO_SHOPPING_LIST.substring("hegsync add to my shopping list".length);
@@ -524,7 +524,11 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
                   ? "Recording audio snippet..."
                   : partialWakeWordDetected
                     ? "'HegSync' detected. Finish your command..."
-                    : "Type or paste text for manual processing, or use voice commands..."
+                    : isLoading 
+                      ? "Processing..."
+                      : isRecognizingSpeech 
+                        ? "Say 'HegSync' + command..."
+                        : "Listener active for 'HegSync'..."
                 : "Enable listening to activate input..."
             }
             value={inputText}
@@ -536,7 +540,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
           />
           <div className="flex items-stretch gap-2">
             <Button
-              type="submit" 
+              type="button" // Changed from submit to prevent form submission on its own
               onClick={handleManualSubmit}
               disabled={!isListening || isLoading || isCapturingAudio || !inputText.trim()}
               className="flex-grow"
@@ -546,7 +550,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
               Process Thought (from text)
             </Button>
              <Button
-              type="submit" 
+              type="button" // Changed from submit
               onClick={handleManualSubmit}
               disabled={!isListening || isLoading || isCapturingAudio || !inputText.trim()}
               size="icon"
@@ -566,6 +570,3 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
     </Card>
   );
 }
-
-
-    
