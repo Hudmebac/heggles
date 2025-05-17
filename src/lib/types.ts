@@ -22,11 +22,31 @@ export interface ShoppingListItem {
   completed: boolean;
 }
 
+// ToDoListItem Related Types
+export type TimeSettingType = 
+  | 'not_set' 
+  | 'all_day' 
+  | 'am_period' 
+  | 'pm_period' 
+  | 'specific_start' 
+  | 'specific_start_end';
+
+export interface TimePoint {
+  hh: string;
+  mm: string;
+  period: 'AM' | 'PM';
+}
+
 export interface ToDoListItem {
   id: string;
   text: string;
   completed: boolean;
-  startTime?: string;
-  endTime?: string;
-}
+  
+  // New time structure
+  timeSettingType?: TimeSettingType;
+  startTime?: TimePoint | null;
+  endTime?: TimePoint | null;
 
+  // New due date field
+  dueDate?: string | null; // Store as "YYYY-MM-DD"
+}
