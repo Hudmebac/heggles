@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useRef, FormEvent } from 'react';
+import React, { useState, useEffect, useRef, FormEvent } from 'react';
 import { Brain, Loader2, Mic, MicOff, AlertTriangleIcon, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,15 +10,14 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { processTextThought, processRecordedAudio } from '@/lib/actions';
 import type { Thought, ShoppingListItem } from '@/lib/types';
-import { 
-  WAKE_WORDS, 
+import {
+  WAKE_WORDS,
   LOCALSTORAGE_KEYS,
   RECORDING_DURATION_MS,
   BUFFER_TIME_OPTIONS,
   type BufferTimeValue,
-  DEFAULT_BUFFER_TIME, 
+  DEFAULT_BUFFER_TIME,
   SIMULATED_RECALL_PREFIX,
-  SIMULATED_RECALL_SUFFIX,
 } from '@/lib/constants';
 
 interface ThoughtInputFormProps {
@@ -37,11 +36,11 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
   const [isCapturingAudio, setIsCapturingAudio] = useState(false);
   const [isBrowserUnsupported, setIsBrowserUnsupported] = useState(false);
   const [partialWakeWordDetected, setPartialWakeWordDetected] = useState(false);
-  
+
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  
+
   const handleProcessTextThought = async (textToProcess: string) => {
     if (!textToProcess.trim()) {
       toast({ title: "Input empty", description: "Cannot process an empty thought.", variant: "destructive" });
@@ -57,7 +56,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
         ...processedData,
       };
       onThoughtRecalled(newThought);
-      setInputText(''); 
+      setInputText('');
       toast({ title: "Text Thought Processed", description: "AI processing complete." });
     } catch (error) {
       toast({ title: "Error Processing Text Thought", description: (error as Error).message, variant: "destructive" });
@@ -68,8 +67,8 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
 
   const handleProcessRecordedAudio = async (audioDataUrl: string) => {
     setIsLoading(true);
-    setPartialWakeWordDetected(false); 
-    setIsCapturingAudio(false); 
+    setPartialWakeWordDetected(false);
+    setIsCapturingAudio(false);
     try {
       const processedData = await processRecordedAudio(audioDataUrl);
       const newThought: Thought = {
@@ -106,19 +105,19 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
       };
 
       mediaRecorderRef.current.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' }); 
-        
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+
         const reader = new FileReader();
         reader.readAsDataURL(audioBlob);
         reader.onloadend = () => {
           const base64AudioData = reader.result as string;
           handleProcessRecordedAudio(base64AudioData);
         };
-        
-        stream.getTracks().forEach(track => track.stop()); 
+
+        stream.getTracks().forEach(track => track.stop());
         audioChunksRef.current = [];
       };
-      
+
       toast({ title: "Recording Started", description: `Capturing audio for ${RECORDING_DURATION_MS / 1000} seconds...`, duration: RECORDING_DURATION_MS });
       mediaRecorderRef.current.start();
 
@@ -132,7 +131,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
       console.error("Error starting audio recording:", err);
       toast({ title: "Recording Error", description: "Could not start audio recording. Check microphone permissions.", variant: "destructive" });
       setIsCapturingAudio(false);
-      setHasMicPermission(false); 
+      setHasMicPermission(false);
     }
   };
 
@@ -143,7 +142,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
 
   const addShoppingListItem = (itemText: string) => {
     if (!itemText.trim()) {
-      toast({ title: "No item specified", description: `Please say the item you want to add after '${WAKE_WORDS.ADD_TO_SHOPPING_LIST}'.`, variant: "default" });
+      toast({ title: "No item specified", description: <>Please say the item you want to add after '<q><strong>HegSync</strong>{WAKE_WORDS.ADD_TO_SHOPPING_LIST.substring("hegsync".length)}</q>'.</>, variant: "default" });
       return;
     }
     try {
@@ -165,11 +164,11 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
 
   const parseSpokenBufferTime = (spokenDuration: string): BufferTimeValue | null => {
     const cleanedSpoken = spokenDuration.toLowerCase().trim();
-  
+
     if (cleanedSpoken.includes('always on') || cleanedSpoken.includes('continuous')) {
       return 'continuous';
     }
-  
+
     for (const option of BUFFER_TIME_OPTIONS) {
       if (option.value !== 'continuous') {
         if (cleanedSpoken.includes(option.value) && (cleanedSpoken.includes('minute') || cleanedSpoken.includes('min'))) {
@@ -180,7 +179,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
         }
       }
     }
-    return null; 
+    return null;
   };
 
   const setBufferTimeByVoice = (spokenDuration: string) => {
@@ -212,7 +211,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
       setPartialWakeWordDetected(false);
       return;
     }
-    
+
     if (hasMicPermission === null) {
       navigator.mediaDevices.getUserMedia({ audio: true })
         .then(() => setHasMicPermission(true))
@@ -225,14 +224,14 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
             toast({ title: "Microphone Error", description: `Could not access microphone: ${err.message}`, variant: "destructive" });
           }
         });
-      return; 
+      return;
     }
 
     if (!recognitionRef.current && hasMicPermission === true && !isRecognizingSpeech && !isCapturingAudio) {
       recognitionRef.current = new SpeechRecognitionAPI();
       const recognition = recognitionRef.current;
 
-      recognition.continuous = true; 
+      recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'en-US';
 
@@ -244,7 +243,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
       recognition.onend = () => {
         setIsRecognizingSpeech(false);
         setPartialWakeWordDetected(false);
-        recognitionRef.current = null; 
+        recognitionRef.current = null;
       };
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -253,9 +252,9 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
         } else {
           console.error('Speech recognition error:', event.error, event.message);
         }
-        
+
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-          setHasMicPermission(false); 
+          setHasMicPermission(false);
           toast({ title: "Microphone Access Issue", description: "Speech recognition service denied. Check browser settings or permissions.", variant: "destructive" });
         } else if (event.error === 'network') {
           toast({ title: "Network Error", description: "Speech recognition might require a network connection.", variant: "destructive"});
@@ -283,12 +282,12 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
 
         if (finalLower) {
           setPartialWakeWordDetected(false);
-          if (recognitionRef.current) recognitionRef.current.stop(); // Stop recognition once a final command is processed
+          if (recognitionRef.current) recognitionRef.current.stop();
 
           if (finalLower.startsWith(WAKE_WORDS.ADD_TO_SHOPPING_LIST.toLowerCase())) {
             const itemToAdd = finalLower.substring(WAKE_WORDS.ADD_TO_SHOPPING_LIST.length).trim();
             addShoppingListItem(itemToAdd);
-          } else if (finalLower.includes(WAKE_WORDS.RECALL_THOUGHT.toLowerCase())) { 
+          } else if (finalLower.includes(WAKE_WORDS.RECALL_THOUGHT.toLowerCase())) {
             toast({ title: "Recall Command Detected!", description: "Starting audio capture..." });
             startAudioRecording();
           } else if (finalLower.startsWith(WAKE_WORDS.SET_BUFFER_TIME.toLowerCase())) {
@@ -296,10 +295,8 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
             setBufferTimeByVoice(spokenDuration);
           } else if (finalLower.includes(WAKE_WORDS.TURN_LISTENING_OFF.toLowerCase())) {
             onToggleListeningParent(false);
-            toast({ title: "Passive Listening Disabled by voice." });
           } else if (finalLower.includes(WAKE_WORDS.TURN_LISTENING_ON.toLowerCase())) {
             onToggleListeningParent(true);
-            toast({ title: "Passive Listening Enabled by voice." });
           }
         } else if (interimLower.includes("hegsync")) {
           setPartialWakeWordDetected(true);
@@ -309,9 +306,9 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
           }
         }
       };
-      
+
       try {
-        if (isListening && hasMicPermission && !isLoading && !isCapturingAudio) { 
+        if (isListening && hasMicPermission && !isLoading && !isCapturingAudio) {
           recognition.start();
         }
       } catch (e) {
@@ -319,7 +316,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
         toast({title: "Speech Recognition Error", description: "Could not start voice listener.", variant: "destructive"});
       }
     }
-    
+
     return () => {
       if (recognitionRef.current) {
         recognitionRef.current.onstart = null;
@@ -340,17 +337,17 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
       }
       setIsCapturingAudio(false);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps 
-  }, [isListening, hasMicPermission, isLoading, isCapturingAudio, onToggleListeningParent]); 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isListening, hasMicPermission, isLoading, isCapturingAudio, onToggleListeningParent]);
 
   const getMicIcon = () => {
     if (isCapturingAudio) return <Radio className="h-5 w-5 text-red-500 animate-pulse" />;
-    if (partialWakeWordDetected) return <Mic className="h-5 w-5 text-yellow-500 animate-pulse" />; 
+    if (partialWakeWordDetected) return <Mic className="h-5 w-5 text-yellow-500 animate-pulse" />;
     if (isRecognizingSpeech) return <Mic className="h-5 w-5 text-primary animate-pulse" />;
     return <MicOff className="h-5 w-5" />;
   };
 
-  const getMicStatusText = () => {
+  const getMicStatusText = (): React.ReactNode => {
     if (isCapturingAudio) return "Recording audio...";
     if (isLoading) return "Processing...";
 
@@ -359,12 +356,18 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
     if (isBrowserUnsupported) return "Voice N/A";
     if (hasMicPermission === false) return "Mic Denied";
     if (hasMicPermission === null) return "Mic Awaiting Permission...";
-    
-    if (partialWakeWordDetected) return "'Hegsync' detected, awaiting command...";
-    if (isRecognizingSpeech) return "Say 'Hegsync' + command";
-    
+
+    if (partialWakeWordDetected) return <>'<strong>HegSync</strong>' detected, awaiting command...</>;
+    if (isRecognizingSpeech) return <>Say '<strong>HegSync</strong>' + command</>;
+
     return "Voice Ready";
   };
+
+  const recallCmdSuffix = WAKE_WORDS.RECALL_THOUGHT.substring("hegsync".length);
+  const addShopCmdSuffix = WAKE_WORDS.ADD_TO_SHOPPING_LIST.substring("hegsync".length);
+  const setBufferCmdSuffix = WAKE_WORDS.SET_BUFFER_TIME.substring("hegsync".length);
+  const turnOnCmdSuffix = WAKE_WORDS.TURN_LISTENING_ON.substring("hegsync".length);
+  const turnOffCmdSuffix = WAKE_WORDS.TURN_LISTENING_OFF.substring("hegsync".length);
 
   return (
     <Card className="w-full shadow-lg">
@@ -372,7 +375,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
         <div className="flex justify-between items-center">
           <CardTitle className="text-xl">Input & Recall</CardTitle>
           {isListening && hasMicPermission !== null && !isBrowserUnsupported && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground" title={getMicStatusText()}>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground" title={typeof getMicStatusText() === 'string' ? getMicStatusText() as string : undefined}>
               {getMicIcon()}
               <span>{getMicStatusText()}</span>
             </div>
@@ -380,9 +383,17 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
         </div>
         <CardDescription>
            {isListening
-            ? `Voice: Say "${WAKE_WORDS.RECALL_THOUGHT}", "${WAKE_WORDS.ADD_TO_SHOPPING_LIST} [item]", "${WAKE_WORDS.SET_BUFFER_TIME} [duration]", "${WAKE_WORDS.TURN_LISTENING_ON}", or "${WAKE_WORDS.TURN_LISTENING_OFF}".
-               Text: Use area below and "Process Thought (from text)" button.`
-            : "Enable passive listening above (or say \"Hegsync turn on\" if mic is already permitted) to use voice commands or text input."}
+            ? (
+              <>
+                Voice: Say <q><strong>HegSync</strong>{recallCmdSuffix}</q>, <q><strong>HegSync</strong>{addShopCmdSuffix} [item]</q>, <q><strong>HegSync</strong>{setBufferCmdSuffix} [duration]</q>, <q><strong>HegSync</strong>{turnOnCmdSuffix}</q>, or <q><strong>HegSync</strong>{turnOffCmdSuffix}</q>.
+                Text: Use area below and "Process Thought (from text)" button.
+              </>
+            )
+            : (
+              <>
+                Enable passive listening above (or say <q><strong>HegSync</strong>{turnOnCmdSuffix}</q> if mic is already permitted) to use voice commands or text input.
+              </>
+            )}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -408,12 +419,12 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
         <form onSubmit={handleManualSubmit} className="space-y-4">
           <Textarea
             placeholder={
-              isListening 
-                ? isCapturingAudio 
-                  ? "Recording audio snippet..." 
+              isListening
+                ? isCapturingAudio
+                  ? "Recording audio snippet..."
                   : partialWakeWordDetected
-                    ? "'Hegsync' detected. Finish your command..."
-                    : "Type or paste text for manual processing, or use voice commands..." 
+                    ? "'HegSync' detected. Finish your command..."
+                    : "Type or paste text for manual processing, or use voice commands..."
                 : "Enable listening to activate input..."
             }
             value={inputText}
@@ -424,10 +435,10 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
             aria-label="Recalled thought input area for manual processing"
           />
           <div className="flex items-stretch gap-2">
-            <Button 
-              type="submit" 
-              onClick={handleManualSubmit} 
-              disabled={!isListening || isLoading || isCapturingAudio || !inputText.trim()} 
+            <Button
+              type="submit"
+              onClick={handleManualSubmit}
+              disabled={!isListening || isLoading || isCapturingAudio || !inputText.trim()}
               className="flex-grow"
               title="Process thought from text area with AI"
             >
@@ -435,11 +446,11 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
               Process Thought (from text)
             </Button>
              <Button
-              type="button" 
-              onClick={handleManualSubmit} 
+              type="button"
+              onClick={handleManualSubmit}
               disabled={!isListening || isLoading || isCapturingAudio || !inputText.trim()}
               size="icon"
-              className="p-2 h-auto" 
+              className="p-2 h-auto"
               aria-label="Process thought from text area with AI"
               title="Process thought from text area with AI"
             >
@@ -448,7 +459,7 @@ export function ThoughtInputForm({ onThoughtRecalled, isListening, onToggleListe
           </div>
         </form>
         <p className="text-xs text-muted-foreground mt-2">
-          The "{WAKE_WORDS.RECALL_THOUGHT}" voice command records a {RECORDING_DURATION_MS / 1000}-second audio snippet. 
+          The <q><strong>HegSync</strong>{recallCmdSuffix}</q> voice command records a {RECORDING_DURATION_MS / 1000}-second audio snippet.
           Shopping list, buffer time, and listening toggle commands operate based on your speech.
         </p>
       </CardContent>

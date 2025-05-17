@@ -26,7 +26,7 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
       setShowWarning(true);
       timerId = setTimeout(() => {
         setShowWarning(false);
-      }, 5000); 
+      }, 5000);
     } else {
       setShowWarning(false);
     }
@@ -63,8 +63,15 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
   const handleToggleSwitch = (checked: boolean) => {
     onToggleListening(checked);
   };
-  
+
   const recordingDurationSeconds = RECORDING_DURATION_MS / 1000;
+
+  const recallCmdSuffix = WAKE_WORDS.RECALL_THOUGHT.substring("hegsync".length);
+  const addShopCmdSuffix = WAKE_WORDS.ADD_TO_SHOPPING_LIST.substring("hegsync".length);
+  const setBufferCmdSuffix = WAKE_WORDS.SET_BUFFER_TIME.substring("hegsync".length);
+  const turnOnCmdSuffix = WAKE_WORDS.TURN_LISTENING_ON.substring("hegsync".length);
+  const turnOffCmdSuffix = WAKE_WORDS.TURN_LISTENING_OFF.substring("hegsync".length);
+
 
   return (
     <Card className="w-full shadow-lg">
@@ -105,7 +112,7 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
             </SelectContent>
           </Select>
            <p className="text-xs text-muted-foreground pt-1">
-            Voice command "{WAKE_WORDS.RECALL_THOUGHT}" uses this to simulate recall and records a {recordingDurationSeconds}-second snippet. You can also set this via voice: "{WAKE_WORDS.SET_BUFFER_TIME} [duration]".
+            Voice command <q><strong>HegSync</strong>{recallCmdSuffix}</q> uses this to simulate recall and records a {recordingDurationSeconds}-second snippet. You can also set this via voice: <q><strong>HegSync</strong>{setBufferCmdSuffix} [duration]</q>.
           </p>
         </div>
 
@@ -120,10 +127,10 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
         <div className="flex items-start p-3 border rounded-lg bg-secondary/30 text-sm text-muted-foreground">
             <Info className="h-5 w-5 mr-2 mt-0.5 shrink-0 text-primary" />
             <div>
-                Toggle to {isListening ? "disable" : "enable"} passive listening. Or say "{WAKE_WORDS.TURN_LISTENING_ON}" / "{WAKE_WORDS.TURN_LISTENING_OFF}". <br />
-                - Say "{WAKE_WORDS.RECALL_THOUGHT}" (records a {recordingDurationSeconds}s audio snippet). <br />
-                - Say "{WAKE_WORDS.ADD_TO_SHOPPING_LIST} [item]". <br />
-                - Say "{WAKE_WORDS.SET_BUFFER_TIME} [e.g., 5 minutes / always on]". <br />
+                Toggle to {isListening ? "disable" : "enable"} passive listening. Or say <q><strong>HegSync</strong>{turnOnCmdSuffix}</q> / <q><strong>HegSync</strong>{turnOffCmdSuffix}</q>. <br />
+                - Say <q><strong>HegSync</strong>{recallCmdSuffix}</q> (records a {recordingDurationSeconds}s audio snippet). <br />
+                - Say <q><strong>HegSync</strong>{addShopCmdSuffix} [item]</q>. <br />
+                - Say <q><strong>HegSync</strong>{setBufferCmdSuffix} [e.g., 5 minutes / always on]</q>. <br />
                 - The "Process Thought (from text)" button uses text from the input area.
             </div>
         </div>
