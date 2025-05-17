@@ -4,7 +4,7 @@
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Brain, Mic, Radio, ListChecks, ClipboardList, Archive, Pin, Sparkles, HelpCircle } from 'lucide-react';
+import { Brain, Mic, Radio, ListChecks, ClipboardList, Archive, Pin, Sparkles, HelpCircle, Volume2 } from 'lucide-react';
 
 export default function HowToPage() {
   return (
