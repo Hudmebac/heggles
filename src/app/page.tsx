@@ -10,14 +10,14 @@ import { RecentThoughtsList } from '@/components/hegsync/RecentThoughtsList';
 import { ThoughtClarifierDialog } from '@/components/hegsync/ThoughtClarifierDialog';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { PlayCircle, StopCircle } from 'lucide-react'; // Mic icon removed from here
+import { PlayCircle, StopCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { pinThoughtAndSuggestCategories } from '@/lib/actions';
-import { useRouter } from 'next/navigation';
+// import { useRouter } from 'next/navigation'; // No longer used
 import { LOCALSTORAGE_KEYS } from '@/lib/constants';
 
 export default function DashboardPage() {
-  const [isListening, setIsListening] = useState(true); // Enabled by default
+  const [isListening, setIsListening] = useState(true);
   const [recalledThoughts, setRecalledThoughts] = useLocalStorage<Thought[]>(LOCALSTORAGE_KEYS.RECALLED_THOUGHTS, []);
   const [pinnedThoughts, setPinnedThoughts] = useLocalStorage<PinnedThought[]>(LOCALSTORAGE_KEYS.MEMORY_VAULT, []);
   
@@ -29,7 +29,7 @@ export default function DashboardPage() {
   const [isLongRecording, setIsLongRecording] = useState(false);
 
   const { toast } = useToast();
-  const router = useRouter();
+  // const router = useRouter(); // No longer used
 
   const handleToggleListening = useCallback((active: boolean) => {
     setIsListening(active);
@@ -41,11 +41,11 @@ export default function DashboardPage() {
     toast({ title: `Passive Listening ${active ? "Enabled" : "Disabled"}`, description: active ? "Ready for voice commands." : "Voice commands and recording are off." });
   }, [toast, isLongRecording]); 
 
-  const handleThoughtRecalled = (newThought: Thought) => {
+  const handleThoughtRecalled = useCallback((newThought: Thought) => {
     setRecalledThoughts(prevThoughts => [newThought, ...prevThoughts].sort((a,b) => b.timestamp - a.timestamp));
-  };
+  }, [setRecalledThoughts]);
   
-  const handlePinThought = async (thoughtToPin: Thought) => {
+  const handlePinThought = useCallback(async (thoughtToPin: Thought) => {
     try {
       const processedPinnedThoughtData = await pinThoughtAndSuggestCategories(thoughtToPin);
       const newPinnedThought: PinnedThought = {
@@ -59,31 +59,30 @@ export default function DashboardPage() {
     } catch (error) {
       toast({ title: "Error Pinning Thought", description: (error as Error).message, variant: "destructive" });
     }
-  };
+  }, [setPinnedThoughts, setRecalledThoughts, toast]);
 
-  const handleClarifyThought = (thoughtToClarify: Thought) => {
+  const handleClarifyThought = useCallback((thoughtToClarify: Thought) => {
     setClarifyingThought(thoughtToClarify);
     setIsClarifierOpen(true);
-  };
+  }, []);
   
-  const handleClarificationComplete = (updatedThought: Thought) => {
+  const handleClarificationComplete = useCallback((updatedThought: Thought) => {
     setRecalledThoughts(prev => prev.map(t => t.id === updatedThought.id ? updatedThought : t));
     setPinnedThoughts(prev => prev.map(t => t.id === updatedThought.id ? { ...t, ...updatedThought } : t));
     setIsClarifierOpen(false);
-  };
+  }, [setRecalledThoughts, setPinnedThoughts]);
 
-  const handleDeleteRecalledThought = (thoughtId: string) => {
+  const handleDeleteRecalledThought = useCallback((thoughtId: string) => {
     setRecalledThoughts(prev => prev.filter(t => t.id !== thoughtId));
     toast({ title: "Thought Deleted", description: "The recalled thought has been removed." });
-  };
+  }, [setRecalledThoughts, toast]);
 
   const [isClient, setIsClient] = useState(false);
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-
-  const handleToggleLongRecording = () => {
+  const handleToggleLongRecording = useCallback(() => {
     if (!isListening) {
       toast({ title: "Passive Listening Disabled", description: "Enable passive listening to start recording.", variant: "default" });
       return;
@@ -96,13 +95,16 @@ export default function DashboardPage() {
         toast({ title: "Could Not Start Recording", description: "System might be busy or microphone unavailable.", variant: "destructive" });
       }
     } else {
-      // stopLongRecordingAndProcess will now populate inputText in ThoughtInputForm.
-      // The user then clicks the Brain icon there.
       thoughtInputFormRef.current?.stopLongRecordingAndProcess();
       setIsLongRecording(false);
-      toast({ title: "Recording Stopped", description: "Transcript populated in input area. Click the Brain icon to process." });
+      // The toast for stopping and populating input is now handled inside ThoughtInputForm
     }
-  };
+  }, [isListening, isLongRecording, toast]);
+
+  const handleStopLongRecordingParent = useCallback(() => {
+    setIsLongRecording(false);
+  }, []);
+
 
   if (!isClient) {
     return null; 
@@ -112,7 +114,6 @@ export default function DashboardPage() {
     <div className="space-y-8">
       <div className="flex items-center mb-6 gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        {/* Removed Mic button that simulated wake word */}
         <Button
           variant="ghost"
           size="icon"
@@ -137,7 +138,7 @@ export default function DashboardPage() {
         isListening={isListening}
         onToggleListeningParent={handleToggleListening}
         isExternallyLongRecording={isLongRecording}
-        onStopLongRecordingParent={() => setIsLongRecording(false)} // To sync state if stopped internally
+        onStopLongRecordingParent={handleStopLongRecordingParent}
       />
 
       <Separator />
@@ -163,4 +164,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
