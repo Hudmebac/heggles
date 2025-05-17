@@ -88,13 +88,12 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
             <AlertTriangle className="h-5 w-5 mr-2" />
             <span>
               Passive listening is active. Audio is being temporarily buffered locally.
-              This is a simulation; no actual audio is recorded or stored persistently by this demo.
             </span>
           </div>
         )}
         <p className="text-sm text-muted-foreground">
           Toggle to {isListening ? "disable" : "enable"} passive listening. When active, the app (conceptually) maintains a temporary local audio buffer for the selected period of <span className="font-semibold">{selectedBufferTimeLabel}</span>.
-          The "replay that" voice command will use this simulated buffer. The "Process Thought" button uses text from the area below.
+          The "replay that" voice command will use this conceptual buffer. The "Process Thought" button uses text from the area below.
         </p>
       </CardContent>
     </Card>
