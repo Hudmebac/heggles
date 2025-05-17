@@ -23,24 +23,6 @@ import { cn } from '@/lib/utils';
 
 const initialTimePoint: TimePoint = { hh: '12', mm: '00', period: 'AM' };
 
-// This function is no longer used directly for parsing the editor inputs,
-// but retained as it might be useful for initializing from stored string values if needed.
-// const parseTimeToTimePoint = (timeStr?: string | null): TimePoint | null => {
-//   if (!timeStr) return null;
-//   try {
-//     if (timeStr === "AM" || timeStr === "PM") {
-//       return { hh: '12', mm: '00', period: timeStr as 'AM' | 'PM' };
-//     }
-//     const [time, periodPart] = timeStr.split(' ');
-//     if (!periodPart || !['AM', 'PM'].includes(periodPart.toUpperCase())) return null;
-//     const [hh, mm] = time.split(':');
-//     if (isNaN(parseInt(hh)) || isNaN(parseInt(mm))) return null;
-//     return { hh, mm, period: periodPart.toUpperCase() as 'AM' | 'PM' };
-//   } catch (e) {
-//     return null;
-//   }
-// };
-
 const formatTimePointToString = (timePoint?: TimePoint | null): string | null => {
   if (!timePoint || !timePoint.period) return null; 
   const hInput = timePoint.hh;
@@ -49,12 +31,10 @@ const formatTimePointToString = (timePoint?: TimePoint | null): string | null =>
   const hVal = (hInput === '' || hInput === null) ? 12 : parseInt(hInput, 10);
   const mVal = (mInput === '' || mInput === null) ? 0 : parseInt(mInput, 10);
 
-  if (isNaN(hVal) || isNaN(mVal) || hVal < 1 || hVal > 12 || mVal < 0 || mVal > 59) {
+  if (isNaN(hVal) || hVal < 1 || hVal > 12 || isNaN(mVal) || mVal < 0 || mVal > 59) {
      if ((hInput === '' || hInput === null) && (mInput === '' || mInput === null) && timePoint.period) {
-        return `12:00 ${timePoint.period}`; // Default to 12:00 if only period is set
+        return `12:00 ${timePoint.period}`; 
      }
-     // This path should ideally not be hit if editor validation is correct
-     // console.warn("formatTimePointToString: Invalid time point values for formatting", timePoint);
      return null; 
   }
   
@@ -80,14 +60,12 @@ export default function ToDoListPage() {
 
   const [isClient, setIsClient] = useState(false);
 
-  // State for inline voice input for tasks
   const [isListeningForTaskInput, setIsListeningForTaskInput] = useState(false);
   const [taskInputMicPermission, setTaskInputMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
   const recognitionTaskRef = useRef<SpeechRecognition | null>(null);
   const pauseTaskTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
 
-  // State for page-level "Heggles" wake word detection
   const [isListeningForPageWakeWord, setIsListeningForPageWakeWord] = useState(false);
   const [pageWakeWordMicPermission, setPageWakeWordMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
   const pageWakeWordRecognitionRef = useRef<SpeechRecognition | null>(null);
@@ -104,7 +82,7 @@ export default function ToDoListPage() {
         if (pageWakeWordMicPermission === 'prompt') {
              navigator.mediaDevices.getUserMedia({ audio: true })
                 .then(stream => {
-                    stream.getTracks().forEach(track => track.stop()); // Release the stream
+                    stream.getTracks().forEach(track => track.stop()); 
                     setPageWakeWordMicPermission('granted');
                 })
                 .catch(() => {
@@ -112,9 +90,9 @@ export default function ToDoListPage() {
                 });
         }
     }
-    return () => { // Cleanup for task input mic
+    return () => { 
       if (recognitionTaskRef.current && recognitionTaskRef.current.stop) {
-        try { recognitionTaskRef.current.stop(); } catch (e) { console.warn("Error stopping task recognition on unmount:", e); }
+        try { recognitionTaskRef.current.stop(); } catch (e) { /* ignore */ }
       }
       if (pauseTaskTimeoutRef.current) {
         clearTimeout(pauseTaskTimeoutRef.current);
@@ -122,7 +100,7 @@ export default function ToDoListPage() {
       recognitionTaskRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // pageWakeWordMicPermission removed to avoid re-prompt if denied then page re-navigated
+  }, []); 
 
   const handleAddItem = (e: FormEvent) => {
     e.preventDefault();
@@ -190,7 +168,7 @@ export default function ToDoListPage() {
     setCurrentEditorStartTime(item.startTime ? {...item.startTime} : null); 
     setCurrentEditorEndTime(item.endTime ? {...item.endTime} : null);     
     setCurrentEditorDueDate(item.dueDate ? parseISO(item.dueDate) : undefined);
-    setEditingItemId(null); // Close text editor if open
+    setEditingItemId(null); 
   };
   
 
@@ -202,14 +180,14 @@ export default function ToDoListPage() {
     let finalTimeSettingType = currentEditorTimeSettingType;
 
     if (currentEditorTimeSettingType === 'specific_start' || currentEditorTimeSettingType === 'specific_start_end') {
-        if (currentEditorStartTime) { // Check if start time object exists
+        if (currentEditorStartTime) { 
             const hVal = (currentEditorStartTime.hh === '' || currentEditorStartTime.hh === null) ? 12 : parseInt(currentEditorStartTime.hh, 10);
             const mVal = (currentEditorStartTime.mm === '' || currentEditorStartTime.mm === null) ? 0 : parseInt(currentEditorStartTime.mm, 10);
 
             if (isNaN(hVal) || hVal < 1 || hVal > 12 || isNaN(mVal) || mVal < 0 || mVal > 59) {
                  if (!( (currentEditorStartTime.hh === '' || currentEditorStartTime.hh === null) && 
                         (currentEditorStartTime.mm === '' || currentEditorStartTime.mm === null) &&
-                        currentEditorStartTime.period) ) { // Allow if hh/mm blank but period set
+                        currentEditorStartTime.period) ) { 
                     toast({ title: "Invalid Start Time", description: "Start time hours (1-12) or minutes (00-59) are invalid.", variant: "destructive" });
                     return;
                  }
@@ -217,16 +195,15 @@ export default function ToDoListPage() {
             if (currentEditorStartTime.period) {
                  newStartTime = { hh: String(hVal).padStart(2,'0'), mm: String(mVal).padStart(2,'0'), period: currentEditorStartTime.period };
             } else if (currentEditorStartTime.hh || currentEditorStartTime.mm) { 
-                // This case is less likely if period defaults or is always part of TimePoint
                 toast({ title: "Missing AM/PM", description: "Please select AM or PM for the start time.", variant: "destructive" });
                 return;
-            } // If no period and no hh/mm, newStartTime remains null
+            } 
         }
         if (!newStartTime && currentEditorTimeSettingType === 'specific_start') finalTimeSettingType = 'not_set';
     }
 
     if (currentEditorTimeSettingType === 'specific_start_end') {
-        if (currentEditorEndTime) { // Check if end time object exists
+        if (currentEditorEndTime) { 
             const hVal = (currentEditorEndTime.hh === '' || currentEditorEndTime.hh === null) ? 12 : parseInt(currentEditorEndTime.hh, 10);
             const mVal = (currentEditorEndTime.mm === '' || currentEditorEndTime.mm === null) ? 0 : parseInt(currentEditorEndTime.mm, 10);
 
@@ -243,23 +220,19 @@ export default function ToDoListPage() {
             } else if (currentEditorEndTime.hh || currentEditorEndTime.mm) {
                 toast({ title: "Missing AM/PM", description: "Please select AM or PM for the end time.", variant: "destructive" });
                 return;
-            } // If no period and no hh/mm, newEndTime remains null
+            } 
         }
 
         if (!newStartTime && !newEndTime) finalTimeSettingType = 'not_set';
         else if (newStartTime && !newEndTime) finalTimeSettingType = 'specific_start';
-        // If !newStartTime and newEndTime, we could clear newEndTime and set to not_set, or error.
-        // Current logic allows saving just end time if start was cleared and type is still start_end,
-        // it will effectively save it as 'not_set' if start becomes null.
-        // Let's refine: if specific_start_end is chosen, both are required or it degrades.
+        
         if (currentEditorTimeSettingType === 'specific_start_end' && (!newStartTime || !newEndTime)) {
              if (newStartTime && !newEndTime) finalTimeSettingType = 'specific_start';
-             else if (!newStartTime && newEndTime) { newEndTime = null; finalTimeSettingType = 'not_set';} // Or specific_end if we had that type
+             else if (!newStartTime && newEndTime) { newEndTime = null; finalTimeSettingType = 'not_set';} 
              else finalTimeSettingType = 'not_set';
         }
     }
     
-    // Handle AM/PM period types (which imply a default 12:00 time if specific times aren't set)
     if (currentEditorTimeSettingType === 'am_period' && !newStartTime) newStartTime = { hh: '12', mm: '00', period: 'AM' };
     if (currentEditorTimeSettingType === 'pm_period' && !newStartTime) newStartTime = { hh: '12', mm: '00', period: 'PM' };
 
@@ -305,12 +278,11 @@ export default function ToDoListPage() {
   const handleTempTimeChange = (type: 'start' | 'end', field: 'hh' | 'mm' | 'period', value: string) => {
     const setter = type === 'start' ? setCurrentEditorStartTime : setCurrentEditorEndTime;
     setter(prev => {
-      // Ensure prev is not null; if it is, initialize with initialTimePoint
       const baseTimePoint = prev || { ...initialTimePoint };
       const newPoint = { ...baseTimePoint, [field]: value };
 
-      if (field === 'hh' && value === '') newPoint.hh = ''; // Allow clearing
-      if (field === 'mm' && value === '') newPoint.mm = ''; // Allow clearing
+      if (field === 'hh' && value === '') newPoint.hh = ''; 
+      if (field === 'mm' && value === '') newPoint.mm = ''; 
       return newPoint;
     });
   };
@@ -326,7 +298,6 @@ export default function ToDoListPage() {
       const formattedStart = formatTimePointToString(item.startTime);
       if (formattedStart) displayStr += `Starts ${formattedStart}`;
       else if (item.timeSettingType === 'specific_start' || item.timeSettingType === 'specific_start_end') {
-          // Handle case where TimePoint exists but might be invalid for formatting (e.g. only period)
           if(item.startTime.period && !item.startTime.hh && !item.startTime.mm) {
              displayStr += `Starts ~${item.startTime.period}`;
           } else {
@@ -426,8 +397,8 @@ export default function ToDoListPage() {
   };
 
   const sortedItems = useMemo(() => {
-    let displayItems = [...items]; // Use a mutable copy for sorting
-    const defaultSortedItems = [...items]; // Keep a reference to original order for tie-breaking
+    let displayItems = [...items]; 
+    const defaultSortedItems = [...items]; 
 
     switch (sortOrder) {
       case 'dueDateAsc':
@@ -478,7 +449,6 @@ export default function ToDoListPage() {
         break;
       case 'default':
       default:
-        // displayItems remains items (which is already in default order due to useLocalStorage)
         break;
     }
     return displayItems;
@@ -497,7 +467,7 @@ export default function ToDoListPage() {
 
     const recognition = new SpeechRecognitionAPI();
     recognitionTaskRef.current = recognition;
-    recognition.continuous = true; // Listen continuously
+    recognition.continuous = true; 
     recognition.interimResults = true;
     recognition.lang = 'en-US';
 
@@ -526,23 +496,26 @@ export default function ToDoListPage() {
           if (recognitionTaskRef.current) {
             try { recognitionTaskRef.current.stop(); } catch(e) { /* ignore */ }
           }
-        }, 2000); // 2-second pause
+        }, 2000); 
       }
     };
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      console.error('Task input speech recognition error:', event.error, event.message);
       if (pauseTaskTimeoutRef.current) {
         clearTimeout(pauseTaskTimeoutRef.current);
       }
-      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+      if (event.error === 'aborted') {
+        console.info('Task input speech recognition aborted:', event.message);
+      } else if (event.error === 'no-speech') {
+        console.warn('Task input speech recognition: No speech detected.', event.message);
+        if (isListeningForTaskInput) { // Only toast if user was actively dictating
+          toast({ title: "No speech detected", variant: "default" });
+        }
+      } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        console.error('Task input speech recognition error:', event.error, event.message);
         setTaskInputMicPermission('denied');
         toast({ title: "Microphone Access Denied", variant: "destructive" });
-      } else if (event.error === 'no-speech' && !isListeningForTaskInput) {
-        // Do nothing specific if it's just a timeout and we weren't actively showing listening state
-      } else if (event.error === 'no-speech') {
-        toast({ title: "No speech detected", variant: "default" });
-      }
-       else {
+      } else {
+        console.error('Task input speech recognition error:', event.error, event.message);
         toast({ title: "Voice Input Error", description: event.message || "Could not recognize speech.", variant: "destructive" });
       }
       setIsListeningForTaskInput(false);
@@ -552,7 +525,7 @@ export default function ToDoListPage() {
       if (pauseTaskTimeoutRef.current) {
         clearTimeout(pauseTaskTimeoutRef.current);
       }
-      recognitionTaskRef.current = null; // Important for re-initialization
+      recognitionTaskRef.current = null; 
       pageWakeWordListenerShouldBeActive.current = true; 
     };
     
@@ -617,8 +590,8 @@ export default function ToDoListPage() {
     if (!pageWakeWordRecognitionRef.current) {
       const pageRecognition = new SpeechRecognitionAPI();
       pageWakeWordRecognitionRef.current = pageRecognition;
-      pageRecognition.continuous = true; // Keep listening for wake word
-      pageRecognition.interimResults = false; // Only final results for wake word
+      pageRecognition.continuous = true; 
+      pageRecognition.interimResults = false; 
       pageRecognition.lang = 'en-US';
 
       pageRecognition.onstart = () => setIsListeningForPageWakeWord(true);
@@ -626,15 +599,15 @@ export default function ToDoListPage() {
         const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
          const detectedWakeWord = transcript === WAKE_WORDS.HEGGLES_BASE.toLowerCase() 
           ? WAKE_WORDS.HEGGLES_BASE 
-          : null; // Only listen for Heggles now
+          : null; 
 
         if (detectedWakeWord) {
           toast({ title: `'${detectedWakeWord.charAt(0).toUpperCase() + detectedWakeWord.slice(1)}' Detected`, description: "Activating task input microphone..." });
           pageWakeWordListenerShouldBeActive.current = false;
-          if (pageWakeWordRecognitionRef.current?.stop) { // Stop page wake word listener
+          if (pageWakeWordRecognitionRef.current?.stop) { 
             try { pageWakeWordRecognitionRef.current.stop(); } catch(e) {/* ignore */}
           }
-          triggerTaskInputMic(); // Activate task input mic
+          triggerTaskInputMic(); 
         }
       };
       pageRecognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -642,14 +615,11 @@ export default function ToDoListPage() {
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
             setPageWakeWordMicPermission('denied');
         } else if (event.error === 'no-speech' && isListeningForPageWakeWord) {
-            // Continuous listening often gets these; let it be, it might restart or onend will handle.
         }
-        // No setIsListeningForPageWakeWord(false) for 'no-speech' with continuous true
-        // onend handles setting ref to null to allow restart by useEffect
       };
       pageRecognition.onend = () => {
-        setIsListeningForPageWakeWord(false); // Always set to false on end.
-        pageWakeWordRecognitionRef.current = null; // Allow re-initialization by useEffect
+        setIsListeningForPageWakeWord(false); 
+        pageWakeWordRecognitionRef.current = null; 
       };
       
       try {
@@ -661,7 +631,7 @@ export default function ToDoListPage() {
       }
     }
     
-    return () => { // Cleanup for page wake word listener
+    return () => { 
       if (pageWakeWordRecognitionRef.current?.stop) {
          try { pageWakeWordRecognitionRef.current.stop(); } catch(e) {/* ignore */}
       }
@@ -947,3 +917,5 @@ export default function ToDoListPage() {
     </div>
   );
 }
+
+    
