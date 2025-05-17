@@ -35,11 +35,10 @@ export const WAKE_WORDS = {
   FROM_SHOPPING_LIST_TRIGGER: "from my shopping list",
   FROM_TODO_LIST_TRIGGER: "from my to do list",
   ITEM_NUMBER_KEYWORD: "item number",
+  END_DICTATION: "hegsync end",
 };
 
-export const SIMULATED_RECALL_PREFIX = "This is a simulated recall from the";
-export const SIMULATED_RECALL_SUFFIX = "audio buffer. Key points include discussing the upcoming project milestones, brainstorming marketing strategies for the new product launch, and remembering to schedule the team meeting for next week. Also, don't forget to pick up groceries after work and check the AI conference deadline.";
-
-// ACTUAL_RECORDING_SIMULATED_TRANSCRIPTION is no longer needed as we will use live transcription.
 
 export const RECORDING_DURATION_MS = 10000; // 10 seconds for audio snippet
+// Placeholder for actual recorded audio transcription
+export const ACTUAL_RECORDING_SIMULATED_TRANSCRIPTION = "Recorded audio (simulated transcription for AI processing).";

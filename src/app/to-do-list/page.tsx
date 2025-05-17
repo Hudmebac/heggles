@@ -23,21 +23,23 @@ import { cn } from '@/lib/utils';
 
 const initialTimePoint: TimePoint = { hh: '12', mm: '00', period: 'AM' };
 
-const parseTimeToTimePoint = (timeStr?: string | null): TimePoint | null => {
-  if (!timeStr) return null;
-  try {
-    if (timeStr === "AM" || timeStr === "PM") {
-      return { hh: '12', mm: '00', period: timeStr as 'AM' | 'PM' };
-    }
-    const [time, periodPart] = timeStr.split(' ');
-    if (!periodPart || !['AM', 'PM'].includes(periodPart.toUpperCase())) return null;
-    const [hh, mm] = time.split(':');
-    if (isNaN(parseInt(hh)) || isNaN(parseInt(mm))) return null;
-    return { hh, mm, period: periodPart.toUpperCase() as 'AM' | 'PM' };
-  } catch (e) {
-    return null;
-  }
-};
+// This function is no longer used directly for parsing the editor inputs,
+// but retained as it might be useful for initializing from stored string values if needed.
+// const parseTimeToTimePoint = (timeStr?: string | null): TimePoint | null => {
+//   if (!timeStr) return null;
+//   try {
+//     if (timeStr === "AM" || timeStr === "PM") {
+//       return { hh: '12', mm: '00', period: timeStr as 'AM' | 'PM' };
+//     }
+//     const [time, periodPart] = timeStr.split(' ');
+//     if (!periodPart || !['AM', 'PM'].includes(periodPart.toUpperCase())) return null;
+//     const [hh, mm] = time.split(':');
+//     if (isNaN(parseInt(hh)) || isNaN(parseInt(mm))) return null;
+//     return { hh, mm, period: periodPart.toUpperCase() as 'AM' | 'PM' };
+//   } catch (e) {
+//     return null;
+//   }
+// };
 
 const formatTimePointToString = (timePoint?: TimePoint | null): string | null => {
   if (!timePoint || !timePoint.period) return null; 
@@ -49,8 +51,10 @@ const formatTimePointToString = (timePoint?: TimePoint | null): string | null =>
 
   if (isNaN(hVal) || isNaN(mVal) || hVal < 1 || hVal > 12 || mVal < 0 || mVal > 59) {
      if ((hInput === '' || hInput === null) && (mInput === '' || mInput === null) && timePoint.period) {
-        return `12:00 ${timePoint.period}`;
+        return `12:00 ${timePoint.period}`; // Default to 12:00 if only period is set
      }
+     // This path should ideally not be hit if editor validation is correct
+     // console.warn("formatTimePointToString: Invalid time point values for formatting", timePoint);
      return null; 
   }
   
@@ -80,6 +84,8 @@ export default function ToDoListPage() {
   const [isListeningForTaskInput, setIsListeningForTaskInput] = useState(false);
   const [taskInputMicPermission, setTaskInputMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
   const recognitionTaskRef = useRef<SpeechRecognition | null>(null);
+  const pauseTaskTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
 
   // State for page-level "HegSync" or "Quartermaster" wake word detection
   const [isListeningForPageWakeWord, setIsListeningForPageWakeWord] = useState(false);
@@ -98,7 +104,7 @@ export default function ToDoListPage() {
         if (pageWakeWordMicPermission === 'prompt') {
              navigator.mediaDevices.getUserMedia({ audio: true })
                 .then(stream => {
-                    stream.getTracks().forEach(track => track.stop());
+                    stream.getTracks().forEach(track => track.stop()); // Release the stream
                     setPageWakeWordMicPermission('granted');
                 })
                 .catch(() => {
@@ -106,19 +112,17 @@ export default function ToDoListPage() {
                 });
         }
     }
-    return () => {
-      if (recognitionTaskRef.current) {
-        recognitionTaskRef.current.onstart = null;
-        recognitionTaskRef.current.onend = null;
-        recognitionTaskRef.current.onerror = null;
-        recognitionTaskRef.current.onresult = null;
-        if (recognitionTaskRef.current.stop) {
-           try { recognitionTaskRef.current.stop(); } catch (e) { console.warn("Error stopping task recognition on unmount:", e); }
-        }
-        recognitionTaskRef.current = null;
+    return () => { // Cleanup for task input mic
+      if (recognitionTaskRef.current && recognitionTaskRef.current.stop) {
+        try { recognitionTaskRef.current.stop(); } catch (e) { console.warn("Error stopping task recognition on unmount:", e); }
       }
+      if (pauseTaskTimeoutRef.current) {
+        clearTimeout(pauseTaskTimeoutRef.current);
+      }
+      recognitionTaskRef.current = null;
     };
-  }, [pageWakeWordMicPermission]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // pageWakeWordMicPermission removed to avoid re-prompt if denied then page re-navigated
 
   const handleAddItem = (e: FormEvent) => {
     e.preventDefault();
@@ -186,7 +190,7 @@ export default function ToDoListPage() {
     setCurrentEditorStartTime(item.startTime ? {...item.startTime} : null); 
     setCurrentEditorEndTime(item.endTime ? {...item.endTime} : null);     
     setCurrentEditorDueDate(item.dueDate ? parseISO(item.dueDate) : undefined);
-    setEditingItemId(null);
+    setEditingItemId(null); // Close text editor if open
   };
   
 
@@ -198,59 +202,66 @@ export default function ToDoListPage() {
     let finalTimeSettingType = currentEditorTimeSettingType;
 
     if (currentEditorTimeSettingType === 'specific_start' || currentEditorTimeSettingType === 'specific_start_end') {
-        if (currentEditorStartTime) {
-            const hNum = parseInt(currentEditorStartTime.hh);
-            const mNum = parseInt(currentEditorStartTime.mm);
-            let isMalformed = false;
-            if (currentEditorStartTime.hh !== '' && currentEditorStartTime.hh !== null && (isNaN(hNum) || hNum < 1 || hNum > 12)) isMalformed = true;
-            if (currentEditorStartTime.mm !== '' && currentEditorStartTime.mm !== null && (isNaN(mNum) || mNum < 0 || mNum > 59)) isMalformed = true;
+        if (currentEditorStartTime) { // Check if start time object exists
+            const hVal = (currentEditorStartTime.hh === '' || currentEditorStartTime.hh === null) ? 12 : parseInt(currentEditorStartTime.hh, 10);
+            const mVal = (currentEditorStartTime.mm === '' || currentEditorStartTime.mm === null) ? 0 : parseInt(currentEditorStartTime.mm, 10);
 
-            if (isMalformed) {
-                toast({ title: "Invalid Start Time", description: "Start time hours (1-12) or minutes (00-59) are invalid.", variant: "destructive" });
-                return;
+            if (isNaN(hVal) || hVal < 1 || hVal > 12 || isNaN(mVal) || mVal < 0 || mVal > 59) {
+                 if (!( (currentEditorStartTime.hh === '' || currentEditorStartTime.hh === null) && 
+                        (currentEditorStartTime.mm === '' || currentEditorStartTime.mm === null) &&
+                        currentEditorStartTime.period) ) { // Allow if hh/mm blank but period set
+                    toast({ title: "Invalid Start Time", description: "Start time hours (1-12) or minutes (00-59) are invalid.", variant: "destructive" });
+                    return;
+                 }
             }
-            const hFinal = (currentEditorStartTime.hh === '' || currentEditorStartTime.hh === null) ? '12' : String(hNum).padStart(2,'0');
-            const mFinal = (currentEditorStartTime.mm === '' || currentEditorStartTime.mm === null) ? '00' : String(mNum).padStart(2,'0');
             if (currentEditorStartTime.period) {
-                 newStartTime = { hh: hFinal, mm: mFinal, period: currentEditorStartTime.period };
+                 newStartTime = { hh: String(hVal).padStart(2,'0'), mm: String(mVal).padStart(2,'0'), period: currentEditorStartTime.period };
             } else if (currentEditorStartTime.hh || currentEditorStartTime.mm) { 
+                // This case is less likely if period defaults or is always part of TimePoint
                 toast({ title: "Missing AM/PM", description: "Please select AM or PM for the start time.", variant: "destructive" });
                 return;
-            } 
+            } // If no period and no hh/mm, newStartTime remains null
         }
         if (!newStartTime && currentEditorTimeSettingType === 'specific_start') finalTimeSettingType = 'not_set';
     }
 
     if (currentEditorTimeSettingType === 'specific_start_end') {
-        if (currentEditorEndTime) {
-            const hNum = parseInt(currentEditorEndTime.hh);
-            const mNum = parseInt(currentEditorEndTime.mm);
-            let isMalformed = false;
-            if (currentEditorEndTime.hh !== '' && currentEditorEndTime.hh !== null && (isNaN(hNum) || hNum < 1 || hNum > 12)) isMalformed = true;
-            if (currentEditorEndTime.mm !== '' && currentEditorEndTime.mm !== null && (isNaN(mNum) || mNum < 0 || mNum > 59)) isMalformed = true;
+        if (currentEditorEndTime) { // Check if end time object exists
+            const hVal = (currentEditorEndTime.hh === '' || currentEditorEndTime.hh === null) ? 12 : parseInt(currentEditorEndTime.hh, 10);
+            const mVal = (currentEditorEndTime.mm === '' || currentEditorEndTime.mm === null) ? 0 : parseInt(currentEditorEndTime.mm, 10);
 
-            if (isMalformed) {
-                toast({ title: "Invalid End Time", description: "End time hours (1-12) or minutes (00-59) are invalid.", variant: "destructive" });
-                return;
+            if (isNaN(hVal) || hVal < 1 || hVal > 12 || isNaN(mVal) || mVal < 0 || mVal > 59) {
+                 if (!( (currentEditorEndTime.hh === '' || currentEditorEndTime.hh === null) && 
+                        (currentEditorEndTime.mm === '' || currentEditorEndTime.mm === null) &&
+                        currentEditorEndTime.period) ) {
+                    toast({ title: "Invalid End Time", description: "End time hours (1-12) or minutes (00-59) are invalid.", variant: "destructive" });
+                    return;
+                }
             }
-            const hFinal = (currentEditorEndTime.hh === '' || currentEditorEndTime.hh === null) ? '12' : String(hNum).padStart(2,'0');
-            const mFinal = (currentEditorEndTime.mm === '' || currentEditorEndTime.mm === null) ? '00' : String(mNum).padStart(2,'0');
              if (currentEditorEndTime.period) {
-                newEndTime = { hh: hFinal, mm: mFinal, period: currentEditorEndTime.period };
+                newEndTime = { hh: String(hVal).padStart(2,'0'), mm: String(mVal).padStart(2,'0'), period: currentEditorEndTime.period };
             } else if (currentEditorEndTime.hh || currentEditorEndTime.mm) {
                 toast({ title: "Missing AM/PM", description: "Please select AM or PM for the end time.", variant: "destructive" });
                 return;
-            }
+            } // If no period and no hh/mm, newEndTime remains null
         }
+
+        if (!newStartTime && !newEndTime) finalTimeSettingType = 'not_set';
+        else if (newStartTime && !newEndTime) finalTimeSettingType = 'specific_start';
+        // If !newStartTime and newEndTime, we could clear newEndTime and set to not_set, or error.
+        // Current logic allows saving just end time if start was cleared and type is still start_end,
+        // it will effectively save it as 'not_set' if start becomes null.
+        // Let's refine: if specific_start_end is chosen, both are required or it degrades.
         if (currentEditorTimeSettingType === 'specific_start_end' && (!newStartTime || !newEndTime)) {
-            if (newStartTime && !newEndTime) finalTimeSettingType = 'specific_start'; 
-            else if (!newStartTime && newEndTime) { newEndTime = null; finalTimeSettingType = 'not_set';}
-            else finalTimeSettingType = 'not_set';
+             if (newStartTime && !newEndTime) finalTimeSettingType = 'specific_start';
+             else if (!newStartTime && newEndTime) { newEndTime = null; finalTimeSettingType = 'not_set';} // Or specific_end if we had that type
+             else finalTimeSettingType = 'not_set';
         }
     }
     
-    if (currentEditorTimeSettingType === 'am_period') newStartTime = { hh: '12', mm: '00', period: 'AM' };
-    if (currentEditorTimeSettingType === 'pm_period') newStartTime = { hh: '12', mm: '00', period: 'PM' };
+    // Handle AM/PM period types (which imply a default 12:00 time if specific times aren't set)
+    if (currentEditorTimeSettingType === 'am_period' && !newStartTime) newStartTime = { hh: '12', mm: '00', period: 'AM' };
+    if (currentEditorTimeSettingType === 'pm_period' && !newStartTime) newStartTime = { hh: '12', mm: '00', period: 'PM' };
 
 
     setItems(items.map(item => {
@@ -294,9 +305,12 @@ export default function ToDoListPage() {
   const handleTempTimeChange = (type: 'start' | 'end', field: 'hh' | 'mm' | 'period', value: string) => {
     const setter = type === 'start' ? setCurrentEditorStartTime : setCurrentEditorEndTime;
     setter(prev => {
-      const newPoint = { ...(prev || initialTimePoint), [field]: value };
-      if (field === 'hh' && value === null) newPoint.hh = '';
-      if (field === 'mm' && value === null) newPoint.mm = '';
+      // Ensure prev is not null; if it is, initialize with initialTimePoint
+      const baseTimePoint = prev || { ...initialTimePoint };
+      const newPoint = { ...baseTimePoint, [field]: value };
+
+      if (field === 'hh' && value === '') newPoint.hh = ''; // Allow clearing
+      if (field === 'mm' && value === '') newPoint.mm = ''; // Allow clearing
       return newPoint;
     });
   };
@@ -311,12 +325,25 @@ export default function ToDoListPage() {
     if (item.startTime) {
       const formattedStart = formatTimePointToString(item.startTime);
       if (formattedStart) displayStr += `Starts ${formattedStart}`;
+      else if (item.timeSettingType === 'specific_start' || item.timeSettingType === 'specific_start_end') {
+          // Handle case where TimePoint exists but might be invalid for formatting (e.g. only period)
+          if(item.startTime.period && !item.startTime.hh && !item.startTime.mm) {
+             displayStr += `Starts ~${item.startTime.period}`;
+          } else {
+            displayStr += 'Invalid start time';
+          }
+      }
     }
     if (item.timeSettingType === 'specific_start_end' && item.endTime) {
       const formattedEnd = formatTimePointToString(item.endTime);
        if (formattedEnd) displayStr += displayStr ? ` - Ends ${formattedEnd}` : `Ends ${formattedEnd}`;
+       else if (item.endTime.period && !item.endTime.hh && !item.endTime.mm) {
+            displayStr += displayStr ? ` - Ends ~${item.endTime.period}` : `Ends ~${item.endTime.period}`;
+       } else {
+            displayStr += displayStr ? ' - Invalid end time' : 'Invalid end time';
+       }
     }
-    return displayStr || 'Time setting issue';
+    return displayStr || (item.timeSettingType !== 'not_set' ? 'Time set (check details)' : 'No time set');
   };
   
   const displayDueDate = (dueDate: string | null | undefined): React.ReactNode => {
@@ -399,7 +426,9 @@ export default function ToDoListPage() {
   };
 
   const sortedItems = useMemo(() => {
-    let displayItems = [...items];
+    let displayItems = [...items]; // Use a mutable copy for sorting
+    const defaultSortedItems = [...items]; // Keep a reference to original order for tie-breaking
+
     switch (sortOrder) {
       case 'dueDateAsc':
         displayItems.sort((a, b) => {
@@ -428,23 +457,25 @@ export default function ToDoListPage() {
           const aHasDueDate = !!a.dueDate;
           const bHasDueDate = !!b.dueDate;
 
-          if (aHasDueDate && !bHasDueDate) return -1;
-          if (!aHasDueDate && bHasDueDate) return 1;  
+          if (aHasDueDate && !bHasDueDate) return -1; // a comes first if it has a due date and b doesn't
+          if (!aHasDueDate && bHasDueDate) return 1;  // b comes first if it has a due date and a doesn't
           
-          if (aHasDueDate && bHasDueDate) {
+          if (aHasDueDate && bHasDueDate) { // Both have due dates
             const dateA = new Date(a.dueDate!).getTime();
             const dateB = new Date(b.dueDate!).getTime();
             if (dateA !== dateB) {
-              return dateA - dateB;
+              return dateA - dateB; // Earlier due date first
             }
           }
-          const indexA = items.findIndex(item => item.id === a.id); 
-          const indexB = items.findIndex(item => item.id === b.id); 
+          // If due dates are the same or neither have due dates, use original index as tie-breaker
+          const indexA = defaultSortedItems.findIndex(item => item.id === a.id); 
+          const indexB = defaultSortedItems.findIndex(item => item.id === b.id); 
           return indexA - indexB;
         });
         break;
       case 'default':
       default:
+        // displayItems remains items (which is already in default order due to useLocalStorage)
         break;
     }
     return displayItems;
@@ -457,45 +488,83 @@ export default function ToDoListPage() {
     if (recognitionTaskRef.current && recognitionTaskRef.current.stop) {
       try { recognitionTaskRef.current.stop(); } catch(e) { /* ignore */ }
     }
+    if (pauseTaskTimeoutRef.current) {
+      clearTimeout(pauseTaskTimeoutRef.current);
+    }
 
     const recognition = new SpeechRecognitionAPI();
     recognitionTaskRef.current = recognition;
-    recognition.continuous = false;
+    recognition.continuous = true; // Listen continuously
     recognition.interimResults = true;
     recognition.lang = 'en-US';
 
     recognition.onstart = () => setIsListeningForTaskInput(true);
     recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const transcript = Array.from(event.results).map(result => result[0]).map(result => result.transcript).join('');
-      setNewItemText(transcript);
+       if (pauseTaskTimeoutRef.current) {
+        clearTimeout(pauseTaskTimeoutRef.current);
+      }
+      let transcript = "";
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        transcript += event.results[i][0].transcript;
+      }
+      
+      const lowerTranscript = transcript.toLowerCase();
+      const endCommand = WAKE_WORDS.END_DICTATION.toLowerCase();
+
+      if (lowerTranscript.endsWith(endCommand)) {
+        transcript = transcript.substring(0, transcript.length - endCommand.length).trim();
+        setNewItemText(transcript);
+        if (recognitionTaskRef.current) {
+          try { recognitionTaskRef.current.stop(); } catch(e) { /* ignore */ }
+        }
+      } else {
+        setNewItemText(transcript);
+        pauseTaskTimeoutRef.current = setTimeout(() => {
+          if (recognitionTaskRef.current) {
+            try { recognitionTaskRef.current.stop(); } catch(e) { /* ignore */ }
+          }
+        }, 2000); // 2-second pause
+      }
     };
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       console.error('Task input speech recognition error:', event.error, event.message);
+      if (pauseTaskTimeoutRef.current) {
+        clearTimeout(pauseTaskTimeoutRef.current);
+      }
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         setTaskInputMicPermission('denied');
         toast({ title: "Microphone Access Denied", variant: "destructive" });
+      } else if (event.error === 'no-speech' && !isListeningForTaskInput) {
+        // Do nothing specific if it's just a timeout and we weren't actively showing listening state
       } else if (event.error === 'no-speech') {
         toast({ title: "No speech detected", variant: "default" });
-      } else {
+      }
+       else {
         toast({ title: "Voice Input Error", description: event.message || "Could not recognize speech.", variant: "destructive" });
       }
       setIsListeningForTaskInput(false);
     };
     recognition.onend = () => {
       setIsListeningForTaskInput(false);
-      recognitionTaskRef.current = null;
+      if (pauseTaskTimeoutRef.current) {
+        clearTimeout(pauseTaskTimeoutRef.current);
+      }
+      recognitionTaskRef.current = null; // Important for re-initialization
       pageWakeWordListenerShouldBeActive.current = true; 
     };
     
     setNewItemText('');
     recognition.start();
-  }, [taskInputMicPermission, toast]);
+  }, [taskInputMicPermission, toast, isListeningForTaskInput]);
 
 
   const triggerTaskInputMic = useCallback(async () => {
     if (isListeningForTaskInput) {
       if (recognitionTaskRef.current?.stop) {
          try { recognitionTaskRef.current.stop(); } catch(e) {/* ignore */}
+      }
+       if (pauseTaskTimeoutRef.current) {
+        clearTimeout(pauseTaskTimeoutRef.current);
       }
       setIsListeningForTaskInput(false);
       return;
@@ -545,8 +614,8 @@ export default function ToDoListPage() {
     if (!pageWakeWordRecognitionRef.current) {
       const pageRecognition = new SpeechRecognitionAPI();
       pageWakeWordRecognitionRef.current = pageRecognition;
-      pageRecognition.continuous = true;
-      pageRecognition.interimResults = false;
+      pageRecognition.continuous = true; // Keep listening for wake word
+      pageRecognition.interimResults = false; // Only final results for wake word
       pageRecognition.lang = 'en-US';
 
       pageRecognition.onstart = () => setIsListeningForPageWakeWord(true);
@@ -561,21 +630,25 @@ export default function ToDoListPage() {
         if (detectedWakeWord) {
           toast({ title: `'${detectedWakeWord.charAt(0).toUpperCase() + detectedWakeWord.slice(1)}' Detected`, description: "Activating task input microphone..." });
           pageWakeWordListenerShouldBeActive.current = false;
-          pageWakeWordRecognitionRef.current?.stop();
-          triggerTaskInputMic();
+          if (pageWakeWordRecognitionRef.current?.stop) { // Stop page wake word listener
+            try { pageWakeWordRecognitionRef.current.stop(); } catch(e) {/* ignore */}
+          }
+          triggerTaskInputMic(); // Activate task input mic
         }
       };
       pageRecognition.onerror = (event: SpeechRecognitionErrorEvent) => {
         console.warn('Page Wake Word recognition error:', event.error, event.message);
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
             setPageWakeWordMicPermission('denied');
+        } else if (event.error === 'no-speech' && isListeningForPageWakeWord) {
+            // Continuous listening often gets these; let it be, it might restart or onend will handle.
         }
-        setIsListeningForPageWakeWord(false);
-        pageWakeWordRecognitionRef.current = null;
+        // No setIsListeningForPageWakeWord(false) for 'no-speech' with continuous true
+        // onend handles setting ref to null to allow restart by useEffect
       };
       pageRecognition.onend = () => {
-        setIsListeningForPageWakeWord(false);
-        pageWakeWordRecognitionRef.current = null;
+        setIsListeningForPageWakeWord(false); // Always set to false on end.
+        pageWakeWordRecognitionRef.current = null; // Allow re-initialization by useEffect
       };
       
       try {
@@ -587,14 +660,14 @@ export default function ToDoListPage() {
       }
     }
     
-    return () => {
+    return () => { // Cleanup for page wake word listener
       if (pageWakeWordRecognitionRef.current?.stop) {
          try { pageWakeWordRecognitionRef.current.stop(); } catch(e) {/* ignore */}
       }
       pageWakeWordRecognitionRef.current = null;
       setIsListeningForPageWakeWord(false);
     };
-  }, [pageWakeWordMicPermission, isListeningForTaskInput, triggerTaskInputMic, toast]);
+  }, [pageWakeWordMicPermission, isListeningForTaskInput, triggerTaskInputMic, toast, isListeningForPageWakeWord]);
 
 
   if (!isClient) {
@@ -611,7 +684,7 @@ export default function ToDoListPage() {
       <div className="flex items-center gap-1 p-1 border rounded-md bg-background">
         <Input type="text" value={currentVal?.hh || ''} onChange={(e) => handleTempTimeChange(type, 'hh', e.target.value)} maxLength={2} className="w-12 h-8 text-center px-0.5 text-sm" placeholder="HH"/>:
         <Input type="text" value={currentVal?.mm || ''} onChange={(e) => handleTempTimeChange(type, 'mm', e.target.value)} maxLength={2} className="w-12 h-8 text-center px-0.5 text-sm" placeholder="MM"/>
-        <Select value={currentVal?.period || 'AM'} onValueChange={(val) => handleTempTimeChange(type, 'period', val as 'AM' | 'PM')}>
+        <Select value={currentVal?.period || (type === 'start' ? 'AM' : 'PM')} onValueChange={(val) => handleTempTimeChange(type, 'period', val as 'AM' | 'PM')}>
           <SelectTrigger className="w-20 h-8 px-2 text-sm"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="AM">AM</SelectItem><SelectItem value="PM">PM</SelectItem></SelectContent>
         </Select>
@@ -620,7 +693,7 @@ export default function ToDoListPage() {
   };
 
   const taskMicButtonDisabled = taskInputMicPermission === 'unsupported' || taskInputMicPermission === 'denied';
-  const pageWakeWordStatusText = isListeningForPageWakeWord ? "Listening for 'HegSync' or 'Quartermaster'..." : (pageWakeWordMicPermission === 'granted' ? "Say 'HegSync' or 'Quartermaster' to activate input" : "Page Wake Word listener off");
+  const pageWakeWordStatusText = isListeningForPageWakeWord ? "Listening for 'HegSync' or 'Quartermaster'..." : (pageWakeWordMicPermission === 'granted' && pageWakeWordListenerShouldBeActive.current ? "Say 'HegSync' or 'Quartermaster' to activate input" : "Page Wake Word listener off");
 
 
   return (
@@ -670,7 +743,7 @@ export default function ToDoListPage() {
               size="icon"
               onClick={triggerTaskInputMic}
               disabled={taskMicButtonDisabled && taskInputMicPermission !== 'prompt'}
-              title={taskMicButtonDisabled && taskInputMicPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForTaskInput ? "Stop voice input" : "Add task using voice")}
+              title={taskMicButtonDisabled && taskInputMicPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForTaskInput ? "Stop voice input (or say 'Hegsync end')" : "Add task using voice")}
               aria-label="Add task using voice"
             >
               {isListeningForTaskInput ? <Mic className="h-5 w-5 text-primary animate-pulse" /> :
@@ -771,10 +844,10 @@ export default function ToDoListPage() {
                       )}
                       {!item.completed && sortOrder === 'default' && (
                         <>
-                          <Button variant="ghost" size="icon" onClick={() => handleMoveItem(items.findIndex(i => i.id === item.id), 'up')} disabled={items.findIndex(i => i.id === item.id) === 0} title="Move up" className="h-7 w-7">
+                          <Button variant="ghost" size="icon" onClick={() => handleMoveItem(items.findIndex(i => i.id === item.id), 'up')} disabled={sortedItems.findIndex(i => i.id === item.id) === 0} title="Move up" className="h-7 w-7">
                             <ChevronUp className="h-5 w-5" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleMoveItem(items.findIndex(i => i.id === item.id), 'down')} disabled={items.findIndex(i => i.id === item.id) === items.length - 1} title="Move down" className="h-7 w-7">
+                          <Button variant="ghost" size="icon" onClick={() => handleMoveItem(items.findIndex(i => i.id === item.id), 'down')} disabled={sortedItems.findIndex(i => i.id === item.id) === sortedItems.length - 1} title="Move down" className="h-7 w-7">
                             <ChevronDown className="h-5 w-5" />
                           </Button>
                         </>

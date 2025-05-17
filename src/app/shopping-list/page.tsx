@@ -25,6 +25,8 @@ export default function ShoppingListPage() {
   const [isListeningForItemInput, setIsListeningForItemInput] = useState(false);
   const [micPermission, setMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const pauseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
 
   // State for page-level "HegSync" or "Quartermaster" wake word detection
   const [isListeningForPageWakeWord, setIsListeningForPageWakeWord] = useState(false);
@@ -43,7 +45,7 @@ export default function ShoppingListPage() {
         if (pageWakeWordMicPermission === 'prompt') {
             navigator.mediaDevices.getUserMedia({ audio: true })
                 .then(stream => {
-                    stream.getTracks().forEach(track => track.stop());
+                    stream.getTracks().forEach(track => track.stop()); // Release the stream immediately
                     setPageWakeWordMicPermission('granted');
                 })
                 .catch(() => {
@@ -51,7 +53,16 @@ export default function ShoppingListPage() {
                 });
         }
     }
-  }, [pageWakeWordMicPermission]);
+    return () => {
+      if (recognitionRef.current && recognitionRef.current.stop) {
+        try { recognitionRef.current.stop(); } catch (e) { /* ignore */ }
+      }
+      if (pauseTimeoutRef.current) {
+        clearTimeout(pauseTimeoutRef.current);
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // pageWakeWordMicPermission removed to avoid re-prompt if denied then re-navigated
 
 
   const handleAddItem = (e: FormEvent) => {
@@ -105,44 +116,83 @@ export default function ShoppingListPage() {
     if (recognitionRef.current && recognitionRef.current.stop) {
       try { recognitionRef.current.stop(); } catch(e) { /* ignore */ }
     }
+    if (pauseTimeoutRef.current) {
+      clearTimeout(pauseTimeoutRef.current);
+    }
     
     const recognition = new SpeechRecognitionAPI();
     recognitionRef.current = recognition;
-    recognition.continuous = false;
+    recognition.continuous = true; // Listen continuously
     recognition.interimResults = true;
     recognition.lang = 'en-US';
 
     recognition.onstart = () => setIsListeningForItemInput(true);
     recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const transcript = Array.from(event.results).map(result => result[0]).map(result => result.transcript).join('');
-      setNewItemText(transcript);
+      if (pauseTimeoutRef.current) {
+        clearTimeout(pauseTimeoutRef.current);
+      }
+
+      let transcript = "";
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        transcript += event.results[i][0].transcript;
+      }
+      
+      const lowerTranscript = transcript.toLowerCase();
+      const endCommand = WAKE_WORDS.END_DICTATION.toLowerCase();
+
+      if (lowerTranscript.endsWith(endCommand)) {
+        transcript = transcript.substring(0, transcript.length - endCommand.length).trim();
+        setNewItemText(transcript);
+        if (recognitionRef.current) {
+          try { recognitionRef.current.stop(); } catch(e) { /* ignore */ }
+        }
+      } else {
+        setNewItemText(transcript);
+        pauseTimeoutRef.current = setTimeout(() => {
+          if (recognitionRef.current) {
+            try { recognitionRef.current.stop(); } catch(e) { /* ignore */ }
+          }
+        }, 2000); // 2-second pause
+      }
     };
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       console.error('Shopping list item input speech recognition error:', event.error, event.message);
+       if (pauseTimeoutRef.current) {
+        clearTimeout(pauseTimeoutRef.current);
+      }
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         setMicPermission('denied');
         toast({ title: "Microphone Access Denied", variant: "destructive" });
+      } else if (event.error === 'no-speech' && !isListeningForItemInput) { // Avoid toast if it just timed out after speech
+         // Potentially do nothing, or a subtle indicator
       } else if (event.error === 'no-speech') {
         toast({ title: "No speech detected", variant: "default" });
-      } else {
+      }
+       else {
         toast({ title: "Voice Input Error", description: event.message || "Could not recognize speech.", variant: "destructive" });
       }
       setIsListeningForItemInput(false);
     };
     recognition.onend = () => {
       setIsListeningForItemInput(false);
-      recognitionRef.current = null;
+      if (pauseTimeoutRef.current) {
+        clearTimeout(pauseTimeoutRef.current);
+      }
+      recognitionRef.current = null; // Important to allow re-initialization
       pageWakeWordListenerShouldBeActive.current = true; 
     };
     
     setNewItemText(''); 
     recognition.start();
-  }, [micPermission, toast]);
+  }, [micPermission, toast, isListeningForItemInput]);
 
   const triggerItemInputMic = useCallback(async () => {
     if (isListeningForItemInput) { 
       if (recognitionRef.current?.stop) {
         try { recognitionRef.current.stop(); } catch(e) {/* ignore */}
+      }
+      if (pauseTimeoutRef.current) {
+        clearTimeout(pauseTimeoutRef.current);
       }
       setIsListeningForItemInput(false);
       return;
@@ -193,8 +243,8 @@ export default function ShoppingListPage() {
     if (!pageWakeWordRecognitionRef.current) {
       const pageRecognition = new SpeechRecognitionAPI();
       pageWakeWordRecognitionRef.current = pageRecognition;
-      pageRecognition.continuous = true;
-      pageRecognition.interimResults = false;
+      pageRecognition.continuous = true; // Keep listening for wake word
+      pageRecognition.interimResults = false; // Only final results for wake word
       pageRecognition.lang = 'en-US';
 
       pageRecognition.onstart = () => setIsListeningForPageWakeWord(true);
@@ -209,21 +259,28 @@ export default function ShoppingListPage() {
         if (detectedWakeWord) {
           toast({ title: `'${detectedWakeWord.charAt(0).toUpperCase() + detectedWakeWord.slice(1)}' Detected`, description: "Activating item input microphone..." });
           pageWakeWordListenerShouldBeActive.current = false; 
-          pageWakeWordRecognitionRef.current?.stop(); 
-          triggerItemInputMic(); 
+          if (pageWakeWordRecognitionRef.current?.stop) { // Stop listening for page wake word
+             try { pageWakeWordRecognitionRef.current.stop(); } catch(e) {/* ignore */}
+          }
+          triggerItemInputMic(); // Activate the item input mic
         }
       };
       pageRecognition.onerror = (event: SpeechRecognitionErrorEvent) => {
         console.warn('Page Wake Word recognition error:', event.error, event.message);
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
             setPageWakeWordMicPermission('denied'); 
+        } else if (event.error === 'no-speech' && isListeningForPageWakeWord) {
+            // This is common for continuous listening, just let it be.
+            // It might restart on its own, or onend will handle it.
         }
-        setIsListeningForPageWakeWord(false);
-        pageWakeWordRecognitionRef.current = null;
+        // Do not set setIsListeningForPageWakeWord(false) here for 'no-speech' with continuous true
+        // as it might restart automatically or onend will handle it.
+        // For other errors, onend will handle setting ref to null.
       };
       pageRecognition.onend = () => {
-        setIsListeningForPageWakeWord(false);
-        pageWakeWordRecognitionRef.current = null;
+        setIsListeningForPageWakeWord(false); // Always set to false on end
+        pageWakeWordRecognitionRef.current = null; // Allow re-initialization by useEffect
+        // useEffect will restart it if pageWakeWordListenerShouldBeActive.current is true
       };
       
       try {
@@ -235,14 +292,14 @@ export default function ShoppingListPage() {
       }
     }
     
-    return () => {
+    return () => { // Cleanup for page wake word listener
       if (pageWakeWordRecognitionRef.current?.stop) {
          try { pageWakeWordRecognitionRef.current.stop(); } catch(e) {/* ignore */}
       }
       pageWakeWordRecognitionRef.current = null;
       setIsListeningForPageWakeWord(false);
     };
-  }, [pageWakeWordMicPermission, isListeningForItemInput, triggerItemInputMic, toast]);
+  }, [pageWakeWordMicPermission, isListeningForItemInput, triggerItemInputMic, toast, isListeningForPageWakeWord]);
 
 
   if (!isClient) {
@@ -254,7 +311,7 @@ export default function ShoppingListPage() {
   }
 
   const micButtonDisabled = micPermission === 'unsupported' || micPermission === 'denied';
-  const pageWakeWordStatusText = isListeningForPageWakeWord ? "Listening for 'HegSync' or 'Quartermaster'..." : (pageWakeWordMicPermission === 'granted' ? "Say 'HegSync' or 'Quartermaster' to activate input" : "Page Wake Word listener off");
+  const pageWakeWordStatusText = isListeningForPageWakeWord ? "Listening for 'HegSync' or 'Quartermaster'..." : (pageWakeWordMicPermission === 'granted' && pageWakeWordListenerShouldBeActive.current ? "Say 'HegSync' or 'Quartermaster' to activate input" : "Page Wake Word listener off");
 
   return (
     <div className="space-y-8 max-w-2xl mx-auto">
@@ -286,7 +343,7 @@ export default function ShoppingListPage() {
               size="icon"
               onClick={triggerItemInputMic}
               disabled={micButtonDisabled && micPermission !== 'prompt'}
-              title={micButtonDisabled && micPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForItemInput ? "Stop voice input" : "Add item using voice")}
+              title={micButtonDisabled && micPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForItemInput ? "Stop voice input (or say 'Hegsync end')" : "Add item using voice")}
               aria-label="Add item using voice"
             >
               {isListeningForItemInput ? <Mic className="h-5 w-5 text-primary animate-pulse" /> :
