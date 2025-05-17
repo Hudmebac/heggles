@@ -9,23 +9,16 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
+import { BUFFER_TIME_OPTIONS, LOCALSTORAGE_KEYS, DEFAULT_BUFFER_TIME } from '@/lib/constants';
 
 interface PassiveListenerControlsProps {
   isListening: boolean;
   onToggleListening: (isListening: boolean) => void;
 }
 
-const bufferTimeOptions = [
-  { value: '1', label: '1 Minute' },
-  { value: '5', label: '5 Minutes' },
-  { value: '15', label: '15 Minutes' },
-  { value: '30', label: '30 Minutes' },
-  { value: 'continuous', label: 'Always On (Continuous)' },
-];
-
 export function PassiveListenerControls({ isListening, onToggleListening }: PassiveListenerControlsProps) {
   const [showWarning, setShowWarning] = useState(false);
-  const [bufferTime, setBufferTime] = useLocalStorage<string>('hegsync-buffer-time', '5'); // Default to 5 minutes
+  const [bufferTime, setBufferTime] = useLocalStorage<string>(LOCALSTORAGE_KEYS.BUFFER_TIME, DEFAULT_BUFFER_TIME);
 
   useEffect(() => {
     let timerId: NodeJS.Timeout | undefined;
@@ -48,7 +41,7 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
     onToggleListening(checked);
   };
   
-  const selectedBufferTimeLabel = bufferTimeOptions.find(opt => opt.value === bufferTime)?.label || `${bufferTime} Minutes`;
+  const selectedBufferTimeLabel = BUFFER_TIME_OPTIONS.find(opt => opt.value === bufferTime)?.label || `${bufferTime} Minutes`;
 
   return (
     <Card className="w-full shadow-lg">
@@ -81,7 +74,7 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
               <SelectValue placeholder="Select buffer time" />
             </SelectTrigger>
             <SelectContent>
-              {bufferTimeOptions.map(option => (
+              {BUFFER_TIME_OPTIONS.map(option => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>
@@ -101,7 +94,7 @@ export function PassiveListenerControls({ isListening, onToggleListening }: Pass
         )}
         <p className="text-sm text-muted-foreground">
           Toggle to {isListening ? "disable" : "enable"} passive listening. When active, the app (conceptually) maintains a temporary local audio buffer for the selected period of <span className="font-semibold">{selectedBufferTimeLabel}</span>.
-          Use the "Recall Thought" section to process this (simulated) buffered audio.
+          The "replay that" voice command will use this simulated buffer. The "Process Thought" button uses text from the area below.
         </p>
       </CardContent>
     </Card>
