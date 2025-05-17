@@ -28,7 +28,7 @@ export default function ShoppingListPage() {
   const pauseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
 
-  // State for page-level "HegSync" or "Quartermaster" wake word detection
+  // State for page-level "HegSync" or "Heggles" wake word detection
   const [isListeningForPageWakeWord, setIsListeningForPageWakeWord] = useState(false);
   const [pageWakeWordMicPermission, setPageWakeWordMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
   const pageWakeWordRecognitionRef = useRef<SpeechRecognition | null>(null);
@@ -252,8 +252,8 @@ export default function ShoppingListPage() {
         const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
         const detectedWakeWord = transcript === WAKE_WORDS.HEGSYNC_BASE.toLowerCase() 
           ? WAKE_WORDS.HEGSYNC_BASE 
-          : transcript === WAKE_WORDS.QUARTERMASTER_BASE.toLowerCase() 
-          ? WAKE_WORDS.QUARTERMASTER_BASE 
+          : transcript === WAKE_WORDS.HEGGLES_BASE.toLowerCase() 
+          ? WAKE_WORDS.HEGGLES_BASE 
           : null;
 
         if (detectedWakeWord) {
@@ -311,7 +311,7 @@ export default function ShoppingListPage() {
   }
 
   const micButtonDisabled = micPermission === 'unsupported' || micPermission === 'denied';
-  const pageWakeWordStatusText = isListeningForPageWakeWord ? "Listening for 'HegSync' or 'Quartermaster'..." : (pageWakeWordMicPermission === 'granted' && pageWakeWordListenerShouldBeActive.current ? "Say 'HegSync' or 'Quartermaster' to activate input" : "Page Wake Word listener off");
+  const pageWakeWordStatusText = isListeningForPageWakeWord ? "Listening for 'HegSync' or 'Heggles'..." : (pageWakeWordMicPermission === 'granted' && pageWakeWordListenerShouldBeActive.current ? "Say 'HegSync' or 'Heggles' to activate input" : "Page Wake Word listener off");
 
   return (
     <div className="space-y-8 max-w-2xl mx-auto">

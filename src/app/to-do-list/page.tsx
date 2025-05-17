@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { format, parseISO, isValid, isPast, isToday, isTomorrow } from 'date-fns';
 import { 
   ClipboardList, Trash2, Edit3, PlusCircle, Save, Ban, CheckSquare, Clock, 
-  ChevronUp, ChevronDown, GripVertical, CalendarIcon, AlertTriangle, Mic, MicOff
+  ChevronUp, ChevronDown, GripVertical, CalendarIcon, AlertTriangle, Mic, MicOff 
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { LOCALSTORAGE_KEYS, WAKE_WORDS } from '@/lib/constants';
@@ -87,7 +87,7 @@ export default function ToDoListPage() {
   const pauseTaskTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
 
-  // State for page-level "HegSync" or "Quartermaster" wake word detection
+  // State for page-level "HegSync" or "Heggles" wake word detection
   const [isListeningForPageWakeWord, setIsListeningForPageWakeWord] = useState(false);
   const [pageWakeWordMicPermission, setPageWakeWordMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
   const pageWakeWordRecognitionRef = useRef<SpeechRecognition | null>(null);
@@ -432,18 +432,22 @@ export default function ToDoListPage() {
     switch (sortOrder) {
       case 'dueDateAsc':
         displayItems.sort((a, b) => {
-          if (!a.dueDate && !b.dueDate) return 0;
+          if (!a.dueDate && !b.dueDate) return defaultSortedItems.findIndex(item => item.id === a.id) - defaultSortedItems.findIndex(item => item.id === b.id);
           if (!a.dueDate) return 1; 
-          if (!b.dueDate) return -1; 
-          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+          if (!b.dueDate) return -1;
+          const dateDiff = new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+          if (dateDiff !== 0) return dateDiff;
+          return defaultSortedItems.findIndex(item => item.id === a.id) - defaultSortedItems.findIndex(item => item.id === b.id);
         });
         break;
       case 'dueDateDesc':
         displayItems.sort((a, b) => {
-          if (!a.dueDate && !b.dueDate) return 0;
+          if (!a.dueDate && !b.dueDate) return defaultSortedItems.findIndex(item => item.id === a.id) - defaultSortedItems.findIndex(item => item.id === b.id);
           if (!a.dueDate) return 1;
           if (!b.dueDate) return -1;
-          return new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime();
+          const dateDiff = new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime();
+          if (dateDiff !== 0) return dateDiff;
+          return defaultSortedItems.findIndex(item => item.id === a.id) - defaultSortedItems.findIndex(item => item.id === b.id);
         });
         break;
       case 'alphaAsc':
@@ -457,17 +461,16 @@ export default function ToDoListPage() {
           const aHasDueDate = !!a.dueDate;
           const bHasDueDate = !!b.dueDate;
 
-          if (aHasDueDate && !bHasDueDate) return -1; // a comes first if it has a due date and b doesn't
-          if (!aHasDueDate && bHasDueDate) return 1;  // b comes first if it has a due date and a doesn't
+          if (aHasDueDate && !bHasDueDate) return -1; 
+          if (!aHasDueDate && bHasDueDate) return 1;  
           
-          if (aHasDueDate && bHasDueDate) { // Both have due dates
+          if (aHasDueDate && bHasDueDate) { 
             const dateA = new Date(a.dueDate!).getTime();
             const dateB = new Date(b.dueDate!).getTime();
             if (dateA !== dateB) {
-              return dateA - dateB; // Earlier due date first
+              return dateA - dateB; 
             }
           }
-          // If due dates are the same or neither have due dates, use original index as tie-breaker
           const indexA = defaultSortedItems.findIndex(item => item.id === a.id); 
           const indexB = defaultSortedItems.findIndex(item => item.id === b.id); 
           return indexA - indexB;
@@ -623,8 +626,8 @@ export default function ToDoListPage() {
         const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
         const detectedWakeWord = transcript === WAKE_WORDS.HEGSYNC_BASE.toLowerCase() 
           ? WAKE_WORDS.HEGSYNC_BASE 
-          : transcript === WAKE_WORDS.QUARTERMASTER_BASE.toLowerCase() 
-          ? WAKE_WORDS.QUARTERMASTER_BASE 
+          : transcript === WAKE_WORDS.HEGGLES_BASE.toLowerCase() 
+          ? WAKE_WORDS.HEGGLES_BASE 
           : null;
 
         if (detectedWakeWord) {
@@ -693,7 +696,7 @@ export default function ToDoListPage() {
   };
 
   const taskMicButtonDisabled = taskInputMicPermission === 'unsupported' || taskInputMicPermission === 'denied';
-  const pageWakeWordStatusText = isListeningForPageWakeWord ? "Listening for 'HegSync' or 'Quartermaster'..." : (pageWakeWordMicPermission === 'granted' && pageWakeWordListenerShouldBeActive.current ? "Say 'HegSync' or 'Quartermaster' to activate input" : "Page Wake Word listener off");
+  const pageWakeWordStatusText = isListeningForPageWakeWord ? "Listening for 'HegSync' or 'Heggles'..." : (pageWakeWordMicPermission === 'granted' && pageWakeWordListenerShouldBeActive.current ? "Say 'HegSync' or 'Heggles' to activate input" : "Page Wake Word listener off");
 
 
   return (

@@ -24,7 +24,7 @@ export const LOCALSTORAGE_KEYS = {
 
 export const WAKE_WORDS = {
   HEGSYNC_BASE: "hegsync",
-  QUARTERMASTER_BASE: "quartermaster",
+  HEGGLES_BASE: "heggles", // Changed from QUARTERMASTER_BASE
   RECALL_THOUGHT: "hegsync replay that",
   ADD_TO_SHOPPING_LIST: "hegsync add to my shopping list",
   ADD_TO_TODO_LIST: "hegsync add to my to do list",
@@ -35,12 +35,9 @@ export const WAKE_WORDS = {
   DELETE_ITEM_PREFIX: "hegsync delete",
   FROM_SHOPPING_LIST_TRIGGER: "from my shopping list",
   FROM_TODO_LIST_TRIGGER: "from my to do list",
-  ITEM_NUMBER_KEYWORD: "item number", // Retained, though delete logic will be part of text processing
+  ITEM_NUMBER_PREFIX: "item number ",
   END_DICTATION: "hegsync end",
   STOP_DICTATION: "hegsync stop",
 };
-
-// This is no longer used as live transcription of the 10s snippet will provide the text.
-// export const ACTUAL_RECORDING_SIMULATED_TRANSCRIPTION = "Recorded audio (simulated transcription for AI processing).";
 
 export const RECORDING_DURATION_MS = 10000; // 10 seconds for audio snippet (though this specific flow is changing)
