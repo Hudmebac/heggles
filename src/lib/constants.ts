@@ -23,7 +23,8 @@ export const LOCALSTORAGE_KEYS = {
 };
 
 export const WAKE_WORDS = {
-  HEGSYNC_BASE: "hegsync", // For partial detection and building up commands
+  HEGSYNC_BASE: "hegsync",
+  QUARTERMASTER_BASE: "quartermaster",
   RECALL_THOUGHT: "hegsync replay that",
   ADD_TO_SHOPPING_LIST: "hegsync add to my shopping list",
   SET_BUFFER_TIME: "hegsync set buffer",
@@ -42,3 +43,4 @@ export const SIMULATED_RECALL_SUFFIX = "audio buffer. Key points include discuss
 export const ACTUAL_RECORDING_SIMULATED_TRANSCRIPTION = "[Actual recorded audio snippet was processed. This is a placeholder for real Speech-to-Text output. Content would be summary of what was spoken.]";
 
 export const RECORDING_DURATION_MS = 10000; // 10 seconds for audio snippet
+

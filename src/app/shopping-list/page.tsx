@@ -26,12 +26,11 @@ export default function ShoppingListPage() {
   const [micPermission, setMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
-  // State for page-level "HegSync" wake word detection
-  const [isListeningForPageHegsync, setIsListeningForPageHegsync] = useState(false);
-  const [pageHegsyncMicPermission, setPageHegsyncMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
-  const pageHegsyncRecognitionRef = useRef<SpeechRecognition | null>(null);
-  // This ref helps control the restart behavior of the pageHegsync listener
-  const pageHegsyncListenerShouldBeActive = useRef(true);
+  // State for page-level "HegSync" or "Quartermaster" wake word detection
+  const [isListeningForPageWakeWord, setIsListeningForPageWakeWord] = useState(false);
+  const [pageWakeWordMicPermission, setPageWakeWordMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
+  const pageWakeWordRecognitionRef = useRef<SpeechRecognition | null>(null);
+  const pageWakeWordListenerShouldBeActive = useRef(true);
 
 
   useEffect(() => {
@@ -39,21 +38,20 @@ export default function ShoppingListPage() {
     const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognitionAPI) {
       setMicPermission('unsupported');
-      setPageHegsyncMicPermission('unsupported');
+      setPageWakeWordMicPermission('unsupported');
     } else {
-        // Initial permission check for pageHegsync listener if not already determined
-        if (pageHegsyncMicPermission === 'prompt') {
+        if (pageWakeWordMicPermission === 'prompt') {
             navigator.mediaDevices.getUserMedia({ audio: true })
                 .then(stream => {
                     stream.getTracks().forEach(track => track.stop());
-                    setPageHegsyncMicPermission('granted');
+                    setPageWakeWordMicPermission('granted');
                 })
                 .catch(() => {
-                    setPageHegsyncMicPermission('denied');
+                    setPageWakeWordMicPermission('denied');
                 });
         }
     }
-  }, [pageHegsyncMicPermission]);
+  }, [pageWakeWordMicPermission]);
 
 
   const handleAddItem = (e: FormEvent) => {
@@ -134,7 +132,7 @@ export default function ShoppingListPage() {
     recognition.onend = () => {
       setIsListeningForItemInput(false);
       recognitionRef.current = null;
-      pageHegsyncListenerShouldBeActive.current = true; // Allow page HegSync listener to restart
+      pageWakeWordListenerShouldBeActive.current = true; 
     };
     
     setNewItemText(''); 
@@ -142,7 +140,7 @@ export default function ShoppingListPage() {
   }, [micPermission, toast]);
 
   const triggerItemInputMic = useCallback(async () => {
-    if (isListeningForItemInput) { // If already listening for item, stop it
+    if (isListeningForItemInput) { 
       if (recognitionRef.current?.stop) {
         try { recognitionRef.current.stop(); } catch(e) {/* ignore */}
       }
@@ -174,74 +172,77 @@ export default function ShoppingListPage() {
     }
     
     if (currentPermission === 'granted') {
-      pageHegsyncListenerShouldBeActive.current = false; // Stop page HegSync listener
-      if (pageHegsyncRecognitionRef.current?.stop) {
-         try { pageHegsyncRecognitionRef.current.stop(); } catch(e) {/* ignore */}
+      pageWakeWordListenerShouldBeActive.current = false; 
+      if (pageWakeWordRecognitionRef.current?.stop) {
+         try { pageWakeWordRecognitionRef.current.stop(); } catch(e) {/* ignore */}
       }
       startInputRecognition();
     }
   }, [isListeningForItemInput, micPermission, startInputRecognition, toast]);
 
 
-  // useEffect for page-level "Hegsync" wake word listener
   useEffect(() => {
     const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognitionAPI || pageHegsyncMicPermission !== 'granted' || isListeningForItemInput || !pageHegsyncListenerShouldBeActive.current) {
-      if (pageHegsyncRecognitionRef.current?.stop) {
-        try { pageHegsyncRecognitionRef.current.stop(); } catch(e) {/* ignore */}
+    if (!SpeechRecognitionAPI || pageWakeWordMicPermission !== 'granted' || isListeningForItemInput || !pageWakeWordListenerShouldBeActive.current) {
+      if (pageWakeWordRecognitionRef.current?.stop) {
+        try { pageWakeWordRecognitionRef.current.stop(); } catch(e) {/* ignore */}
       }
       return;
     }
 
-    if (!pageHegsyncRecognitionRef.current) {
+    if (!pageWakeWordRecognitionRef.current) {
       const pageRecognition = new SpeechRecognitionAPI();
-      pageHegsyncRecognitionRef.current = pageRecognition;
+      pageWakeWordRecognitionRef.current = pageRecognition;
       pageRecognition.continuous = true;
       pageRecognition.interimResults = false;
       pageRecognition.lang = 'en-US';
 
-      pageRecognition.onstart = () => setIsListeningForPageHegsync(true);
+      pageRecognition.onstart = () => setIsListeningForPageWakeWord(true);
       pageRecognition.onresult = (event: SpeechRecognitionEvent) => {
         const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
-        if (transcript === WAKE_WORDS.HEGSYNC_BASE.toLowerCase()) {
-          toast({ title: `'${WAKE_WORDS.HEGSYNC_BASE}' Detected`, description: "Activating item input microphone..." });
-          pageHegsyncListenerShouldBeActive.current = false; // Prevent auto-restart before item input
-          pageHegsyncRecognitionRef.current?.stop(); // Stop this listener
-          triggerItemInputMic(); // Activate the item input mic
+        const detectedWakeWord = transcript === WAKE_WORDS.HEGSYNC_BASE.toLowerCase() 
+          ? WAKE_WORDS.HEGSYNC_BASE 
+          : transcript === WAKE_WORDS.QUARTERMASTER_BASE.toLowerCase() 
+          ? WAKE_WORDS.QUARTERMASTER_BASE 
+          : null;
+
+        if (detectedWakeWord) {
+          toast({ title: `'${detectedWakeWord.charAt(0).toUpperCase() + detectedWakeWord.slice(1)}' Detected`, description: "Activating item input microphone..." });
+          pageWakeWordListenerShouldBeActive.current = false; 
+          pageWakeWordRecognitionRef.current?.stop(); 
+          triggerItemInputMic(); 
         }
       };
       pageRecognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-        console.warn('Page Hegsync recognition error:', event.error, event.message);
+        console.warn('Page Wake Word recognition error:', event.error, event.message);
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-            setPageHegsyncMicPermission('denied'); // Update permission state
+            setPageWakeWordMicPermission('denied'); 
         }
-        setIsListeningForPageHegsync(false);
-        pageHegsyncRecognitionRef.current = null;
+        setIsListeningForPageWakeWord(false);
+        pageWakeWordRecognitionRef.current = null;
       };
       pageRecognition.onend = () => {
-        setIsListeningForPageHegsync(false);
-        pageHegsyncRecognitionRef.current = null;
-        // The listener will be restarted by this effect if pageHegsyncListenerShouldBeActive.current is true
-        // and other conditions (like isListeningForItemInput being false) are met.
+        setIsListeningForPageWakeWord(false);
+        pageWakeWordRecognitionRef.current = null;
       };
       
       try {
-        if (pageHegsyncListenerShouldBeActive.current) pageRecognition.start();
+        if (pageWakeWordListenerShouldBeActive.current) pageRecognition.start();
       } catch (e) {
-        console.error("Failed to start page Hegsync recognition:", e);
-        setIsListeningForPageHegsync(false);
-        pageHegsyncRecognitionRef.current = null;
+        console.error("Failed to start page Wake Word recognition:", e);
+        setIsListeningForPageWakeWord(false);
+        pageWakeWordRecognitionRef.current = null;
       }
     }
     
     return () => {
-      if (pageHegsyncRecognitionRef.current?.stop) {
-         try { pageHegsyncRecognitionRef.current.stop(); } catch(e) {/* ignore */}
+      if (pageWakeWordRecognitionRef.current?.stop) {
+         try { pageWakeWordRecognitionRef.current.stop(); } catch(e) {/* ignore */}
       }
-      pageHegsyncRecognitionRef.current = null;
-      setIsListeningForPageHegsync(false);
+      pageWakeWordRecognitionRef.current = null;
+      setIsListeningForPageWakeWord(false);
     };
-  }, [pageHegsyncMicPermission, isListeningForItemInput, triggerItemInputMic, toast]);
+  }, [pageWakeWordMicPermission, isListeningForItemInput, triggerItemInputMic, toast]);
 
 
   if (!isClient) {
@@ -253,7 +254,7 @@ export default function ShoppingListPage() {
   }
 
   const micButtonDisabled = micPermission === 'unsupported' || micPermission === 'denied';
-  const pageHegsyncStatusText = isListeningForPageHegsync ? "Listening for 'HegSync'..." : (pageHegsyncMicPermission === 'granted' ? "Say 'HegSync' to activate input" : "Page 'HegSync' listener off");
+  const pageWakeWordStatusText = isListeningForPageWakeWord ? "Listening for 'HegSync' or 'Quartermaster'..." : (pageWakeWordMicPermission === 'granted' ? "Say 'HegSync' or 'Quartermaster' to activate input" : "Page Wake Word listener off");
 
   return (
     <div className="space-y-8 max-w-2xl mx-auto">
@@ -262,7 +263,7 @@ export default function ShoppingListPage() {
             <ListChecks className="h-10 w-10 text-primary" />
             <h1 className="text-3xl font-bold tracking-tight">Shopping List</h1>
         </div>
-        <p className="text-sm text-muted-foreground mt-2 sm:mt-0">{pageHegsyncMicPermission === 'granted' && !isListeningForItemInput ? pageHegsyncStatusText : ""}</p>
+        <p className="text-sm text-muted-foreground mt-2 sm:mt-0">{pageWakeWordMicPermission === 'granted' && !isListeningForItemInput ? pageWakeWordStatusText : ""}</p>
       </div>
 
       <Card className="shadow-lg">
@@ -375,6 +376,3 @@ export default function ShoppingListPage() {
     </div>
   );
 }
-
-
-    

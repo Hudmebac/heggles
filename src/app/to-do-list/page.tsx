@@ -81,11 +81,11 @@ export default function ToDoListPage() {
   const [taskInputMicPermission, setTaskInputMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
   const recognitionTaskRef = useRef<SpeechRecognition | null>(null);
 
-  // State for page-level "Hegsync" wake word detection
-  const [isListeningForPageHegsync, setIsListeningForPageHegsync] = useState(false);
-  const [pageHegsyncMicPermission, setPageHegsyncMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
-  const pageHegsyncRecognitionRef = useRef<SpeechRecognition | null>(null);
-  const pageHegsyncListenerShouldBeActive = useRef(true);
+  // State for page-level "HegSync" or "Quartermaster" wake word detection
+  const [isListeningForPageWakeWord, setIsListeningForPageWakeWord] = useState(false);
+  const [pageWakeWordMicPermission, setPageWakeWordMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
+  const pageWakeWordRecognitionRef = useRef<SpeechRecognition | null>(null);
+  const pageWakeWordListenerShouldBeActive = useRef(true);
 
 
   useEffect(() => {
@@ -93,20 +93,19 @@ export default function ToDoListPage() {
     const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognitionAPI) {
       setTaskInputMicPermission('unsupported');
-      setPageHegsyncMicPermission('unsupported');
+      setPageWakeWordMicPermission('unsupported');
     } else {
-        if (pageHegsyncMicPermission === 'prompt') {
+        if (pageWakeWordMicPermission === 'prompt') {
              navigator.mediaDevices.getUserMedia({ audio: true })
                 .then(stream => {
                     stream.getTracks().forEach(track => track.stop());
-                    setPageHegsyncMicPermission('granted');
+                    setPageWakeWordMicPermission('granted');
                 })
                 .catch(() => {
-                    setPageHegsyncMicPermission('denied');
+                    setPageWakeWordMicPermission('denied');
                 });
         }
     }
-     // Cleanup function for task input recognition
     return () => {
       if (recognitionTaskRef.current) {
         recognitionTaskRef.current.onstart = null;
@@ -119,7 +118,7 @@ export default function ToDoListPage() {
         recognitionTaskRef.current = null;
       }
     };
-  }, [pageHegsyncMicPermission]);
+  }, [pageWakeWordMicPermission]);
 
   const handleAddItem = (e: FormEvent) => {
     e.preventDefault();
@@ -184,8 +183,8 @@ export default function ToDoListPage() {
     if (!item || item.completed) return;
     setEditingTimeItemId(itemId);
     setCurrentEditorTimeSettingType(item.timeSettingType || 'not_set');
-    setCurrentEditorStartTime(item.startTime ? {...item.startTime} : null); // Ensure new object
-    setCurrentEditorEndTime(item.endTime ? {...item.endTime} : null);     // Ensure new object
+    setCurrentEditorStartTime(item.startTime ? {...item.startTime} : null); 
+    setCurrentEditorEndTime(item.endTime ? {...item.endTime} : null);     
     setCurrentEditorDueDate(item.dueDate ? parseISO(item.dueDate) : undefined);
     setEditingItemId(null);
   };
@@ -439,14 +438,13 @@ export default function ToDoListPage() {
               return dateA - dateB;
             }
           }
-          const indexA = items.findIndex(item => item.id === a.id); // Use original items for index
-          const indexB = items.findIndex(item => item.id === b.id); // Use original items for index
+          const indexA = items.findIndex(item => item.id === a.id); 
+          const indexB = items.findIndex(item => item.id === b.id); 
           return indexA - indexB;
         });
         break;
       case 'default':
       default:
-        // No sort, uses original items array order
         break;
     }
     return displayItems;
@@ -486,7 +484,7 @@ export default function ToDoListPage() {
     recognition.onend = () => {
       setIsListeningForTaskInput(false);
       recognitionTaskRef.current = null;
-      pageHegsyncListenerShouldBeActive.current = true; // Allow page HegSync listener to restart
+      pageWakeWordListenerShouldBeActive.current = true; 
     };
     
     setNewItemText('');
@@ -527,71 +525,76 @@ export default function ToDoListPage() {
     }
     
     if (currentPermission === 'granted') {
-      pageHegsyncListenerShouldBeActive.current = false; // Stop page HegSync listener
-      if (pageHegsyncRecognitionRef.current?.stop) {
-         try { pageHegsyncRecognitionRef.current.stop(); } catch(e) {/* ignore */}
+      pageWakeWordListenerShouldBeActive.current = false; 
+      if (pageWakeWordRecognitionRef.current?.stop) {
+         try { pageWakeWordRecognitionRef.current.stop(); } catch(e) {/* ignore */}
       }
       startTaskInputRecognition();
     }
   }, [isListeningForTaskInput, taskInputMicPermission, startTaskInputRecognition, toast]);
 
-  // useEffect for page-level "Hegsync" wake word listener
   useEffect(() => {
     const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognitionAPI || pageHegsyncMicPermission !== 'granted' || isListeningForTaskInput || !pageHegsyncListenerShouldBeActive.current) {
-      if (pageHegsyncRecognitionRef.current?.stop) {
-        try { pageHegsyncRecognitionRef.current.stop(); } catch(e) {/* ignore */}
+    if (!SpeechRecognitionAPI || pageWakeWordMicPermission !== 'granted' || isListeningForTaskInput || !pageWakeWordListenerShouldBeActive.current) {
+      if (pageWakeWordRecognitionRef.current?.stop) {
+        try { pageWakeWordRecognitionRef.current.stop(); } catch(e) {/* ignore */}
       }
       return;
     }
 
-    if (!pageHegsyncRecognitionRef.current) {
+    if (!pageWakeWordRecognitionRef.current) {
       const pageRecognition = new SpeechRecognitionAPI();
-      pageHegsyncRecognitionRef.current = pageRecognition;
+      pageWakeWordRecognitionRef.current = pageRecognition;
       pageRecognition.continuous = true;
       pageRecognition.interimResults = false;
       pageRecognition.lang = 'en-US';
 
-      pageRecognition.onstart = () => setIsListeningForPageHegsync(true);
+      pageRecognition.onstart = () => setIsListeningForPageWakeWord(true);
       pageRecognition.onresult = (event: SpeechRecognitionEvent) => {
         const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
-        if (transcript === WAKE_WORDS.HEGSYNC_BASE.toLowerCase()) {
-          toast({ title: `'${WAKE_WORDS.HEGSYNC_BASE}' Detected`, description: "Activating task input microphone..." });
-          pageHegsyncListenerShouldBeActive.current = false;
-          pageHegsyncRecognitionRef.current?.stop();
+        const detectedWakeWord = transcript === WAKE_WORDS.HEGSYNC_BASE.toLowerCase() 
+          ? WAKE_WORDS.HEGSYNC_BASE 
+          : transcript === WAKE_WORDS.QUARTERMASTER_BASE.toLowerCase() 
+          ? WAKE_WORDS.QUARTERMASTER_BASE 
+          : null;
+
+        if (detectedWakeWord) {
+          toast({ title: `'${detectedWakeWord.charAt(0).toUpperCase() + detectedWakeWord.slice(1)}' Detected`, description: "Activating task input microphone..." });
+          pageWakeWordListenerShouldBeActive.current = false;
+          pageWakeWordRecognitionRef.current?.stop();
           triggerTaskInputMic();
         }
       };
       pageRecognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-        console.warn('Page Hegsync recognition error:', event.error, event.message);
+        console.warn('Page Wake Word recognition error:', event.error, event.message);
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-            setPageHegsyncMicPermission('denied');
+            setPageWakeWordMicPermission('denied');
         }
-        setIsListeningForPageHegsync(false);
-        pageHegsyncRecognitionRef.current = null;
+        setIsListeningForPageWakeWord(false);
+        pageWakeWordRecognitionRef.current = null;
       };
       pageRecognition.onend = () => {
-        setIsListeningForPageHegsync(false);
-        pageHegsyncRecognitionRef.current = null;
+        setIsListeningForPageWakeWord(false);
+        pageWakeWordRecognitionRef.current = null;
       };
       
       try {
-        if (pageHegsyncListenerShouldBeActive.current) pageRecognition.start();
+        if (pageWakeWordListenerShouldBeActive.current) pageRecognition.start();
       } catch (e) {
-        console.error("Failed to start page Hegsync recognition:", e);
-        setIsListeningForPageHegsync(false);
-        pageHegsyncRecognitionRef.current = null;
+        console.error("Failed to start page Wake Word recognition:", e);
+        setIsListeningForPageWakeWord(false);
+        pageWakeWordRecognitionRef.current = null;
       }
     }
     
     return () => {
-      if (pageHegsyncRecognitionRef.current?.stop) {
-         try { pageHegsyncRecognitionRef.current.stop(); } catch(e) {/* ignore */}
+      if (pageWakeWordRecognitionRef.current?.stop) {
+         try { pageWakeWordRecognitionRef.current.stop(); } catch(e) {/* ignore */}
       }
-      pageHegsyncRecognitionRef.current = null;
-      setIsListeningForPageHegsync(false);
+      pageWakeWordRecognitionRef.current = null;
+      setIsListeningForPageWakeWord(false);
     };
-  }, [pageHegsyncMicPermission, isListeningForTaskInput, triggerTaskInputMic, toast]);
+  }, [pageWakeWordMicPermission, isListeningForTaskInput, triggerTaskInputMic, toast]);
 
 
   if (!isClient) {
@@ -617,7 +620,7 @@ export default function ToDoListPage() {
   };
 
   const taskMicButtonDisabled = taskInputMicPermission === 'unsupported' || taskInputMicPermission === 'denied';
-  const pageHegsyncStatusText = isListeningForPageHegsync ? "Listening for 'HegSync'..." : (pageHegsyncMicPermission === 'granted' ? "Say 'HegSync' to activate input" : "Page 'HegSync' listener off");
+  const pageWakeWordStatusText = isListeningForPageWakeWord ? "Listening for 'HegSync' or 'Quartermaster'..." : (pageWakeWordMicPermission === 'granted' ? "Say 'HegSync' or 'Quartermaster' to activate input" : "Page Wake Word listener off");
 
 
   return (
@@ -629,7 +632,7 @@ export default function ToDoListPage() {
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
             <p className="text-xs text-muted-foreground flex-grow sm:flex-grow-0 text-right sm:text-left">
-                {pageHegsyncMicPermission === 'granted' && !isListeningForTaskInput ? pageHegsyncStatusText : ""}
+                {pageWakeWordMicPermission === 'granted' && !isListeningForTaskInput ? pageWakeWordStatusText : ""}
             </p>
             <Select value={sortOrder} onValueChange={setSortOrder}>
                 <SelectTrigger className="w-full sm:w-[200px]" aria-label="Sort tasks by">
@@ -870,5 +873,3 @@ export default function ToDoListPage() {
     </div>
   );
 }
-
-    
