@@ -1,7 +1,7 @@
 
 "use client";
 
-import { Pin, Sparkles, MessageSquareText, Tags, CalendarDays, AlertCircle, Trash2, HelpCircle, CheckCircle } from 'lucide-react';
+import { Pin, Sparkles, MessageSquareText, Tags, CalendarDays, AlertCircle, Trash2, HelpCircle, CheckCircle, Volume2 } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -25,6 +25,24 @@ interface ThoughtCardProps {
 
 export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = false }: ThoughtCardProps) {
   const timeAgo = formatDistanceToNow(new Date(thought.timestamp), { addSuffix: true });
+
+  const handlePlayAnswer = (textToSpeak: string | undefined) => {
+    if (!textToSpeak) return;
+
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel(); // Cancel any ongoing speech
+      const utterance = new SpeechSynthesisUtterance(textToSpeak);
+      // Future: Add options for voice, rate, pitch if needed
+      // utterance.voice = window.speechSynthesis.getVoices()[0]; // Example: set a specific voice
+      // utterance.rate = 1;
+      // utterance.pitch = 1;
+      window.speechSynthesis.speak(utterance);
+    } else {
+      console.warn("Speech synthesis not supported in this browser.");
+      // Optionally, use toast here to inform the user
+      // toast({ title: "Text-to-Speech Not Supported", description: "Your browser does not support playing audio for answers." });
+    }
+  };
 
   return (
     <Card className="shadow-md hover:shadow-lg transition-shadow duration-200 flex flex-col h-full">
@@ -76,8 +94,19 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
         )}
          {thought.intentAnalysis?.isQuestion && thought.intentAnalysis.extractedQuestion && thought.aiAnswer && (
           <div>
-            <h4 className="font-semibold text-sm mb-1 text-green-600 flex items-center">
-              <HelpCircle className="mr-1.5 h-4 w-4"/> AI Answered Question:
+            <h4 className="font-semibold text-sm mb-1 text-green-600 flex items-center justify-between">
+              <span className="flex items-center">
+                <HelpCircle className="mr-1.5 h-4 w-4"/> AI Answered Question:
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handlePlayAnswer(thought.aiAnswer)}
+                title="Play AI Answer"
+                className="h-6 w-6" 
+              >
+                <Volume2 className="h-4 w-4" />
+              </Button>
             </h4>
             <p className="text-sm text-muted-foreground italic p-1">Q: {thought.intentAnalysis.extractedQuestion}</p>
             <p className="text-sm text-green-700 bg-green-50 p-2 rounded-md">{thought.aiAnswer}</p>
