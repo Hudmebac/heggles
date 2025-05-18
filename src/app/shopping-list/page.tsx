@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ListChecks, Trash2, Edit3, PlusCircle, Save, Ban, Mic, MicOff } from 'lucide-react';
+import { ListChecks, Trash2, Edit3, PlusCircle, Save, Ban, Mic, MicOff, FileImport } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { WAKE_WORDS, LOCALSTORAGE_KEYS } from '@/lib/constants';
 import * as XLSX from 'xlsx';
@@ -26,6 +26,9 @@ export default function ShoppingListPage() {
   const [micPermission, setMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const pauseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Ref for the hidden file input
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setIsClient(true);
@@ -89,9 +92,7 @@ export default function ShoppingListPage() {
     setEditingItemText('');
   };
 
-  const handleImportCSV = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const processCSVImport = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -120,14 +121,13 @@ export default function ShoppingListPage() {
         const importedItems: ShoppingListItem[] = lines.slice(1).map(line => {
            const values = line.split(',');
            const textValue = values[textIndex]?.trim() || '';
-           // Handle potential quoted CSV values (basic)
            const cleanedText = textValue.startsWith('"') && textValue.endsWith('"') ? textValue.substring(1, textValue.length - 1).replace(/""/g, '"') : textValue;
            return { 
              id: crypto.randomUUID(), 
              text: cleanedText, 
              completed: values[completedIndex]?.trim().toLowerCase() === 'true' 
            };
-        }).filter(item => item.text !== ''); // Ensure items with empty text after parsing are not added
+        }).filter(item => item.text !== '');
 
         if (importedItems.length === 0) {
             toast({ title: "Import Warning", description: "No valid items could be imported from the CSV. Check data rows.", variant: "default" });
@@ -139,18 +139,12 @@ export default function ShoppingListPage() {
       } catch (error) {
         console.error("CSV Import Error:", error);
         toast({ title: "Import Failed", description: "Could not parse CSV file. Please check the file format and content.", variant: "destructive" });
-      } finally {
-        if (event.target) {
-          event.target.value = ''; // Reset file input
-        }
       }
     };
     reader.readAsText(file);
   };
 
-  const handleImportJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const processJSONImport = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -165,18 +159,12 @@ export default function ShoppingListPage() {
       } catch (error) {
         console.error("JSON Import Error:", error);
         toast({ title: "Import Failed", description: (error as Error).message || "Could not parse JSON file.", variant: "destructive" });
-      } finally {
-         if (event.target) {
-          event.target.value = '';
-        }
       }
     };
     reader.readAsText(file);
   };
 
-  const handleImportExcel = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const processExcelImport = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -193,7 +181,7 @@ export default function ShoppingListPage() {
         
         const importedItems: ShoppingListItem[] = json.map(row => ({
           id: crypto.randomUUID(),
-          text: String(row.text || '').trim(), // Ensure text is string and trimmed
+          text: String(row.text || '').trim(),
           completed: String(row.completed || '').toLowerCase() === 'true',
         })).filter(item => item.text !== '');
 
@@ -206,15 +194,64 @@ export default function ShoppingListPage() {
       } catch (error) {
         console.error("Excel Import Error:", error);
         toast({ title: "Import Failed", description: "Could not process Excel file. Ensure 'text' and 'completed' columns exist.", variant: "destructive" });
-      } finally {
-         if (event.target) {
-          event.target.value = '';
-        }
       }
     };
     reader.readAsBinaryString(file);
   };
 
+  const processTextImport = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result as string;
+        const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+        if (lines.length === 0) {
+          toast({ title: "Import Failed", description: "Text file is empty or contains only whitespace.", variant: "destructive" });
+          return;
+        }
+        const importedItems: ShoppingListItem[] = lines.map(line => ({
+          id: crypto.randomUUID(),
+          text: line.trim(),
+          completed: false,
+        }));
+        setItems(importedItems);
+        toast({ title: "Shopping List Imported", description: `${importedItems.length} items loaded from Text file.` });
+      } catch (error) {
+        console.error("Text File Import Error:", error);
+        toast({ title: "Import Failed", description: "Could not process Text file.", variant: "destructive" });
+      }
+    };
+    reader.readAsText(file);
+  };
+
+
+  const handleFileSelectedForImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      toast({ title: "No file selected", variant: "default" });
+      return;
+    }
+
+    const fileName = file.name.toLowerCase();
+    try {
+      if (fileName.endsWith('.csv')) {
+        processCSVImport(file);
+      } else if (fileName.endsWith('.json')) {
+        processJSONImport(file);
+      } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        processExcelImport(file);
+      } else if (fileName.endsWith('.txt')) {
+        processTextImport(file);
+      } else {
+        toast({ title: "Unsupported File Type", description: "Please select a CSV, JSON, Excel, or TXT file.", variant: "destructive" });
+      }
+    } finally {
+      // Reset file input to allow selecting the same file again
+      if (event.target) {
+        event.target.value = '';
+      }
+    }
+  };
 
   const startInputRecognition = useCallback(() => {
     const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -369,11 +406,24 @@ export default function ShoppingListPage() {
             <ListChecks className="h-10 w-10 text-primary" />
             <h1 className="text-3xl font-bold tracking-tight">Shopping List</h1>
         </div>
+         <Button 
+            variant="outline" 
+            onClick={() => fileInputRef.current?.click()}
+            className="mt-4 sm:mt-0 h-10"
+            aria-label="Import shopping list items"
+          >
+            <FileImport className="mr-2 h-5 w-5" /> Import Items
+          </Button>
       </div>
 
-      <input id="import-shopping-list-csv" type="file" accept=".csv" style={visuallyHiddenStyle} onChange={handleImportCSV} />
-      <input id="import-shopping-list-json" type="file" accept=".json" style={visuallyHiddenStyle} onChange={handleImportJSON} />
-      <input id="import-shopping-list-excel" type="file" accept=".xlsx,.xls" style={visuallyHiddenStyle} onChange={handleImportExcel} />
+      <input
+        id="import-shopping-list-file"
+        ref={fileInputRef}
+        type="file"
+        accept=".csv,.json,.xlsx,.xls,.txt"
+        style={visuallyHiddenStyle}
+        onChange={handleFileSelectedForImport}
+      />
 
 
       <Card className="shadow-lg">
@@ -481,7 +531,7 @@ export default function ShoppingListPage() {
         <div className="text-center py-12">
           <ListChecks className="mx-auto h-16 w-16 text-muted-foreground mb-6 opacity-50" />
           <h3 className="text-2xl font-semibold">Your Shopping List is Empty</h3>
-          <p className="text-muted-foreground mt-2">Add items using the form above to get started.</p>
+          <p className="text-muted-foreground mt-2">Add items using the form above or import a list to get started.</p>
         </div>
       )}
     </div>
