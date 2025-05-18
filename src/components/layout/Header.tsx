@@ -16,7 +16,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { BrainCircuit, ListChecks, ClipboardList, HelpCircle, FileUp, Settings as SettingsIcon } from 'lucide-react';
+import { BrainCircuit, ListChecks, ClipboardList, HelpCircle, FileUp, Settings as SettingsIcon, Radio, Mic } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { LOCALSTORAGE_KEYS } from '@/lib/constants';
 import type { ShoppingListItem, ToDoListItem } from '@/lib/types';
@@ -181,4 +181,3 @@ export function Header() {
     </header>
   );
 }
-
