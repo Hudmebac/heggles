@@ -16,7 +16,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { BrainCircuit, ListChecks, ClipboardList, HelpCircle, FileUp, Settings as SettingsIcon, Radio, Mic } from 'lucide-react';
+import { BrainCircuit, ListChecks, ClipboardList, HelpCircle, FileUp, Settings as SettingsIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { LOCALSTORAGE_KEYS } from '@/lib/constants';
 import type { ShoppingListItem, ToDoListItem } from '@/lib/types';
@@ -168,13 +168,13 @@ export function Header() {
               </DropdownMenuSub>
             </DropdownMenuContent>
           </DropdownMenu>
-
+          
           <Button variant="ghost" asChild>
-            <Link href="/how-to" className="flex items-center px-2 sm:px-3">
-              <HelpCircle className="h-5 w-5 sm:mr-1 md:mr-2" />
-              <span className="hidden sm:inline">How To</span>
-            </Link>
-          </Button>
+             <Link href="/how-to" className="flex items-center px-2 sm:px-3">
+                <HelpCircle className="h-5 w-5 sm:mr-1 md:mr-2" />
+               <span className="hidden sm:inline">How To</span>
+             </Link>
+           </Button>
           <ThemeSwitcher />
         </nav>
       </div>
