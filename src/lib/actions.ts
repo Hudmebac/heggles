@@ -1,3 +1,4 @@
+
 "use server";
 
 import type { Thought, PinnedThought, IntentAnalysisOutput, AnswerQuestionOutput } from "@/lib/types";
@@ -45,15 +46,29 @@ export async function processTextThought(
       aiSuggestedListForCreativeAction: aiAnswerResult?.suggestedListForCreativeAction,
     };
   } catch (error) {
-    console.error("Error processing text thought:", error);
+    console.error("Detailed error in processTextThought:", error); // Enhanced logging
+    // Ensure the error is an instance of Error to access the message property safely
+    const errorMessage = error instanceof Error ? error.message : "Unknown AI processing error";
     return {
         originalText: rawText,
-        summary: "Error during AI processing.",
+        summary: "Error during AI processing.", // This is what the user sees
         keywords: [],
         refinedTranscript: rawText, 
-        actionItems: [`Error: ${(error as Error).message}`], 
-        intentAnalysis: { isQuestion: false, isAction: false },
+        actionItems: [`Error: ${errorMessage}`], 
+        intentAnalysis: { 
+          isQuestion: false, 
+          isAction: false, 
+          extractedQuestion: undefined, 
+          extractedAction: undefined, 
+          suggestedList: undefined 
+        },
         aiAnswer: undefined,
+        isCreativeRequest: false,
+        isDirectionRequest: false,
+        suggestedActionText: undefined,
+        suggestedActionLink: undefined,
+        aiSuggestedActionFromCreative: undefined,
+        aiSuggestedListForCreativeAction: undefined,
     };
   }
 }
@@ -97,15 +112,28 @@ export async function processRecordedAudio(
       aiSuggestedListForCreativeAction: aiAnswerResult?.suggestedListForCreativeAction,
     };
   } catch (error) {
-    console.error("Error processing recorded audio with live transcription:", error);
+    console.error("Detailed error in processRecordedAudio:", error); // Enhanced logging
+    const errorMessage = error instanceof Error ? error.message : "Unknown AI processing error with recorded audio";
     return {
-        originalText: transcription,
+        originalText: transcription, // Or effectiveTranscription
         summary: "Error during AI processing of recorded audio.",
         keywords: [],
-        refinedTranscript: transcription,
-        actionItems: [`Error: ${(error as Error).message}`],
-        intentAnalysis: { isQuestion: false, isAction: false },
+        refinedTranscript: transcription, // Or effectiveTranscription
+        actionItems: [`Error: ${errorMessage}`],
+        intentAnalysis: { 
+          isQuestion: false, 
+          isAction: false, 
+          extractedQuestion: undefined, 
+          extractedAction: undefined, 
+          suggestedList: undefined 
+        },
         aiAnswer: undefined,
+        isCreativeRequest: false,
+        isDirectionRequest: false,
+        suggestedActionText: undefined,
+        suggestedActionLink: undefined,
+        aiSuggestedActionFromCreative: undefined,
+        aiSuggestedListForCreativeAction: undefined,
     };
   }
 }
@@ -124,10 +152,10 @@ export async function pinThoughtAndSuggestCategories(
     };
   } catch (error)
     {
-    console.error("Error pinning thought and suggesting categories:", error);
+    console.error("Detailed error in pinThoughtAndSuggestCategories:", error); // Enhanced logging
     return {
       ...thought,
-      categories: ["Uncategorized"],
+      categories: ["Uncategorized"], // Fallback category
     };
   }
 }
@@ -143,8 +171,12 @@ export async function clarifyThoughtWithAI(
       actionItems: clarificationResult.actionItems,
     };
   } catch (error) {
-    console.error("Error clarifying thought:", error);
-    throw new Error("Failed to clarify thought with AI.");
+    console.error("Detailed error in clarifyThoughtWithAI:", error); // Enhanced logging
+    // Consider what to return here. Throwing might be better if the caller can handle it,
+    // or return a structured error response.
+    const errorMessage = error instanceof Error ? error.message : "Unknown AI clarification error";
+    // For now, let's match the original behavior of throwing, but with better logging.
+    throw new Error(`Failed to clarify thought with AI: ${errorMessage}`);
   }
 }
 
@@ -155,8 +187,18 @@ export async function answerUserQuestion(question: string): Promise<AnswerQuesti
     const result = await answerQuestionFlow({ question });
     return result;
   } catch (error) {
-    console.error("Error answering user question:", error);
-    return { answer: "Sorry, I encountered an error trying to answer the question."};
+    console.error("Detailed error in answerUserQuestion:", error); // Enhanced logging
+    const errorMessage = error instanceof Error ? error.message : "Unknown error answering question";
+    return { 
+      answer: `Sorry, I encountered an error trying to answer the question: ${errorMessage}`,
+      isCreativeRequest: false,
+      isDirectionRequest: false,
+      // Ensure all fields from AnswerQuestionOutputSchema are present
+      suggestedActionText: undefined,
+      suggestedActionLink: undefined,
+      extractedActionFromCreative: undefined,
+      suggestedListForCreativeAction: undefined,
+    };
   }
 }
 
