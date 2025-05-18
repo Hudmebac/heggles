@@ -1,5 +1,5 @@
 
-"use client"; // Required for usePathname and client-side interactions
+"use client"; 
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -16,7 +16,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { BrainCircuit, ListChecks, ClipboardList, HelpCircle, FileUp } from 'lucide-react';
+import { BrainCircuit, ListChecks, ClipboardList, HelpCircle, FileUp, Settings as SettingsIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { LOCALSTORAGE_KEYS } from '@/lib/constants';
 import type { ShoppingListItem, ToDoListItem } from '@/lib/types';
@@ -31,10 +31,7 @@ export function Header() {
   const { toast } = useToast();
   const pathname = usePathname();
 
-  const isShoppingListPage = pathname === '/shopping-list';
-  const isToDoListPage = pathname === '/to-do-list';
-
-  const handleDownloadTemplate = (listType: 'shopping' | 'todo', format: 'csv' | 'excel' | 'json') => {
+  const handleDownloadTemplate = (listType: 'shopping' | 'todo', format: 'csv' | 'excel' | 'json' | 'text') => {
     if (listType === 'shopping') {
       downloadShoppingListTemplate(format);
     } else {
@@ -43,7 +40,7 @@ export function Header() {
     toast({ title: `${listType === 'shopping' ? 'Shopping' : 'To-Do'} List Template Downloaded`, description: `Format: ${format.toUpperCase()}` });
   };
 
-  const handleExport = (listType: 'shopping' | 'todo', format: 'csv' | 'json' | 'excel') => {
+  const handleExport = (listType: 'shopping' | 'todo', format: 'csv' | 'json' | 'excel' | 'text') => {
     const key = listType === 'shopping' ? LOCALSTORAGE_KEYS.SHOPPING_LIST : LOCALSTORAGE_KEYS.TODO_LIST;
     try {
       const itemsString = localStorage.getItem(key);
@@ -71,20 +68,20 @@ export function Header() {
           <BrainCircuit className="h-7 w-7 text-primary" />
           Heggles
         </Link>
-        <nav className="flex items-center gap-1 sm:gap-0.5 md:gap-1">
-          <Button variant="ghost" asChild>
+        <nav className="flex items-center gap-0.5 md:gap-1">
+          <Button variant="ghost" asChild className="px-2 sm:px-3">
             <Link href="/">Dashboard</Link>
           </Button>
-          <Button variant="ghost" asChild>
+          <Button variant="ghost" asChild className="px-2 sm:px-3">
             <Link href="/memory-vault">Memory Vault</Link>
           </Button>
-          <Button variant="ghost" asChild>
+          <Button variant="ghost" asChild className="px-2 sm:px-3">
             <Link href="/shopping-list" className="flex items-center">
               <ListChecks className="h-5 w-5 sm:mr-1 md:mr-2" />
               <span className="hidden sm:inline">Shopping</span>
             </Link>
           </Button>
-          <Button variant="ghost" asChild>
+          <Button variant="ghost" asChild className="px-2 sm:px-3">
             <Link href="/to-do-list" className="flex items-center">
               <ClipboardList className="h-5 w-5 sm:mr-1 md:mr-2" />
               <span className="hidden sm:inline">To-Do</span>
@@ -106,6 +103,7 @@ export function Header() {
                   <DropdownMenuItem onClick={() => handleDownloadTemplate('shopping', 'csv')}>CSV</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleDownloadTemplate('shopping', 'json')}>JSON</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleDownloadTemplate('shopping', 'excel')}>Excel</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleDownloadTemplate('shopping', 'text')}>Text (.txt)</DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
               <DropdownMenuSub>
@@ -114,6 +112,7 @@ export function Header() {
                   <DropdownMenuItem onClick={() => handleExport('shopping', 'csv')}>CSV</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleExport('shopping', 'json')}>JSON</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleExport('shopping', 'excel')}>Excel</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('shopping', 'text')}>Text (.txt)</DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
               
@@ -125,6 +124,7 @@ export function Header() {
                   <DropdownMenuItem onClick={() => handleDownloadTemplate('todo', 'csv')}>CSV</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleDownloadTemplate('todo', 'json')}>JSON</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleDownloadTemplate('todo', 'excel')}>Excel</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleDownloadTemplate('todo', 'text')}>Text (.txt)</DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
               <DropdownMenuSub>
@@ -133,13 +133,14 @@ export function Header() {
                   <DropdownMenuItem onClick={() => handleExport('todo', 'csv')}>CSV</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleExport('todo', 'json')}>JSON</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleExport('todo', 'excel')}>Excel</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('todo', 'text')}>Text (.txt)</DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
             </DropdownMenuContent>
           </DropdownMenu>
           
-          <Button variant="ghost" asChild>
-             <Link href="/how-to" className="flex items-center px-2 sm:px-3">
+           <Button variant="ghost" asChild className="px-2 sm:px-3">
+             <Link href="/how-to" className="flex items-center">
                 <HelpCircle className="h-5 w-5 sm:mr-1 md:mr-2" />
                <span className="hidden sm:inline">How To</span>
              </Link>

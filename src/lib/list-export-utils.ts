@@ -35,7 +35,7 @@ const triggerDownload = (blob: Blob, filename: string) => {
 
 // --- Shopping List Utilities ---
 
-export const downloadShoppingListTemplate = (format: 'csv' | 'excel' | 'json') => {
+export const downloadShoppingListTemplate = (format: 'csv' | 'excel' | 'json' | 'text') => {
   if (format === 'csv') {
     const comments = "# This is a template for importing your shopping list.\n" +
                      "# Each row should represent a shopping list item.\n" +
@@ -74,12 +74,20 @@ export const downloadShoppingListTemplate = (format: 'csv' | 'excel' | 'json') =
     const jsonContent = JSON.stringify(templateData, null, 2);
     const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
     triggerDownload(blob, 'shopping-list_template.json');
+  } else if (format === 'text') {
+    const comments = "# Shopping List Template (Text)\n" +
+                     "# Each line represents one shopping item.\n" +
+                     "# Lines starting with # are comments and will be ignored during import.\n\n";
+    const exampleItems = "Example Item 1\nExample Item 2\n";
+    const textContent = comments + exampleItems;
+    const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8;' });
+    triggerDownload(blob, 'shopping-list_template.txt');
   }
 };
 
-export const exportShoppingList = (items: ShoppingListItem[], format: 'csv' | 'json' | 'excel', listName: string = "shopping-list") => {
+export const exportShoppingList = (items: ShoppingListItem[], format: 'csv' | 'json' | 'excel' | 'text', listName: string = "shopping-list") => {
   if (format === 'json') {
-    const jsonContent = JSON.stringify(items, null, 2);
+    const jsonContent = JSON.stringify(items.map(({id, ...rest}) => rest), null, 2); // Exclude ID for cleaner export
     const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
     triggerDownload(blob, `${listName}.json`);
   } else if (format === 'csv') {
@@ -102,12 +110,37 @@ export const exportShoppingList = (items: ShoppingListItem[], format: 'csv' | 'j
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Shopping List");
     XLSX.writeFile(workbook, `${listName}.xlsx`);
+  } else if (format === 'text') {
+    const textContent = items.map(item => `${item.completed ? '[x] ' : '[ ] '}${item.text}`).join('\n');
+    const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8;' });
+    triggerDownload(blob, `${listName}.txt`);
   }
 };
 
 // --- To-Do List Utilities ---
 
-export const downloadToDoListTemplate = (format: 'csv' | 'excel' | 'json') => {
+const formatToDoItemForTextExport = (item: ToDoListItem): string => {
+  let line = `${item.completed ? '[x]' : '[ ]'} ${item.text}`;
+  if (item.dueDate) {
+    line += ` [Due: ${item.dueDate}]`;
+  }
+  if (item.timeSettingType && item.timeSettingType !== 'not_set') {
+    if (item.timeSettingType === 'all_day') line += ` [All Day]`;
+    else if (item.timeSettingType === 'am_period') line += ` [AM]`;
+    else if (item.timeSettingType === 'pm_period') line += ` [PM]`;
+    else if (item.timeSettingType === 'specific_start' && item.startTime) {
+      line += ` [Starts: ${formatTimePointToStringForExport(item.startTime)}]`;
+    } else if (item.timeSettingType === 'specific_start_end' && item.startTime && item.endTime) {
+      line += ` [Time: ${formatTimePointToStringForExport(item.startTime)} - ${formatTimePointToStringForExport(item.endTime)}]`;
+    } else if (item.timeSettingType === 'specific_start_end' && item.startTime) { // Only start time available for range
+      line += ` [Starts: ${formatTimePointToStringForExport(item.startTime)}]`;
+    }
+  }
+  return line;
+};
+
+
+export const downloadToDoListTemplate = (format: 'csv' | 'excel' | 'json' | 'text') => {
   if (format === 'csv') {
     const csvContent = `text,completed,timeSettingType,startTime,endTime,dueDate
 # This is a CSV template for importing To-Do List items.
@@ -121,9 +154,9 @@ export const downloadToDoListTemplate = (format: 'csv' | 'excel' | 'json') => {
 # dueDate: The due date of the task. Format as "YYYY-MM-DD" (e.g., "2023-10-27"). (Optional)
 #
 # Example Rows:
-# Task 1,false,specific_start,09:00 AM,,2023-11-15
-# Buy groceries,true,not_set,,,
-# Finish report,"false",specific_start_end,"02:00 PM","05:30 PM",2023-10-31
+# "Task 1, with comma",false,specific_start,09:00 AM,,2023-11-15
+# "Buy groceries",true,not_set,,,
+# "Finish report",false,specific_start_end,02:00 PM,05:30 PM,2023-10-31
 `;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     triggerDownload(blob, 'todo-list_template.csv');
@@ -136,14 +169,14 @@ export const downloadToDoListTemplate = (format: 'csv' | 'excel' | 'json') => {
       ["# text: The description of the task (required)."],
       ["# completed: Task completion status. Must be 'true' or 'false'."],
       ["# timeSettingType: The type of time setting. Accepted values: 'not_set', 'all_day', 'am_period', 'pm_period', 'specific_start', 'specific_start_end'. (Optional, default 'not_set')"],
-      ["# startTime: The start time of the task. Format as 'HH:MM AM/PM' (e.g., '09:30 AM', '01:00 PM'). Required if timeSettingType is 'specific_start' or 'specific_start_end'. (Optional)"],
-      ["# endTime: The end time of the task. Format as 'HH:MM AM/PM' (e.g., '11:00 AM', '05:00 PM'). Required if timeSettingType is 'specific_start_end'. (Optional)"],
+      ["# startTime: The start time of the task. Format as 'hh:mm AM/PM' (e.g., '09:30 AM', '01:00 PM'). Required if timeSettingType is 'specific_start' or 'specific_start_end'. (Optional)"],
+      ["# endTime: The end time of the task. Format as 'hh:mm AM/PM' (e.g., '11:00 AM', '05:00 PM'). Required if timeSettingType is 'specific_start_end'. (Optional)"],
       ["# dueDate: The due date of the task. Format as 'YYYY-MM-DD' (e.g., '2023-10-27'). (Optional)"],
       []
     ];
     const header = ["text", "completed", "timeSettingType", "startTime", "endTime", "dueDate"];
     const exampleRows = [
-      ["Task 1", "false", "specific_start", "09:00 AM", "", "2023-11-15"],
+      ["Task 1, with comma", "false", "specific_start", "09:00 AM", "", "2023-11-15"],
       ["Buy groceries", "true", "not_set", "", "", ""],
       ["Finish report", "false", "specific_start_end", "02:00 PM", "05:30 PM", "2023-10-31"]
     ];
@@ -155,18 +188,27 @@ export const downloadToDoListTemplate = (format: 'csv' | 'excel' | 'json') => {
     XLSX.writeFile(workbook, "todo-list_template.xlsx");
   } else if (format === 'json') {
     const templateData: ToDoListItem[] = [
-      { id: "todo-ex-1", text: "Example To-Do 1 (JSON template)", completed: false, timeSettingType: 'specific_start', startTime: { hh: '09', mm: '30', period: 'AM' }, endTime: null, dueDate: "2024-12-01" },
-      { id: "todo-ex-2", text: "Example To-Do 2 (JSON template)", completed: true, timeSettingType: 'all_day', startTime: null, endTime: null, dueDate: "2024-11-15" },
+      { id: "todo-ex-1", text: "Example To-Do 1 (from JSON template)", completed: false, timeSettingType: 'specific_start', startTime: { hh: '09', mm: '30', period: 'AM' }, endTime: null, dueDate: "2024-12-01" },
+      { id: "todo-ex-2", text: "Example To-Do 2 (from JSON template)", completed: true, timeSettingType: 'all_day', startTime: null, endTime: null, dueDate: "2024-11-15" },
     ];
     const jsonContent = JSON.stringify(templateData, null, 2);
     const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
     triggerDownload(blob, 'todo-list_template.json');
+  } else if (format === 'text') {
+    const comments = "# To-Do List Template (Text)\n" +
+                     "# Each line represents one task.\n" +
+                     "# For import, only the task description is read. Completion, dates, and times are not imported from .txt files.\n" +
+                     "# Lines starting with # are comments.\n\n";
+    const exampleItems = "Example Task 1\nExample Task 2 [Due: 2024-12-31]\n";
+    const textContent = comments + exampleItems;
+    const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8;' });
+    triggerDownload(blob, 'todo-list_template.txt');
   }
 };
 
-export const exportToDoList = (items: ToDoListItem[], format: 'csv' | 'json' | 'excel', listName: string = "todo-list") => {
+export const exportToDoList = (items: ToDoListItem[], format: 'csv' | 'json' | 'excel' | 'text', listName: string = "todo-list") => {
   if (format === 'json') {
-    const jsonContent = JSON.stringify(items, null, 2);
+    const jsonContent = JSON.stringify(items.map(({id, ...rest}) => rest), null, 2); // Exclude ID for cleaner export
     const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
     triggerDownload(blob, `${listName}.json`);
   } else if (format === 'csv') {
@@ -197,5 +239,9 @@ export const exportToDoList = (items: ToDoListItem[], format: 'csv' | 'json' | '
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "To-Do List");
     XLSX.writeFile(workbook, `${listName}.xlsx`);
+  } else if (format === 'text') {
+    const textContent = items.map(item => formatToDoItemForTextExport(item)).join('\n');
+    const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8;' });
+    triggerDownload(blob, `${listName}.txt`);
   }
 };
