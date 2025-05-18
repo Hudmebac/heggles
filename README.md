@@ -1,7 +1,7 @@
 
 # Heggles - AI Thoughtstream Companion
 
-Heggles is an intelligent tool designed to help you capture, organize, and recall your thoughts effortlessly. Leveraging the power of AI, it goes beyond simple note-taking to provide a comprehensive system for managing your internal monologue and external observations.
+Heggles is an intelligent tool designed to help you capture, organise, and recall your thoughts effortlessly. Leveraging the power of AI, it goes beyond simple note-taking to provide a comprehensive system for managing your internal monologue and external observations.
 
 ## Features
 
