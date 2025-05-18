@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ListChecks, Trash2, Edit3, PlusCircle, Save, Ban, Mic, MicOff, FileImport } from 'lucide-react';
+import { ListChecks, Trash2, Edit3, PlusCircle, Save, Ban, Mic, MicOff, Import } from 'lucide-react'; // Changed FileImport to Import
 import { useToast } from '@/hooks/use-toast';
 import { WAKE_WORDS, LOCALSTORAGE_KEYS } from '@/lib/constants';
 import * as XLSX from 'xlsx';
@@ -121,13 +121,14 @@ export default function ShoppingListPage() {
         const importedItems: ShoppingListItem[] = lines.slice(1).map(line => {
            const values = line.split(',');
            const textValue = values[textIndex]?.trim() || '';
+           // Basic handling for quoted strings: remove surrounding quotes and unescape double quotes
            const cleanedText = textValue.startsWith('"') && textValue.endsWith('"') ? textValue.substring(1, textValue.length - 1).replace(/""/g, '"') : textValue;
            return { 
              id: crypto.randomUUID(), 
              text: cleanedText, 
              completed: values[completedIndex]?.trim().toLowerCase() === 'true' 
            };
-        }).filter(item => item.text !== '');
+        }).filter(item => item.text !== ''); // Ensure imported items have text
 
         if (importedItems.length === 0) {
             toast({ title: "Import Warning", description: "No valid items could be imported from the CSV. Check data rows.", variant: "default" });
@@ -150,6 +151,7 @@ export default function ShoppingListPage() {
       try {
         const jsonText = e.target?.result as string;
         const imported: ShoppingListItem[] = JSON.parse(jsonText);
+        // Validate basic structure
         if (!Array.isArray(imported) || imported.some(item => typeof item.text !== 'string' || typeof item.completed !== 'boolean')) {
           throw new Error("Invalid JSON structure. Expected an array of objects with 'text' (string) and 'completed' (boolean) properties.");
         }
@@ -183,7 +185,7 @@ export default function ShoppingListPage() {
           id: crypto.randomUUID(),
           text: String(row.text || '').trim(),
           completed: String(row.completed || '').toLowerCase() === 'true',
-        })).filter(item => item.text !== '');
+        })).filter(item => item.text !== ''); // Ensure imported items have text
 
         if (importedItems.length === 0) {
             toast({ title: "Import Warning", description: "No valid items with text found in Excel. Ensure 'text' and 'completed' columns exist.", variant: "default" });
@@ -204,7 +206,7 @@ export default function ShoppingListPage() {
     reader.onload = (e) => {
       try {
         const text = e.target?.result as string;
-        const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+        const lines = text.split(/\r?\n/).filter(line => line.trim() !== ''); // Split by new lines and remove empty ones
         if (lines.length === 0) {
           toast({ title: "Import Failed", description: "Text file is empty or contains only whitespace.", variant: "destructive" });
           return;
@@ -412,7 +414,7 @@ export default function ShoppingListPage() {
             className="mt-4 sm:mt-0 h-10"
             aria-label="Import shopping list items"
           >
-            <FileImport className="mr-2 h-5 w-5" /> Import Items
+            <Import className="mr-2 h-5 w-5" /> Import Items
           </Button>
       </div>
 
@@ -537,3 +539,5 @@ export default function ShoppingListPage() {
     </div>
   );
 }
+
+    
