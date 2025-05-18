@@ -5,7 +5,7 @@ import { useState, useEffect, FormEvent, useRef, useCallback } from 'react';
 import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
 import type { ShoppingListItem } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input'; // Still used for the visible input field
+import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ListChecks, Trash2, Edit3, PlusCircle, Save, Ban, Mic, MicOff } from 'lucide-react';
@@ -34,12 +34,13 @@ export default function ShoppingListPage() {
       setMicPermission('unsupported');
     }
     return () => {
-      if (recognitionRef.current && recognitionRef.current.stop) {
-        try { recognitionRef.current.stop(); } catch (e) { /* ignore */ }
+      if (recognitionRef.current && (recognitionRef.current as any).stop) { // Type assertion for safety
+        try { (recognitionRef.current as any).stop(); } catch (e) { /* ignore */ }
       }
       if (pauseTimeoutRef.current) {
         clearTimeout(pauseTimeoutRef.current);
       }
+      recognitionRef.current = null;
     };
   }, []);
 
@@ -98,16 +99,24 @@ export default function ShoppingListPage() {
         const lines = csvText.split(/[\\r\\n]+/).filter(line => line.trim() !== '' && !line.startsWith('#'));
         if (lines.length === 0) {
            toast({ title: "Import Failed", description: "File is empty.", variant: "destructive" });
+           event.target.value = '';
            return;
         }
-        const headerRow = lines[0].split(',');
-        const textIndex = headerRow.findIndex(h => h.trim().toLowerCase() === 'text');
-        const completedIndex = headerRow.findIndex(h => h.trim().toLowerCase() === 'completed');
+        // More robust header check
+        const headerRowText = lines[0].toLowerCase();
+        const hasTextHeader = headerRowText.includes('text');
+        const hasCompletedHeader = headerRowText.includes('completed');
 
-        if (textIndex === -1 || completedIndex === -1) {
-          toast({ title: "Import Failed", description: "CSV must contain 'text' and 'completed' columns.", variant: "destructive" });
-           return;
+        if (!hasTextHeader || !hasCompletedHeader) {
+          toast({ title: "Import Failed", description: "CSV must contain 'text' and 'completed' columns (case-insensitive).", variant: "destructive" });
+          event.target.value = '';
+          return;
         }
+        // Find actual indices
+        const headerRow = lines[0].split(',').map(h => h.trim().toLowerCase());
+        const textIndex = headerRow.indexOf('text');
+        const completedIndex = headerRow.indexOf('completed');
+
         const importedItems: ShoppingListItem[] = lines.slice(1).map(line => {
            const values = line.split(',');
            return { id: crypto.randomUUID(), text: values[textIndex]?.trim() || '', completed: values[completedIndex]?.trim().toLowerCase() === 'true' };
@@ -116,10 +125,11 @@ export default function ShoppingListPage() {
         toast({ title: "Shopping List Imported", description: `${importedItems.length} items loaded from CSV.` });
       } catch (error) {
         toast({ title: "Import Failed", description: "Could not parse CSV file.", variant: "destructive" });
+      } finally {
+        event.target.value = ''; 
       }
     };
     reader.readAsText(file);
-    event.target.value = ''; // Reset file input
   };
   
   const handleImportJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -133,16 +143,16 @@ export default function ShoppingListPage() {
         if (!Array.isArray(imported) || imported.some(item => typeof item.text !== 'string' || typeof item.completed !== 'boolean')) {
           throw new Error("Invalid JSON structure.");
         }
-        // Assign new IDs to avoid conflicts if importing existing items
         const newItems = imported.map(item => ({...item, id: crypto.randomUUID() }));
         setItems(newItems);
         toast({ title: "Shopping List Imported", description: `${newItems.length} items loaded from JSON.` });
       } catch (error) {
         toast({ title: "Import Failed", description: "Could not parse JSON file. Ensure it's a valid array of shopping list items.", variant: "destructive" });
+      } finally {
+        event.target.value = '';
       }
     };
     reader.readAsText(file);
-    event.target.value = ''; // Reset file input
   };
 
   const handleImportExcel = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -167,10 +177,11 @@ export default function ShoppingListPage() {
         toast({ title: "Shopping List Imported", description: `${importedItems.length} items loaded from Excel.` });
       } catch (error) {
         toast({ title: "Import Failed", description: "Could not process Excel file.", variant: "destructive" });
+      } finally {
+        event.target.value = '';
       }
     };
     reader.readAsBinaryString(file);
-    event.target.value = ''; // Reset file input
   };
 
 
@@ -178,8 +189,8 @@ export default function ShoppingListPage() {
     const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognitionAPI || micPermission !== 'granted') return;
 
-    if (recognitionRef.current && recognitionRef.current.stop) {
-      try { recognitionRef.current.stop(); } catch(e) { /* ignore */ }
+    if (recognitionRef.current && (recognitionRef.current as any).stop) {
+      try { (recognitionRef.current as any).stop(); } catch(e) { /* ignore */ }
     }
     if (pauseTimeoutRef.current) {
       clearTimeout(pauseTimeoutRef.current);
@@ -209,13 +220,13 @@ export default function ShoppingListPage() {
         transcript = transcript.substring(0, transcript.length - endCommand.length).trim();
         setNewItemText(transcript);
         if (recognitionRef.current) {
-          try { recognitionRef.current.stop(); } catch(e) { /* ignore */ }
+          try { (recognitionRef.current as any).stop(); } catch(e) { /* ignore */ }
         }
       } else {
         setNewItemText(transcript);
         pauseTimeoutRef.current = setTimeout(() => {
           if (recognitionRef.current) {
-            try { recognitionRef.current.stop(); } catch(e) { /* ignore */ }
+            try { (recognitionRef.current as any).stop(); } catch(e) { /* ignore */ }
           }
         }, 2000);
       }
@@ -225,7 +236,7 @@ export default function ShoppingListPage() {
         clearTimeout(pauseTimeoutRef.current);
       }
       if (event.error === 'aborted') {
-        console.info('Shopping list item input speech recognition aborted:', event.message);
+        console.info('Shopping list item input speech recognition aborted (intentional stop).');
       } else if (event.error === 'no-speech') {
         if (isListeningForItemInput) {
           // toast({ title: "No speech detected", variant: "default" }); // Potentially too noisy
@@ -250,14 +261,14 @@ export default function ShoppingListPage() {
 
     setNewItemText('');
     recognition.start();
-  }, [micPermission, toast, isListeningForItemInput]);
+  }, [micPermission, toast, isListeningForItemInput, setNewItemText]);
 
   const triggerItemInputMic = useCallback(async () => {
     if (isListeningForItemInput) {
       if (recognitionRef.current?.stop) {
-        try { recognitionRef.current.stop(); } catch(e) {/* ignore */}
+        try { (recognitionRef.current as any).stop(); } catch(e) {/* ignore */}
       }
-      if (pauseTimeoutRef.current) {
+       if (pauseTimeoutRef.current) {
         clearTimeout(pauseTimeoutRef.current);
       }
       setIsListeningForItemInput(false);
@@ -335,7 +346,7 @@ export default function ShoppingListPage() {
             <Button
               type="button"
               variant="outline"
-              size="lg"
+              size="icon" 
               className="p-2 h-10 w-10" 
               onClick={triggerItemInputMic}
               disabled={micButtonDisabled && micPermission !== 'prompt'}
@@ -429,3 +440,5 @@ export default function ShoppingListPage() {
     </div>
   );
 }
+
+    
