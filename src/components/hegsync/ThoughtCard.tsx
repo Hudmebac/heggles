@@ -198,3 +198,4 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
     </Card>
   );
 }
+
