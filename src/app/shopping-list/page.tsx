@@ -273,10 +273,10 @@ export default function ShoppingListPage() {
         clearTimeout(pauseTimeoutRef.current);
       }
       if (event.error === 'aborted') {
-        // console.info('Shopping list item input speech recognition aborted (intentional stop).');
+        console.info('Shopping list item input speech recognition aborted.');
       } else if (event.error === 'no-speech') {
         if (isListeningForItemInput) {
-          // toast({ title: "No speech detected", variant: "default" }); // Potentially too noisy
+           // toast({ title: "No speech detected", variant: "default" }); // Potentially too noisy
         }
       } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         console.error('Shopping list item input speech recognition error:', event.error, event.message);
@@ -487,6 +487,3 @@ export default function ShoppingListPage() {
     </div>
   );
 }
-
-
-    

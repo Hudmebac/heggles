@@ -16,7 +16,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { BrainCircuit, ListChecks, ClipboardList, HelpCircle, FileUp, Settings as SettingsIcon } from 'lucide-react';
+import { BrainCircuit, ListChecks, ClipboardList, HelpCircle, FileUp } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { LOCALSTORAGE_KEYS } from '@/lib/constants';
 import type { ShoppingListItem, ToDoListItem } from '@/lib/types';
@@ -66,7 +66,10 @@ export function Header() {
 
   const handleImport = (listType: 'shopping' | 'todo', format: 'csv' | 'json' | 'excel') => {
     const targetPage = listType === 'shopping' ? '/shopping-list' : '/to-do-list';
+    console.log(`[Header] handleImport: listType=${listType}, format=${format}, current pathname=${pathname}, targetPage=${targetPage}`);
+
     if (pathname !== targetPage) {
+      console.warn(`[Header] Import trigger attempted for ${listType} list from incorrect page: ${pathname}. Required: ${targetPage}`);
       toast({
         title: "Navigation Required",
         description: `Please navigate to the ${listType === 'shopping' ? 'Shopping List' : 'To-Do List'} page to import.`,
@@ -74,15 +77,28 @@ export function Header() {
       });
       return;
     }
-    // Construct the ID for the hidden file input element
+    
     const inputId = `import-${listType}-list-${format}`;
-    const fileInput = document.getElementById(inputId);
-    if (fileInput) {
-      fileInput.click();
-    } else {
-      console.error(`File input element with ID '${inputId}' not found.`);
-      toast({ title: "Import Error", description: "Could not initiate file selection.", variant: "destructive"});
-    }
+    console.log(`[Header] Constructed inputId: ${inputId}`);
+    
+    // Attempt to click after a very short delay to ensure DOM is ready
+    setTimeout(() => {
+        const fileInput = document.getElementById(inputId);
+        console.log(`[Header] Attempting to find element with ID: ${inputId}. Found:`, fileInput);
+        
+        if (fileInput) {
+          try {
+            fileInput.click();
+            console.log(`[Header] Successfully called click() on element ID: ${inputId}`);
+          } catch (e) {
+            console.error(`[Header] Error calling click() on element ID ${inputId}:`, e);
+            toast({ title: "Import Click Error", description: `Failed to trigger file dialog. Error: ${(e as Error).message}`, variant: "destructive"});
+          }
+        } else {
+          console.error(`[Header] File input element with ID '${inputId}' not found on page ${pathname}.`);
+          toast({ title: "Import Error", description: `File input element for import was not found on the page. Please ensure you are on the correct list page. Expected ID: ${inputId}`, variant: "destructive"});
+        }
+    }, 0); // A timeout of 0 ms defers execution slightly
   };
 
 

@@ -443,7 +443,7 @@ export default function ToDoListPage() {
         console.error("CSV Import error:", error);
         toast({ title: "Import Failed", description: "Could not process CSV file. Please check the format.", variant: "destructive" });
       } finally {
-        event.target.value = ''; // Reset file input
+        if (event.target) event.target.value = ''; // Reset file input
       }
     };
     reader.readAsText(file);
@@ -479,7 +479,7 @@ export default function ToDoListPage() {
       } catch (error) {
         toast({ title: "Import Failed", description: "Could not parse JSON file. Please check the file content.", variant: "destructive" });
       } finally {
-        event.target.value = ''; // Reset file input
+        if (event.target) event.target.value = ''; // Reset file input
       }
     };
     reader.readAsText(file);
@@ -598,7 +598,7 @@ export default function ToDoListPage() {
          console.error("Excel import error:", error);
          toast({ title: "Import Failed", description: "Could not process Excel file. Please check the format and ensure column names (text, completed, etc.) are correct.", variant: "destructive" });
       } finally {
-        event.target.value = ''; // Reset file input
+        if (event.target) event.target.value = ''; // Reset file input
       }
     };
     reader.readAsBinaryString(file);
@@ -718,7 +718,7 @@ export default function ToDoListPage() {
         clearTimeout(pauseTaskTimeoutRef.current);
       }
       if (event.error === 'aborted') {
-        console.info('Task input speech recognition aborted:', event.message);
+        console.info('Task input speech recognition aborted.');
       } else if (event.error === 'no-speech') {
         if (isListeningForTaskInput) {
           // toast({ title: "No speech detected", variant: "default" }); // Potentially too noisy
@@ -743,7 +743,7 @@ export default function ToDoListPage() {
 
     setNewItemText('');
     recognition.start();
-  }, [taskInputMicPermission, toast, isListeningForTaskInput]);
+  }, [taskInputMicPermission, toast, isListeningForTaskInput, setNewItemText]);
 
 
   const triggerTaskInputMic = useCallback(async () => {
