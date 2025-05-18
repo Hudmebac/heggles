@@ -34,7 +34,7 @@ export default function ShoppingListPage() {
       setMicPermission('unsupported');
     }
     return () => {
-      if (recognitionRef.current && (recognitionRef.current as any).stop) { // Type assertion for safety
+      if (recognitionRef.current && (recognitionRef.current as any).stop) {
         try { (recognitionRef.current as any).stop(); } catch (e) { /* ignore */ }
       }
       if (pauseTimeoutRef.current) {
@@ -96,38 +96,53 @@ export default function ShoppingListPage() {
     reader.onload = (e) => {
       try {
         const csvText = e.target?.result as string;
-        const lines = csvText.split(/[\\r\\n]+/).filter(line => line.trim() !== '' && !line.toLowerCase().startsWith('#'));
+        const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '' && !line.toLowerCase().startsWith('#'));
+        
         if (lines.length === 0) {
-           toast({ title: "Import Failed", description: "File is empty or contains only comments.", variant: "destructive" });
+           toast({ title: "Import Failed", description: "File is empty or contains only comments and a header.", variant: "destructive" });
            return;
         }
-        const headerRowText = lines[0].toLowerCase();
-        const hasTextHeader = headerRowText.includes('text');
-        const hasCompletedHeader = headerRowText.includes('completed');
 
-        if (!hasTextHeader || !hasCompletedHeader) {
-          toast({ title: "Import Failed", description: "CSV must contain 'text' and 'completed' columns (case-insensitive).", variant: "destructive" });
-          return;
-        }
         const headerRow = lines[0].split(',').map(h => h.trim().toLowerCase());
         const textIndex = headerRow.indexOf('text');
         const completedIndex = headerRow.indexOf('completed');
 
-         if (textIndex === -1 || completedIndex === -1) {
-           toast({ title: "Import Failed", description: "Could not find 'text' or 'completed' columns in the header.", variant: "destructive" });
+        if (textIndex === -1 || completedIndex === -1) {
+          toast({ title: "Import Failed", description: "CSV must contain 'text' and 'completed' columns in the header (case-insensitive).", variant: "destructive" });
+          return;
+        }
+        
+        if (lines.length <= 1) {
+           toast({ title: "Import Failed", description: "No data rows found after the header.", variant: "destructive" });
            return;
-         }
+        }
 
         const importedItems: ShoppingListItem[] = lines.slice(1).map(line => {
            const values = line.split(',');
-           return { id: crypto.randomUUID(), text: values[textIndex]?.trim() || '', completed: values[completedIndex]?.trim().toLowerCase() === 'true' };
-        }).filter(item => item.text !== '');
+           const textValue = values[textIndex]?.trim() || '';
+           // Handle potential quoted CSV values (basic)
+           const cleanedText = textValue.startsWith('"') && textValue.endsWith('"') ? textValue.substring(1, textValue.length - 1).replace(/""/g, '"') : textValue;
+           return { 
+             id: crypto.randomUUID(), 
+             text: cleanedText, 
+             completed: values[completedIndex]?.trim().toLowerCase() === 'true' 
+           };
+        }).filter(item => item.text !== ''); // Ensure items with empty text after parsing are not added
+
+        if (importedItems.length === 0) {
+            toast({ title: "Import Warning", description: "No valid items could be imported from the CSV. Check data rows.", variant: "default" });
+            return;
+        }
+
         setItems(importedItems);
         toast({ title: "Shopping List Imported", description: `${importedItems.length} items loaded from CSV.` });
       } catch (error) {
-        toast({ title: "Import Failed", description: "Could not parse CSV file.", variant: "destructive" });
+        console.error("CSV Import Error:", error);
+        toast({ title: "Import Failed", description: "Could not parse CSV file. Please check the file format and content.", variant: "destructive" });
       } finally {
-        event.target.value = '';
+        if (event.target) {
+          event.target.value = ''; // Reset file input
+        }
       }
     };
     reader.readAsText(file);
@@ -142,15 +157,18 @@ export default function ShoppingListPage() {
         const jsonText = e.target?.result as string;
         const imported: ShoppingListItem[] = JSON.parse(jsonText);
         if (!Array.isArray(imported) || imported.some(item => typeof item.text !== 'string' || typeof item.completed !== 'boolean')) {
-          throw new Error("Invalid JSON structure.");
+          throw new Error("Invalid JSON structure. Expected an array of objects with 'text' (string) and 'completed' (boolean) properties.");
         }
         const newItems = imported.map(item => ({...item, id: crypto.randomUUID() }));
         setItems(newItems);
         toast({ title: "Shopping List Imported", description: `${newItems.length} items loaded from JSON.` });
       } catch (error) {
-        toast({ title: "Import Failed", description: "Could not parse JSON file. Ensure it's a valid array of shopping list items.", variant: "destructive" });
+        console.error("JSON Import Error:", error);
+        toast({ title: "Import Failed", description: (error as Error).message || "Could not parse JSON file.", variant: "destructive" });
       } finally {
-        event.target.value = '';
+         if (event.target) {
+          event.target.value = '';
+        }
       }
     };
     reader.readAsText(file);
@@ -168,18 +186,30 @@ export default function ShoppingListPage() {
         const worksheet = workbook.Sheets[sheetName];
         const json: any[] = XLSX.utils.sheet_to_json(worksheet);
 
+        if (json.length === 0) {
+            toast({ title: "Import Failed", description: "Excel file is empty or no data could be read.", variant: "destructive" });
+            return;
+        }
+        
         const importedItems: ShoppingListItem[] = json.map(row => ({
           id: crypto.randomUUID(),
-          text: String(row.text || '').trim(),
+          text: String(row.text || '').trim(), // Ensure text is string and trimmed
           completed: String(row.completed || '').toLowerCase() === 'true',
         })).filter(item => item.text !== '');
 
+        if (importedItems.length === 0) {
+            toast({ title: "Import Warning", description: "No valid items with text found in Excel. Ensure 'text' and 'completed' columns exist.", variant: "default" });
+            return;
+        }
         setItems(importedItems);
         toast({ title: "Shopping List Imported", description: `${importedItems.length} items loaded from Excel.` });
       } catch (error) {
-        toast({ title: "Import Failed", description: "Could not process Excel file.", variant: "destructive" });
+        console.error("Excel Import Error:", error);
+        toast({ title: "Import Failed", description: "Could not process Excel file. Ensure 'text' and 'completed' columns exist.", variant: "destructive" });
       } finally {
-        event.target.value = '';
+         if (event.target) {
+          event.target.value = '';
+        }
       }
     };
     reader.readAsBinaryString(file);
@@ -243,7 +273,7 @@ export default function ShoppingListPage() {
         clearTimeout(pauseTimeoutRef.current);
       }
       if (event.error === 'aborted') {
-        console.info('Shopping list item input speech recognition aborted (intentional stop).');
+        // console.info('Shopping list item input speech recognition aborted (intentional stop).');
       } else if (event.error === 'no-speech') {
         if (isListeningForItemInput) {
           // toast({ title: "No speech detected", variant: "default" }); // Potentially too noisy
@@ -341,7 +371,6 @@ export default function ShoppingListPage() {
         </div>
       </div>
 
-      {/* Hidden file inputs for import functionality, triggered by Header */}
       <input id="import-shopping-list-csv" type="file" accept=".csv" style={visuallyHiddenStyle} onChange={handleImportCSV} />
       <input id="import-shopping-list-json" type="file" accept=".json" style={visuallyHiddenStyle} onChange={handleImportJSON} />
       <input id="import-shopping-list-excel" type="file" accept=".xlsx,.xls" style={visuallyHiddenStyle} onChange={handleImportExcel} />
@@ -458,3 +487,6 @@ export default function ShoppingListPage() {
     </div>
   );
 }
+
+
+    
