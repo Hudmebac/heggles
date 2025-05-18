@@ -5,7 +5,7 @@ import { useState, useEffect, FormEvent, DragEvent, useMemo, useRef, useCallback
 import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
 import type { ToDoListItem, TimePoint, TimeSettingType } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input'; // Still used for the visible input field
+import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { format, parseISO, isValid, isPast, isToday, isTomorrow, parse } from 'date-fns';
 import {
   ClipboardList, Trash2, Edit3, PlusCircle, Save, Ban, CheckSquare, Clock,
-  ChevronUp, ChevronDown, GripVertical, CalendarIcon, AlertTriangle, Mic, MicOff
+  ChevronUp, ChevronDown, GripVertical, CalendarIcon, AlertTriangle, Mic, MicOff, Import
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { LOCALSTORAGE_KEYS, WAKE_WORDS } from '@/lib/constants';
@@ -64,6 +64,10 @@ export default function ToDoListPage() {
   const [taskInputMicPermission, setTaskInputMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
   const recognitionTaskRef = useRef<SpeechRecognition | null>(null);
   const pauseTaskTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Ref for the hidden file input
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
 
   useEffect(() => {
     setIsClient(true);
@@ -168,15 +172,15 @@ export default function ToDoListPage() {
                  if ((currentEditorStartTime.hh === '' || currentEditorStartTime.hh === null) &&
                      (currentEditorStartTime.mm === '' || currentEditorStartTime.mm === null) &&
                       currentEditorStartTime.period) {
-                    hVal = 12; mVal = 0; // Default to 12:00 if period is set but hh/mm are blank
-                 } else if (currentEditorStartTime.hh || currentEditorStartTime.mm) { // Only error if user input something invalid
+                    hVal = 12; mVal = 0; 
+                 } else if (currentEditorStartTime.hh || currentEditorStartTime.mm) { 
                     toast({ title: "Invalid Start Time", description: "Start time hours (1-12) or minutes (00-59) are invalid.", variant: "destructive" });
                     return;
                  }
             }
             if (currentEditorStartTime.period) {
                  newStartTime = { hh: String(hVal).padStart(2,'0'), mm: String(mVal).padStart(2,'0'), period: currentEditorStartTime.period };
-            } else if (currentEditorStartTime.hh || currentEditorStartTime.mm) { // If hh or mm is set, period must be set
+            } else if (currentEditorStartTime.hh || currentEditorStartTime.mm) { 
                 toast({ title: "Missing AM/PM", description: "Please select AM or PM for the start time.", variant: "destructive" });
                 return;
             }
@@ -193,15 +197,15 @@ export default function ToDoListPage() {
                  if ((currentEditorEndTime.hh === '' || currentEditorEndTime.hh === null) &&
                      (currentEditorEndTime.mm === '' || currentEditorEndTime.mm === null) &&
                      currentEditorEndTime.period) {
-                    hVal = 12; mVal = 0; // Default to 12:00 if period is set but hh/mm are blank
-                 } else if (currentEditorEndTime.hh || currentEditorEndTime.mm) { // Only error if user input something invalid
+                    hVal = 12; mVal = 0; 
+                 } else if (currentEditorEndTime.hh || currentEditorEndTime.mm) { 
                     toast({ title: "Invalid End Time", description: "End time hours (1-12) or minutes (00-59) are invalid.", variant: "destructive" });
                     return;
                 }
             }
              if (currentEditorEndTime.period) {
                 newEndTime = { hh: String(hVal).padStart(2,'0'), mm: String(mVal).padStart(2,'0'), period: currentEditorEndTime.period };
-            } else if (currentEditorEndTime.hh || currentEditorEndTime.mm) { // If hh or mm is set, period must be set
+            } else if (currentEditorEndTime.hh || currentEditorEndTime.mm) { 
                 toast({ title: "Missing AM/PM", description: "Please select AM or PM for the end time.", variant: "destructive" });
                 return;
             }
@@ -209,7 +213,7 @@ export default function ToDoListPage() {
 
         if (!newStartTime && !newEndTime) finalTimeSettingType = 'not_set';
         else if (newStartTime && !newEndTime) finalTimeSettingType = 'specific_start';
-        else if (!newStartTime && newEndTime) { // If only end time is set, treat as invalid for range
+        else if (!newStartTime && newEndTime) { 
             newEndTime = null;
             finalTimeSettingType = 'not_set';
         }
@@ -263,10 +267,10 @@ export default function ToDoListPage() {
       const baseTimePoint = prev || { ...initialTimePoint };
       const newPoint = { ...baseTimePoint, [field]: value };
 
-      if (field === 'hh' && value === '') newPoint.hh = ''; // Allow clearing
+      if (field === 'hh' && value === '') newPoint.hh = ''; 
       else if (field === 'hh') newPoint.hh = value.replace(/[^0-9]/g, '').slice(0, 2);
 
-      if (field === 'mm' && value === '') newPoint.mm = ''; // Allow clearing
+      if (field === 'mm' && value === '') newPoint.mm = ''; 
       else if (field === 'mm') newPoint.mm = value.replace(/[^0-9]/g, '').slice(0, 2);
 
       return newPoint;
@@ -279,9 +283,9 @@ export default function ToDoListPage() {
 
     const formatSinglePoint = (point: TimePoint | null | undefined) => {
         if (!point) return null;
-        if (!point.period) return null; // Period is essential
-        const hStr = point.hh || "12"; // Default to 12 if hh is empty
-        const mStr = point.mm || "00"; // Default to 00 if mm is empty
+        if (!point.period) return null; 
+        const hStr = point.hh || "12"; 
+        const mStr = point.mm || "00"; 
         return `${hStr.padStart(2, '0')}:${mStr.padStart(2, '0')} ${point.period}`;
     };
 
@@ -293,7 +297,7 @@ export default function ToDoListPage() {
       const formattedStart = formatSinglePoint(item.startTime);
       if (formattedStart) displayStr += `Starts ${formattedStart}`;
       else if (item.timeSettingType === 'specific_start' || item.timeSettingType === 'specific_start_end') {
-           displayStr += 'Invalid start time'; // Or more specific if only period is there
+           displayStr += 'Invalid start time'; 
       }
     }
     if (item.timeSettingType === 'specific_start_end' && item.endTime) {
@@ -385,10 +389,8 @@ export default function ToDoListPage() {
     setDraggedItemId(null);
   };
 
-  const handleImportCSV = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
 
+  const processCSVImport = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -401,16 +403,22 @@ export default function ToDoListPage() {
         }
 
         const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-        const expectedHeaders = ["text", "completed", "timesettingtype", "starttime", "endtime", "duedate"]; // Use lowercase for matching
+        const expectedHeaders = ["text", "completed", "timesettingtype", "starttime", "endtime", "duedate"]; 
 
          if (!expectedHeaders.every(h => headers.includes(h))) {
              toast({ title: "Import Failed", description: "Invalid CSV format. Missing required columns (case-insensitive): " + expectedHeaders.filter(h => !headers.includes(h)).join(', '), variant: "destructive" });
              return;
          }
+         
+         if (lines.length <=1) {
+           toast({ title: "Import Failed", description: "No data rows found after header in CSV.", variant: "destructive" });
+           return;
+         }
+
 
         const importedItems: ToDoListItem[] = [];
         for (let i = 1; i < lines.length; i++) {
-          const values = lines[i].split(','); // This needs to be improved for CSVs with quoted commas
+          const values = lines[i].split(','); 
           const itemData: Record<string, string> = {};
           headers.forEach((header, index) => {
              let value = values[index];
@@ -435,6 +443,11 @@ export default function ToDoListPage() {
             dueDate: itemData['duedate'] && isValid(parseISO(itemData['duedate'])) ? itemData['duedate'] : null,
           });
         }
+        
+        if (importedItems.length === 0) {
+            toast({ title: "Import Warning", description: "No valid tasks could be imported from the CSV. Check data rows.", variant: "default" });
+            return;
+        }
 
         setItems(importedItems);
         toast({ title: "To-Do List Imported", description: `${importedItems.length} tasks loaded from CSV.` });
@@ -442,53 +455,57 @@ export default function ToDoListPage() {
       } catch (error) {
         console.error("CSV Import error:", error);
         toast({ title: "Import Failed", description: "Could not process CSV file. Please check the format.", variant: "destructive" });
-      } finally {
-        if (event.target) event.target.value = ''; // Reset file input
       }
     };
     reader.readAsText(file);
   };
 
-  const handleImportJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
+  const processJSONImport = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const jsonText = e.target?.result as string;
-        const importedItems: ToDoListItem[] = JSON.parse(jsonText);
+        const importedItemsRaw: any[] = JSON.parse(jsonText);
 
-        if (!Array.isArray(importedItems) || importedItems.some(item => typeof item.text !== 'string' || typeof item.completed !== 'boolean')) {
+        if (!Array.isArray(importedItemsRaw) ) {
              toast({ title: "Import Failed", description: "Invalid JSON format. File does not contain a valid list of tasks.", variant: "destructive" });
              return;
         }
 
-        const itemsWithNewIds = importedItems.map(item => ({
+        const itemsWithNewIds = importedItemsRaw.map(item => {
+          if (typeof item.text !== 'string' || typeof item.completed !== 'boolean') {
+            console.warn("Skipping invalid item in JSON import:", item);
+            return null; // Skip invalid items
+          }
+          return {
             ...item,
             id: crypto.randomUUID(),
             startTime: item.startTime && typeof item.startTime === 'object' && item.startTime !== null && 'hh' in item.startTime && 'mm' in item.startTime && 'period' in item.startTime ? {...item.startTime} as TimePoint : null,
             endTime: item.endTime && typeof item.endTime === 'object' && item.endTime !== null && 'hh' in item.endTime && 'mm' in item.endTime && 'period' in item.endTime ? {...item.endTime} as TimePoint : null,
             dueDate: item.dueDate && isValid(parseISO(item.dueDate)) ? item.dueDate : null,
             timeSettingType: ['not_set', 'all_day', 'am_period', 'pm_period', 'specific_start', 'specific_start_end'].includes(item.timeSettingType as string) ? item.timeSettingType : 'not_set',
-        }));
+        }}).filter(Boolean) as ToDoListItem[]; // Filter out nulls
+
+        if (itemsWithNewIds.length === 0 && importedItemsRaw.length > 0) {
+             toast({ title: "Import Warning", description: "No valid tasks could be imported from the JSON. Check item structure (requires 'text' and 'completed').", variant: "default" });
+            return;
+        }
+         if (itemsWithNewIds.length === 0 && importedItemsRaw.length === 0) {
+             toast({ title: "Import Failed", description: "JSON file is empty or contains no tasks.", variant: "destructive" });
+            return;
+        }
 
         setItems(itemsWithNewIds);
         toast({ title: "To-Do List Imported", description: `${itemsWithNewIds.length} tasks loaded from JSON.` });
 
       } catch (error) {
-        toast({ title: "Import Failed", description: "Could not parse JSON file. Please check the file content.", variant: "destructive" });
-      } finally {
-        if (event.target) event.target.value = ''; // Reset file input
+        toast({ title: "Import Failed", description: (error as Error).message || "Could not parse JSON file. Please check the file content.", variant: "destructive" });
       }
     };
     reader.readAsText(file);
   };
 
-  const handleImportExcel = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
+  const processExcelImport = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -496,12 +513,11 @@ export default function ToDoListPage() {
         const workbook = XLSX.read(data, { type: 'binary' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const json: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 }); // Read as array of arrays
+        const json: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 }); 
 
         let headers: string[] = [];
         let dataStartIndex = -1;
 
-        // Find header row and actual data start index
         for(let i = 0; i < json.length; i++) {
           const row = json[i] as any[];
           if (row.some(cell => typeof cell === 'string' && cell.trim().toLowerCase() === 'text')) {
@@ -527,7 +543,6 @@ export default function ToDoListPage() {
            toast({ title: "Import Failed", description: "Excel file must contain a 'text' column.", variant: "destructive" });
            return;
         }
-
 
         const importedItems: ToDoListItem[] = [];
         for (let i = dataStartIndex; i < json.length; i++) {
@@ -556,10 +571,10 @@ export default function ToDoListPage() {
             let dueDate: string | null = null;
             if (dueDateIndex > -1 && row[dueDateIndex]) {
                 let dateCandidate = String(row[dueDateIndex]);
-                let parsedDate = parseISO(dateCandidate); // YYYY-MM-DD
-                if (!isValid(parsedDate)) parsedDate = parse(dateCandidate, 'dd/MM/yyyy', new Date()); // DD/MM/YYYY
-                if (!isValid(parsedDate)) parsedDate = parse(dateCandidate, 'MM/dd/yyyy', new Date()); // MM/DD/YYYY
-                if (!isValid(parsedDate) && typeof row[dueDateIndex] === 'number') { // Excel date serial number
+                let parsedDate = parseISO(dateCandidate); 
+                if (!isValid(parsedDate)) parsedDate = parse(dateCandidate, 'dd/MM/yyyy', new Date()); 
+                if (!isValid(parsedDate)) parsedDate = parse(dateCandidate, 'MM/dd/yyyy', new Date()); 
+                if (!isValid(parsedDate) && typeof row[dueDateIndex] === 'number') { 
                    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
                    parsedDate = new Date(excelEpoch.getTime() + (row[dueDateIndex] as number) * 24 * 60 * 60 * 1000);
                 }
@@ -590,34 +605,87 @@ export default function ToDoListPage() {
             return;
         }
 
-
         setItems(importedItems);
         toast({ title: "To-Do List Imported", description: `${importedItems.length} tasks loaded from Excel.` });
 
       } catch (error) {
          console.error("Excel import error:", error);
          toast({ title: "Import Failed", description: "Could not process Excel file. Please check the format and ensure column names (text, completed, etc.) are correct.", variant: "destructive" });
-      } finally {
-        if (event.target) event.target.value = ''; // Reset file input
       }
     };
     reader.readAsBinaryString(file);
   };
 
+  const processTextImport = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result as string;
+        const lines = text.split(/\r?\n/).filter(line => line.trim() !== '' && !line.startsWith('#'));
+        if (lines.length === 0) {
+          toast({ title: "Import Failed", description: "Text file is empty or contains only comments/whitespace.", variant: "destructive" });
+          return;
+        }
+        const importedItems: ToDoListItem[] = lines.map(line => ({
+          id: crypto.randomUUID(),
+          text: line.trim(),
+          completed: false,
+          timeSettingType: 'not_set',
+          startTime: null,
+          endTime: null,
+          dueDate: null,
+        }));
+        setItems(importedItems);
+        toast({ title: "To-Do List Imported", description: `${importedItems.length} tasks loaded from Text file.` });
+      } catch (error) {
+        console.error("Text File Import Error:", error);
+        toast({ title: "Import Failed", description: "Could not process Text file.", variant: "destructive" });
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleFileSelectedForImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      toast({ title: "No file selected", variant: "default" });
+      return;
+    }
+
+    const fileName = file.name.toLowerCase();
+    try {
+      if (fileName.endsWith('.csv')) {
+        processCSVImport(file);
+      } else if (fileName.endsWith('.json')) {
+        processJSONImport(file);
+      } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        processExcelImport(file);
+      } else if (fileName.endsWith('.txt')) {
+        processTextImport(file);
+      } else {
+        toast({ title: "Unsupported File Type", description: "Please select a CSV, JSON, Excel, or TXT file.", variant: "destructive" });
+      }
+    } finally {
+      if (event.target) {
+        event.target.value = '';
+      }
+    }
+  };
+
 
   const sortedItems = useMemo(() => {
     let displayItems = [...items];
-    const defaultSortedItems = [...items]; // Keep original order for tie-breaking
+    const defaultSortedItems = [...items]; 
 
     switch (sortOrder) {
       case 'dueDateAsc':
         displayItems.sort((a, b) => {
           if (!a.dueDate && !b.dueDate) return defaultSortedItems.indexOf(a) - defaultSortedItems.indexOf(b);
-          if (!a.dueDate) return 1; // Tasks with no due date go to the end
-          if (!b.dueDate) return -1; // Tasks with no due date go to the end
+          if (!a.dueDate) return 1; 
+          if (!b.dueDate) return -1; 
           const dateDiff = new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
           if (dateDiff !== 0) return dateDiff;
-          return defaultSortedItems.indexOf(a) - defaultSortedItems.indexOf(b); // Original order for same dates
+          return defaultSortedItems.indexOf(a) - defaultSortedItems.indexOf(b); 
         });
         break;
       case 'dueDateDesc':
@@ -636,28 +704,26 @@ export default function ToDoListPage() {
       case 'alphaDesc':
         displayItems.sort((a, b) => b.text.localeCompare(a.text));
         break;
-      case 'priority': // Higher priority: sooner due date, then original order
+      case 'priority': 
         displayItems.sort((a, b) => {
           const aHasDueDate = !!a.dueDate;
           const bHasDueDate = !!b.dueDate;
 
-          if (aHasDueDate && !bHasDueDate) return -1; // Tasks with due dates first
+          if (aHasDueDate && !bHasDueDate) return -1; 
           if (!aHasDueDate && bHasDueDate) return 1;
 
           if (aHasDueDate && bHasDueDate) {
             const dateA = new Date(a.dueDate!).getTime();
             const dateB = new Date(b.dueDate!).getTime();
             if (dateA !== dateB) {
-              return dateA - dateB; // Earlier due dates first
+              return dateA - dateB; 
             }
           }
-          // If due dates are same or both null, sort by original order
           return defaultSortedItems.indexOf(a) - defaultSortedItems.indexOf(b);
         });
         break;
       case 'default':
       default:
-        // Uses the 'items' state directly which reflects drag-and-drop or button moves
         break;
     }
     return displayItems;
@@ -721,7 +787,7 @@ export default function ToDoListPage() {
         console.info('Task input speech recognition aborted.');
       } else if (event.error === 'no-speech') {
         if (isListeningForTaskInput) {
-          // toast({ title: "No speech detected", variant: "default" }); // Potentially too noisy
+           // console.warn("No speech detected for task input.");
         }
       } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         console.error('Task input speech recognition error:', event.error, event.message);
@@ -795,7 +861,7 @@ export default function ToDoListPage() {
     );
   }
 
-  const renderTimePointInput = (type: 'start' | 'end', _timePoint: TimePoint | null) => { // _timePoint not directly used due to currentVal
+  const renderTimePointInput = (type: 'start' | 'end', _timePoint: TimePoint | null) => { 
     const currentVal = type === 'start' ? currentEditorStartTime : currentEditorEndTime;
     return (
       <div className="flex items-center gap-1 p-1 border rounded-md bg-background">
@@ -830,6 +896,14 @@ export default function ToDoListPage() {
           <h1 className="text-3xl font-bold tracking-tight">To-Do List</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-center sm:justify-end mt-2 sm:mt-0">
+            <Button 
+              variant="outline" 
+              onClick={() => fileInputRef.current?.click()}
+              className="h-10"
+              aria-label="Import to-do tasks"
+            >
+              <Import className="mr-2 h-5 w-5" /> Import Tasks
+            </Button>
             <Select value={sortOrder} onValueChange={setSortOrder}>
                 <SelectTrigger className="w-full xs:w-[180px] sm:w-[200px]" aria-label="Sort tasks by">
                 <SelectValue placeholder="Sort by..." />
@@ -846,10 +920,15 @@ export default function ToDoListPage() {
         </div>
       </div>
 
-      {/* Hidden file inputs for import functionality, triggered by Header */}
-      <input id="import-todo-list-csv" type="file" accept=".csv" style={visuallyHiddenStyle} onChange={handleImportCSV} />
-      <input id="import-todo-list-json" type="file" accept=".json" style={visuallyHiddenStyle} onChange={handleImportJSON} />
-      <input id="import-todo-list-excel" type="file" accept=".xlsx,.xls" style={visuallyHiddenStyle} onChange={handleImportExcel} />
+      <input
+        id="import-todo-list-file"
+        ref={fileInputRef}
+        type="file"
+        accept=".csv,.json,.xlsx,.xls,.txt"
+        style={visuallyHiddenStyle}
+        onChange={handleFileSelectedForImport}
+      />
+
 
       <Card className="shadow-lg">
         <CardHeader>
@@ -1069,9 +1148,11 @@ export default function ToDoListPage() {
         <div className="text-center py-12">
           <CheckSquare className="mx-auto h-16 w-16 text-muted-foreground mb-6 opacity-50" />
           <h3 className="text-2xl font-semibold">Your To-Do List is Empty</h3>
-          <p className="text-muted-foreground mt-2">Add tasks using the form above to get started.</p>
+          <p className="text-muted-foreground mt-2">Add tasks using the form above or import a list to get started.</p>
         </div>
       )}
     </div>
   );
 }
+
+    
