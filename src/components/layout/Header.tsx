@@ -16,7 +16,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { BrainCircuit, ListChecks, ClipboardList, HelpCircle, FileUp, FileDown, SettingsIcon } from 'lucide-react';
+import { BrainCircuit, ListChecks, ClipboardList, HelpCircle, FileUp, Radio } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { LOCALSTORAGE_KEYS } from '@/lib/constants';
 import type { ShoppingListItem, ToDoListItem } from '@/lib/types';
@@ -34,7 +34,7 @@ export function Header() {
   const isShoppingListPage = pathname === '/shopping-list';
   const isToDoListPage = pathname === '/to-do-list';
 
-  const handleDownloadTemplate = (listType: 'shopping' | 'todo', format: 'csv' | 'excel') => {
+  const handleDownloadTemplate = (listType: 'shopping' | 'todo', format: 'csv' | 'excel' | 'json') => {
     if (listType === 'shopping') {
       downloadShoppingListTemplate(format);
     } else {
@@ -119,6 +119,7 @@ export function Header() {
                 <DropdownMenuSubTrigger>Download Template</DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
                   <DropdownMenuItem onClick={() => handleDownloadTemplate('shopping', 'csv')}>CSV</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleDownloadTemplate('shopping', 'json')}>JSON</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleDownloadTemplate('shopping', 'excel')}>Excel</DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
@@ -131,7 +132,7 @@ export function Header() {
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
               <DropdownMenuSub>
-                <DropdownMenuSubTrigger disabled={!isShoppingListPage}>Import List</DropdownMenuSubTrigger>
+                <DropdownMenuSubTrigger disabled={!isShoppingListPage}>Import</DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
                   <DropdownMenuItem onClick={() => handleImport('shopping', 'csv')} disabled={!isShoppingListPage}>CSV</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleImport('shopping', 'json')} disabled={!isShoppingListPage}>JSON</DropdownMenuItem>
@@ -145,6 +146,7 @@ export function Header() {
                 <DropdownMenuSubTrigger>Download Template</DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
                   <DropdownMenuItem onClick={() => handleDownloadTemplate('todo', 'csv')}>CSV</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleDownloadTemplate('todo', 'json')}>JSON</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleDownloadTemplate('todo', 'excel')}>Excel</DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
@@ -157,7 +159,7 @@ export function Header() {
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
               <DropdownMenuSub>
-                <DropdownMenuSubTrigger disabled={!isToDoListPage}>Import List</DropdownMenuSubTrigger>
+                <DropdownMenuSubTrigger disabled={!isToDoListPage}>Import</DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
                   <DropdownMenuItem onClick={() => handleImport('todo', 'csv')} disabled={!isToDoListPage}>CSV</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleImport('todo', 'json')} disabled={!isToDoListPage}>JSON</DropdownMenuItem>
@@ -166,7 +168,6 @@ export function Header() {
               </DropdownMenuSub>
             </DropdownMenuContent>
           </DropdownMenu>
-
 
           <Button variant="ghost" asChild>
             <Link href="/how-to" className="flex items-center px-2 sm:px-3">

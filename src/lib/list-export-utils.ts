@@ -22,9 +22,20 @@ const formatTimePointToStringForExport = (timePoint?: TimePoint | null): string 
   return `${String(hVal).padStart(2, '0')}:${String(mVal).padStart(2, '0')} ${timePoint.period}`;
 };
 
+const triggerDownload = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 // --- Shopping List Utilities ---
 
-export const downloadShoppingListTemplate = (format: 'csv' | 'excel') => {
+export const downloadShoppingListTemplate = (format: 'csv' | 'excel' | 'json') => {
   if (format === 'csv') {
     const comments = "# This is a template for importing your shopping list.\n" +
                      "# Each row should represent a shopping list item.\n" +
@@ -33,14 +44,7 @@ export const downloadShoppingListTemplate = (format: 'csv' | 'excel') => {
     const header = "text,completed\n";
     const csvContent = comments + header + "Example Item 1,false\nExample Item 2,true\n";
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', 'shopping-list_template.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    triggerDownload(blob, 'shopping-list_template.csv');
   } else if (format === 'excel') {
     const templateComments = [
       ["# This is an Excel template for importing Shopping List items."],
@@ -62,18 +66,22 @@ export const downloadShoppingListTemplate = (format: 'csv' | 'excel') => {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Shopping List Template");
     XLSX.writeFile(workbook, "shopping-list_template.xlsx");
+  } else if (format === 'json') {
+    const templateData: ShoppingListItem[] = [
+      { id: "example-1", text: "Example Item 1 (from JSON template)", completed: false },
+      { id: "example-2", text: "Example Item 2 (from JSON template)", completed: true },
+    ];
+    const jsonContent = JSON.stringify(templateData, null, 2);
+    const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
+    triggerDownload(blob, 'shopping-list_template.json');
   }
 };
 
 export const exportShoppingList = (items: ShoppingListItem[], format: 'csv' | 'json' | 'excel', listName: string = "shopping-list") => {
   if (format === 'json') {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(items, null, 2));
-    const link = document.createElement('a');
-    link.setAttribute("href", dataStr);
-    link.setAttribute("download", `${listName}.json`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const jsonContent = JSON.stringify(items, null, 2);
+    const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
+    triggerDownload(blob, `${listName}.json`);
   } else if (format === 'csv') {
     const headers = ["text", "completed"];
     const csvRows = items.map(item => [
@@ -82,14 +90,7 @@ export const exportShoppingList = (items: ShoppingListItem[], format: 'csv' | 'j
     ].join(','));
     const csvContent = [headers.join(','), ...csvRows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `${listName}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    triggerDownload(blob, `${listName}.csv`);
   } else if (format === 'excel') {
     const data = items.map(item => ({
       text: item.text,
@@ -106,7 +107,7 @@ export const exportShoppingList = (items: ShoppingListItem[], format: 'csv' | 'j
 
 // --- To-Do List Utilities ---
 
-export const downloadToDoListTemplate = (format: 'csv' | 'excel') => {
+export const downloadToDoListTemplate = (format: 'csv' | 'excel' | 'json') => {
   if (format === 'csv') {
     const csvContent = `text,completed,timeSettingType,startTime,endTime,dueDate
 # This is a CSV template for importing To-Do List items.
@@ -125,14 +126,7 @@ export const downloadToDoListTemplate = (format: 'csv' | 'excel') => {
 # Finish report,"false",specific_start_end,"02:00 PM","05:30 PM",2023-10-31
 `;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', 'todo-list_template.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    triggerDownload(blob, 'todo-list_template.csv');
   } else if (format === 'excel') {
     const templateComments = [
       ["# This is an Excel template for importing To-Do List items."],
@@ -159,18 +153,22 @@ export const downloadToDoListTemplate = (format: 'csv' | 'excel') => {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "To-Do List Template");
     XLSX.writeFile(workbook, "todo-list_template.xlsx");
+  } else if (format === 'json') {
+    const templateData: ToDoListItem[] = [
+      { id: "todo-ex-1", text: "Example To-Do 1 (JSON template)", completed: false, timeSettingType: 'specific_start', startTime: { hh: '09', mm: '30', period: 'AM' }, endTime: null, dueDate: "2024-12-01" },
+      { id: "todo-ex-2", text: "Example To-Do 2 (JSON template)", completed: true, timeSettingType: 'all_day', startTime: null, endTime: null, dueDate: "2024-11-15" },
+    ];
+    const jsonContent = JSON.stringify(templateData, null, 2);
+    const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
+    triggerDownload(blob, 'todo-list_template.json');
   }
 };
 
 export const exportToDoList = (items: ToDoListItem[], format: 'csv' | 'json' | 'excel', listName: string = "todo-list") => {
   if (format === 'json') {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(items, null, 2));
-    const link = document.createElement('a');
-    link.setAttribute("href", dataStr);
-    link.setAttribute("download", `${listName}.json`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const jsonContent = JSON.stringify(items, null, 2);
+    const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
+    triggerDownload(blob, `${listName}.json`);
   } else if (format === 'csv') {
     const headers = ["text", "completed", "timeSettingType", "startTime", "endTime", "dueDate"];
     const csvRows = items.map(item => [
@@ -183,14 +181,7 @@ export const exportToDoList = (items: ToDoListItem[], format: 'csv' | 'json' | '
     ].join(','));
     const csvContent = [headers.join(','), ...csvRows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `${listName}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    triggerDownload(blob, `${listName}.csv`);
   } else if (format === 'excel') {
     const data = items.map(item => ({
       text: item.text,
