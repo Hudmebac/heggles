@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, FormEvent, useRef, useCallback } from 'react';
+import { useState, useEffect, FormEvent, useRef } from 'react';
 import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
 import type { ShoppingListItem } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { EmailPromptDialog } from '@/components/hegsync/EmailPromptDialog'; // Added
 import { useToast } from '@/hooks/use-toast';
 import { WAKE_WORDS, LOCALSTORAGE_KEYS, SHARE_DEFAULTS } from '@/lib/constants';
 import { generateShoppingListPlainTextForShare } from '@/lib/list-export-utils';
@@ -35,6 +36,10 @@ export default function ShoppingListPage() {
   const pauseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [isEmailPromptOpen, setIsEmailPromptOpen] = useState(false); // Added
+  const [emailBodyContent, setEmailBodyContent] = useState(''); // Added
+
 
   useEffect(() => {
     setIsClient(true);
@@ -60,7 +65,7 @@ export default function ShoppingListPage() {
       toast({ title: "Item cannot be empty", variant: "destructive" });
       return;
     }
-    setItems([...items, { id: crypto.randomUUID(), text: newItemText.trim(), completed: false }]);
+    setItems(prevItems => [...prevItems, { id: crypto.randomUUID(), text: newItemText.trim(), completed: false }]);
     setNewItemText('');
     toast({ title: "Item Added", description: `"${newItemText.trim()}" added to your list.` });
   };
@@ -145,6 +150,8 @@ export default function ShoppingListPage() {
       } catch (error) {
         console.error("CSV Import Error:", error);
         toast({ title: "Import Failed", description: "Could not parse CSV file. Please check the file format and content.", variant: "destructive" });
+      } finally {
+        if (fileInputRef.current) fileInputRef.current.value = '';
       }
     };
     reader.readAsText(file);
@@ -165,6 +172,8 @@ export default function ShoppingListPage() {
       } catch (error) {
         console.error("JSON Import Error:", error);
         toast({ title: "Import Failed", description: (error as Error).message || "Could not parse JSON file.", variant: "destructive" });
+      } finally {
+        if (fileInputRef.current) fileInputRef.current.value = '';
       }
     };
     reader.readAsText(file);
@@ -200,6 +209,8 @@ export default function ShoppingListPage() {
       } catch (error) {
         console.error("Excel Import Error:", error);
         toast({ title: "Import Failed", description: "Could not process Excel file. Ensure 'text' and 'completed' columns exist.", variant: "destructive" });
+      } finally {
+        if (fileInputRef.current) fileInputRef.current.value = '';
       }
     };
     reader.readAsBinaryString(file);
@@ -225,6 +236,8 @@ export default function ShoppingListPage() {
       } catch (error) {
         console.error("Text File Import Error:", error);
         toast({ title: "Import Failed", description: "Could not process Text file.", variant: "destructive" });
+      } finally {
+        if (fileInputRef.current) fileInputRef.current.value = '';
       }
     };
     reader.readAsText(file);
@@ -235,6 +248,7 @@ export default function ShoppingListPage() {
     const file = event.target.files?.[0];
     if (!file) {
       toast({ title: "No file selected", variant: "default" });
+      if (event.target) event.target.value = ''; // Reset if no file selected after dialog
       return;
     }
 
@@ -252,13 +266,11 @@ export default function ShoppingListPage() {
         toast({ title: "Unsupported File Type", description: "Please select a CSV, JSON, Excel, or TXT file.", variant: "destructive" });
       }
     } finally {
-      if (event.target) {
-        event.target.value = '';
-      }
+      // The specific process functions will reset fileInputRef.current.value
     }
   };
 
-  const startInputRecognition = useCallback(() => {
+  const startInputRecognition = () => {
     const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognitionAPI || micPermission !== 'granted') return;
 
@@ -285,7 +297,7 @@ export default function ShoppingListPage() {
       for (let i = event.resultIndex; i < event.results.length; ++i) {
         transcript += event.results[i][0].transcript;
       }
-      setNewItemText(transcript); // Update live
+      setNewItemText(transcript); 
 
       const lowerTranscript = transcript.toLowerCase();
       const endCommand = WAKE_WORDS.END_DICTATION.toLowerCase();
@@ -339,11 +351,11 @@ export default function ShoppingListPage() {
       recognitionRef.current = null;
     };
 
-    setNewItemText(''); // Clear input before starting dictation
+    setNewItemText(''); 
     recognition.start();
-  }, [micPermission, toast, isListeningForItemInput, setNewItemText]);
+  };
 
-  const triggerItemInputMic = useCallback(async () => {
+  const triggerItemInputMic = async () => {
     if (isListeningForItemInput) {
       if (recognitionRef.current?.stop) {
         try { (recognitionRef.current as any).stop(); } catch(e) {/* ignore */}
@@ -381,15 +393,21 @@ export default function ShoppingListPage() {
     if (currentPermission === 'granted') {
       startInputRecognition();
     }
-  }, [isListeningForItemInput, micPermission, startInputRecognition, toast]);
-
-  const handleShareViaEmail = () => {
-    const plainTextList = generateShoppingListPlainTextForShare(items);
-    const subject = SHARE_DEFAULTS.SHOPPING_LIST_EMAIL_SUBJECT;
-    const body = plainTextList;
-    const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.open(mailtoLink, '_blank');
   };
+
+  const handleInitiateShareViaEmail = () => { // Renamed
+    const plainTextList = generateShoppingListPlainTextForShare(items);
+    setEmailBodyContent(plainTextList);
+    setIsEmailPromptOpen(true);
+  };
+
+  const handleConfirmEmailAndShare = (email: string) => { // New
+    const subject = SHARE_DEFAULTS.SHOPPING_LIST_EMAIL_SUBJECT;
+    const mailtoLink = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBodyContent)}`;
+    window.open(mailtoLink, '_blank');
+    toast({title: "Email ready", description: "Your email client should open."});
+  };
+
 
   const handleShareViaWhatsApp = () => {
     const plainTextList = generateShoppingListPlainTextForShare(items);
@@ -442,7 +460,7 @@ export default function ShoppingListPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleShareViaEmail}>
+              <DropdownMenuItem onClick={handleInitiateShareViaEmail}>
                 <Mail className="mr-2 h-4 w-4" />
                 Share via Email
               </DropdownMenuItem>
@@ -456,12 +474,12 @@ export default function ShoppingListPage() {
       </div>
 
       <input
-        id="import-shopping-list-file"
         ref={fileInputRef}
         type="file"
         accept=".csv,.json,.xlsx,.xls,.txt"
         style={visuallyHiddenStyle}
         onChange={handleFileSelectedForImport}
+        id="shopping-list-file-input" // Ensure it has an ID if ever needed
       />
 
       <Card className="shadow-lg">
@@ -572,6 +590,12 @@ export default function ShoppingListPage() {
           <p className="text-muted-foreground mt-2">Add items using the form above or import a list to get started.</p>
         </div>
       )}
+      <EmailPromptDialog
+        isOpen={isEmailPromptOpen}
+        onOpenChange={setIsEmailPromptOpen}
+        onConfirm={handleConfirmEmailAndShare}
+        listNameToShare="Shopping List"
+      />
     </div>
   );
 }
