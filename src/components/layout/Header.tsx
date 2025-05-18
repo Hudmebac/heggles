@@ -64,44 +64,6 @@ export function Header() {
     }
   };
 
-  const handleImport = (listType: 'shopping' | 'todo', format: 'csv' | 'json' | 'excel') => {
-    const targetPage = listType === 'shopping' ? '/shopping-list' : '/to-do-list';
-    console.log(`[Header] handleImport: listType=${listType}, format=${format}, current pathname=${pathname}, targetPage=${targetPage}`);
-
-    if (pathname !== targetPage) {
-      console.warn(`[Header] Import trigger attempted for ${listType} list from incorrect page: ${pathname}. Required: ${targetPage}`);
-      toast({
-        title: "Navigation Required",
-        description: `Please navigate to the ${listType === 'shopping' ? 'Shopping List' : 'To-Do List'} page to import.`,
-        variant: "default"
-      });
-      return;
-    }
-    
-    const inputId = `import-${listType}-list-${format}`;
-    console.log(`[Header] Constructed inputId: ${inputId}`);
-    
-    // Attempt to click after a very short delay to ensure DOM is ready
-    setTimeout(() => {
-        const fileInput = document.getElementById(inputId);
-        console.log(`[Header] Attempting to find element with ID: ${inputId}. Found:`, fileInput);
-        
-        if (fileInput) {
-          try {
-            fileInput.click();
-            console.log(`[Header] Successfully called click() on element ID: ${inputId}`);
-          } catch (e) {
-            console.error(`[Header] Error calling click() on element ID ${inputId}:`, e);
-            toast({ title: "Import Click Error", description: `Failed to trigger file dialog. Error: ${(e as Error).message}`, variant: "destructive"});
-          }
-        } else {
-          console.error(`[Header] File input element with ID '${inputId}' not found on page ${pathname}.`);
-          toast({ title: "Import Error", description: `File input element for import was not found on the page. Please ensure you are on the correct list page. Expected ID: ${inputId}`, variant: "destructive"});
-        }
-    }, 0); // A timeout of 0 ms defers execution slightly
-  };
-
-
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-md">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
@@ -133,7 +95,7 @@ export function Header() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="flex items-center px-2 sm:px-3">
                 <FileUp className="h-5 w-5 sm:mr-1 md:mr-2" />
-                <span className="hidden sm:inline">Import/Export</span>
+                <span className="hidden sm:inline">Export</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
@@ -154,15 +116,7 @@ export function Header() {
                   <DropdownMenuItem onClick={() => handleExport('shopping', 'excel')}>Excel</DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger disabled={!isShoppingListPage}>Import</DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuItem onClick={() => handleImport('shopping', 'csv')} disabled={!isShoppingListPage}>CSV</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleImport('shopping', 'json')} disabled={!isShoppingListPage}>JSON</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleImport('shopping', 'excel')} disabled={!isShoppingListPage}>Excel</DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-
+              
               <DropdownMenuSeparator />
               <DropdownMenuLabel>To-Do List</DropdownMenuLabel>
               <DropdownMenuSub>
@@ -179,14 +133,6 @@ export function Header() {
                   <DropdownMenuItem onClick={() => handleExport('todo', 'csv')}>CSV</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleExport('todo', 'json')}>JSON</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleExport('todo', 'excel')}>Excel</DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger disabled={!isToDoListPage}>Import</DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuItem onClick={() => handleImport('todo', 'csv')} disabled={!isToDoListPage}>CSV</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleImport('todo', 'json')} disabled={!isToDoListPage}>JSON</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleImport('todo', 'excel')} disabled={!isToDoListPage}>Excel</DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
             </DropdownMenuContent>
