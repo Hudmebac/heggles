@@ -1,4 +1,3 @@
-
 "use client"; 
 
 import Link from 'next/link';
@@ -16,7 +15,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { BrainCircuit, ListChecks, ClipboardList, HelpCircle, FileUp, Settings as SettingsIcon } from 'lucide-react';
+import { BrainCircuit, ListChecks, ClipboardList, HelpCircle, FileUp, Archive, LayoutDashboard } from 'lucide-react'; // Added Archive, LayoutDashboard
 import { useToast } from '@/hooks/use-toast';
 import { LOCALSTORAGE_KEYS } from '@/lib/constants';
 import type { ShoppingListItem, ToDoListItem } from '@/lib/types';
@@ -70,10 +69,16 @@ export function Header() {
         </Link>
         <nav className="flex items-center gap-0.5 md:gap-1">
           <Button variant="ghost" asChild className="px-2 sm:px-3">
-            <Link href="/">Dashboard</Link>
+            <Link href="/" className="flex items-center">
+              <LayoutDashboard className="h-5 w-5 sm:mr-1 md:mr-2" />
+              <span className="hidden sm:inline">Dashboard</span>
+            </Link>
           </Button>
           <Button variant="ghost" asChild className="px-2 sm:px-3">
-            <Link href="/memory-vault">Memory Vault</Link>
+            <Link href="/memory-vault" className="flex items-center">
+              <Archive className="h-5 w-5 sm:mr-1 md:mr-2" />
+              <span className="hidden sm:inline">Memory Vault</span>
+            </Link>
           </Button>
           <Button variant="ghost" asChild className="px-2 sm:px-3">
             <Link href="/shopping-list" className="flex items-center">

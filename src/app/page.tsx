@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -9,7 +8,7 @@ import { RecentThoughtsList } from '@/components/hegsync/RecentThoughtsList';
 import { ThoughtClarifierDialog } from '@/components/hegsync/ThoughtClarifierDialog';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Mic, Radio } from 'lucide-react';
+import { Mic, Radio, PlayCircle, StopCircle } from 'lucide-react'; // Added PlayCircle, StopCircle for consistency
 import { useToast } from '@/hooks/use-toast';
 import { pinThoughtAndSuggestCategories } from '@/lib/actions';
 import { LOCALSTORAGE_KEYS } from '@/lib/constants';
@@ -27,7 +26,7 @@ export default function DashboardPage() {
   const { toast } = useToast();
 
   const handleThoughtRecalled = useCallback((newThought: Thought) => {
-    setRecalledThoughts(prevThoughts => [newThought, ...prevThoughts].sort((a,b) => b.timestamp - a.timestamp));
+    setRecalledThoughts(prevThoughts => [newThought, ...prevThoughts.slice(0, 14)].sort((a,b) => b.timestamp - a.timestamp));
   }, [setRecalledThoughts]);
 
   const handleEmptyRecalledThoughts = useCallback(() => {
@@ -81,6 +80,7 @@ export default function DashboardPage() {
       }
     } else {
       thoughtInputFormRef.current?.stopLongRecordingAndProcess();
+      // Toast for stopping is handled within stopLongRecordingAndProcess's onstop handler
     }
   }, [isLongRecording, toast]);
 
@@ -107,9 +107,9 @@ export default function DashboardPage() {
           title={isLongRecording ? "Stop Continuous Recording" : "Start Continuous Recording (Mic)"}
         >
           {isLongRecording ? (
-            <Radio className="h-8 w-8 text-red-500 animate-pulse" />
+            <Radio className="h-10 w-10 text-red-500 animate-pulse" />
           ) : (
-            <Mic className="h-8 w-8 text-primary" />
+            <Mic className="h-10 w-10 text-primary" />
           )}
         </Button>
       </div>
@@ -117,7 +117,7 @@ export default function DashboardPage() {
       <ThoughtInputForm 
         ref={thoughtInputFormRef}
         onThoughtRecalled={handleThoughtRecalled} 
-        onEmptyRecalledThoughts={handleEmptyRecalledThoughts} // Pass the new handler
+        onEmptyRecalledThoughts={handleEmptyRecalledThoughts}
         isExternallyLongRecording={isLongRecording}
         onStopLongRecordingParent={onStopLongRecordingParent}
       />

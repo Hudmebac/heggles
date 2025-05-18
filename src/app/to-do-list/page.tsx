@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, FormEvent, DragEvent, useMemo, useRef } from 'react';
@@ -18,7 +17,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { EmailPromptDialog } from '@/components/hegsync/EmailPromptDialog'; // Added
+import { EmailPromptDialog } from '@/components/hegsync/EmailPromptDialog';
 import { format, parseISO, isValid, isPast, isToday, isTomorrow, parse } from 'date-fns';
 import {
   ClipboardList, Trash2, Edit3, PlusCircle, Save, Ban, CheckSquare, Clock,
@@ -75,8 +74,8 @@ export default function ToDoListPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [isEmailPromptOpen, setIsEmailPromptOpen] = useState(false); // Added
-  const [emailBodyContent, setEmailBodyContent] = useState(''); // Added
+  const [isEmailPromptOpen, setIsEmailPromptOpen] = useState(false);
+  const [emailBodyContent, setEmailBodyContent] = useState('');
 
 
   useEffect(() => {
@@ -705,7 +704,7 @@ export default function ToDoListPage() {
     const file = event.target.files?.[0];
     if (!file) {
       toast({ title: "No file selected", variant: "default" });
-      if (event.target) event.target.value = ''; // Reset if no file selected after dialog
+      if (event.target) event.target.value = ''; 
       return;
     }
 
@@ -723,14 +722,14 @@ export default function ToDoListPage() {
         toast({ title: "Unsupported File Type", description: "Please select a CSV, JSON, Excel, or TXT file.", variant: "destructive" });
       }
     } finally {
-      // The specific process functions will reset fileInputRef.current.value
+      // Process functions handle resetting fileInputRef.current.value
     }
   };
 
 
   const sortedItems = useMemo(() => {
     let displayItems = [...items];
-    const defaultSortedItems = [...items]; // Keep a copy of original order for tie-breaking
+    const defaultSortedItems = [...items]; 
 
     switch (sortOrder) {
       case 'dueDateAsc':
@@ -759,19 +758,16 @@ export default function ToDoListPage() {
       case 'alphaDesc':
         displayItems.sort((a, b) => b.text.localeCompare(a.text));
         break;
-      case 'priority': // Updated priority sort
+      case 'priority': 
         displayItems.sort((a, b) => {
-          // Rule 1: Incomplete tasks come before completed tasks
           if (a.completed && !b.completed) return 1;
           if (!a.completed && b.completed) return -1;
 
-          // Rule 2: Tasks with due dates come before tasks without
           const aHasDueDate = !!a.dueDate;
           const bHasDueDate = !!b.dueDate;
           if (aHasDueDate && !bHasDueDate) return -1;
           if (!aHasDueDate && bHasDueDate) return 1;
 
-          // Rule 3: Earlier due dates come first
           if (aHasDueDate && bHasDueDate) {
             const dateA = new Date(a.dueDate!).getTime();
             const dateB = new Date(b.dueDate!).getTime();
@@ -779,13 +775,11 @@ export default function ToDoListPage() {
               return dateA - dateB;
             }
           }
-          // Rule 4: Fallback to original order (index within the initial unsorted items array)
           return defaultSortedItems.indexOf(a) - defaultSortedItems.indexOf(b);
         });
         break;
       case 'default':
       default:
-        // displayItems remains items, which is already in the default order based on localStorage.
         break;
     }
     return displayItems;
@@ -850,7 +844,7 @@ export default function ToDoListPage() {
         console.info('Task input speech recognition aborted.');
       } else if (event.error === 'no-speech') {
         if (isListeningForTaskInput) {
-           // console.warn("No speech detected for task input.");
+           console.warn("No speech detected for task input.");
         }
       } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         console.error('Task input speech recognition error:', event.error, event.message);
@@ -915,14 +909,14 @@ export default function ToDoListPage() {
     }
   };
 
-  const handleInitiateShareToDoViaEmail = () => { // Renamed
+  const handleInitiateShareToDoViaEmail = () => {
     const plainTextList = generateToDoListPlainTextForShare(items, false);
     const body = `${plainTextList}\n\nFor calendar integration of tasks with due dates, you can download an .ics file from the Heggles app (To-Do List > Share List > Download Calendar).\n\n${getShareFooterText(false)}`;
     setEmailBodyContent(body);
     setIsEmailPromptOpen(true);
   };
 
-  const handleConfirmEmailAndShareToDo = (email: string) => { // New
+  const handleConfirmEmailAndShareToDo = (email: string) => {
     const subject = SHARE_DEFAULTS.TODO_LIST_EMAIL_SUBJECT;
     const mailtoLink = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBodyContent)}`;
     window.open(mailtoLink, '_blank');
@@ -1040,7 +1034,7 @@ export default function ToDoListPage() {
         accept=".csv,.json,.xlsx,.xls,.txt"
         style={visuallyHiddenStyle}
         onChange={handleFileSelectedForImport}
-        id="todo-list-file-input" // Ensure it has an ID if ever needed
+        id="todo-list-file-input"
       />
 
       <Card className="shadow-lg">
@@ -1067,8 +1061,8 @@ export default function ToDoListPage() {
               title={taskMicButtonDisabled && taskInputMicPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForTaskInput ? `Stop voice input (or say '${WAKE_WORDS.END_DICTATION}' or '${WAKE_WORDS.STOP_DICTATION}')` : "Add task using voice")}
               aria-label="Add task using voice"
             >
-              {isListeningForTaskInput ? <Mic className="h-6 w-6 text-primary animate-pulse" /> :
-               (taskMicButtonDisabled ? <MicOff className="h-6 w-6 text-muted-foreground" /> : <Mic className="h-6 w-6" />)}
+              {isListeningForTaskInput ? <Mic className="h-7 w-7 text-primary animate-pulse" /> :
+               (taskMicButtonDisabled ? <MicOff className="h-7 w-7 text-muted-foreground" /> : <Mic className="h-7 w-7" />)}
             </Button>
             <Button type="submit" aria-label="Add task" className="px-3 sm:px-4 h-10">
               <PlusCircle className="mr-0 sm:mr-2 h-5 w-5" />

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, FormEvent, useRef } from 'react';
@@ -15,7 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { EmailPromptDialog } from '@/components/hegsync/EmailPromptDialog'; // Added
+import { EmailPromptDialog } from '@/components/hegsync/EmailPromptDialog';
 import { useToast } from '@/hooks/use-toast';
 import { WAKE_WORDS, LOCALSTORAGE_KEYS, SHARE_DEFAULTS } from '@/lib/constants';
 import { generateShoppingListPlainTextForShare } from '@/lib/list-export-utils';
@@ -37,8 +36,8 @@ export default function ShoppingListPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [isEmailPromptOpen, setIsEmailPromptOpen] = useState(false); // Added
-  const [emailBodyContent, setEmailBodyContent] = useState(''); // Added
+  const [isEmailPromptOpen, setIsEmailPromptOpen] = useState(false);
+  const [emailBodyContent, setEmailBodyContent] = useState('');
 
 
   useEffect(() => {
@@ -248,7 +247,7 @@ export default function ShoppingListPage() {
     const file = event.target.files?.[0];
     if (!file) {
       toast({ title: "No file selected", variant: "default" });
-      if (event.target) event.target.value = ''; // Reset if no file selected after dialog
+      if (event.target) event.target.value = ''; 
       return;
     }
 
@@ -266,7 +265,7 @@ export default function ShoppingListPage() {
         toast({ title: "Unsupported File Type", description: "Please select a CSV, JSON, Excel, or TXT file.", variant: "destructive" });
       }
     } finally {
-      // The specific process functions will reset fileInputRef.current.value
+      // Process functions handle resetting fileInputRef.current.value
     }
   };
 
@@ -331,7 +330,7 @@ export default function ShoppingListPage() {
         console.info('Shopping list item input speech recognition aborted.');
       } else if (event.error === 'no-speech') {
         if (isListeningForItemInput) {
-           // toast({ title: "No speech detected", variant: "default" }); 
+           console.warn("No speech detected for shopping list item input.");
         }
       } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         console.error('Shopping list item input speech recognition error:', event.error, event.message);
@@ -395,13 +394,13 @@ export default function ShoppingListPage() {
     }
   };
 
-  const handleInitiateShareViaEmail = () => { // Renamed
+  const handleInitiateShareViaEmail = () => {
     const plainTextList = generateShoppingListPlainTextForShare(items);
     setEmailBodyContent(plainTextList);
     setIsEmailPromptOpen(true);
   };
 
-  const handleConfirmEmailAndShare = (email: string) => { // New
+  const handleConfirmEmailAndShare = (email: string) => {
     const subject = SHARE_DEFAULTS.SHOPPING_LIST_EMAIL_SUBJECT;
     const mailtoLink = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBodyContent)}`;
     window.open(mailtoLink, '_blank');
@@ -479,7 +478,7 @@ export default function ShoppingListPage() {
         accept=".csv,.json,.xlsx,.xls,.txt"
         style={visuallyHiddenStyle}
         onChange={handleFileSelectedForImport}
-        id="shopping-list-file-input" // Ensure it has an ID if ever needed
+        id="shopping-list-file-input"
       />
 
       <Card className="shadow-lg">
@@ -506,8 +505,8 @@ export default function ShoppingListPage() {
               title={micButtonDisabled && micPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForItemInput ? `Stop voice input (or say '${WAKE_WORDS.END_DICTATION}' or '${WAKE_WORDS.STOP_DICTATION}')` : "Add item using voice")}
               aria-label="Add item using voice"
             >
-              {isListeningForItemInput ? <Mic className="h-6 w-6 text-primary animate-pulse" /> :
-               (micButtonDisabled ? <MicOff className="h-6 w-6 text-muted-foreground" /> : <Mic className="h-6 w-6" />)}
+              {isListeningForItemInput ? <Mic className="h-7 w-7 text-primary animate-pulse" /> :
+               (micButtonDisabled ? <MicOff className="h-7 w-7 text-muted-foreground" /> : <Mic className="h-7 w-7" />)}
             </Button>
             <Button type="submit" aria-label="Add item" className="px-3 sm:px-4 h-10">
               <PlusCircle className="mr-0 sm:mr-2 h-5 w-5" />
