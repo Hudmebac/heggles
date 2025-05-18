@@ -68,7 +68,7 @@ export const downloadShoppingListTemplate = (format: 'csv' | 'excel' | 'json' | 
     XLSX.utils.book_append_sheet(workbook, worksheet, "Shopping List Template");
     XLSX.writeFile(workbook, "shopping-list_template.xlsx");
   } else if (format === 'json') {
-    const templateData: Omit<ShoppingListItem, 'id'>[] = [ // Use Omit for template
+    const templateData: Omit<ShoppingListItem, 'id'>[] = [ 
       { text: "Example Item 1 (from JSON template)", completed: false },
       { text: "Example Item 2 (from JSON template)", completed: true },
     ];
@@ -120,7 +120,8 @@ export const exportShoppingList = (items: ShoppingListItem[], format: 'csv' | 'j
 
 // --- To-Do List Utilities ---
 
-const formatToDoItemForTextExport = (item: ToDoListItem): string => {
+// Moved and renamed helper function for plain text formatting of a single To-Do item
+const formatToDoItemForPlainTextShare = (item: ToDoListItem): string => {
   let line = `${item.completed ? '[x]' : '[ ]'} ${item.text}`;
   if (item.dueDate) {
      try {
@@ -194,7 +195,7 @@ export const downloadToDoListTemplate = (format: 'csv' | 'excel' | 'json' | 'tex
     XLSX.utils.book_append_sheet(workbook, worksheet, "To-Do List Template");
     XLSX.writeFile(workbook, "todo-list_template.xlsx");
   } else if (format === 'json') {
-    const templateData: Omit<ToDoListItem, 'id'>[] = [ // Use Omit for template
+    const templateData: Omit<ToDoListItem, 'id'>[] = [ 
       { text: "Example To-Do 1 (from JSON template)", completed: false, timeSettingType: 'specific_start', startTime: { hh: '09', mm: '30', period: 'AM' }, endTime: null, dueDate: "2024-12-01" },
       { text: "Example To-Do 2 (from JSON template)", completed: true, timeSettingType: 'all_day', startTime: null, endTime: null, dueDate: "2024-11-15" },
     ];
@@ -247,7 +248,7 @@ export const exportToDoList = (items: ToDoListItem[], format: 'csv' | 'json' | '
     XLSX.utils.book_append_sheet(workbook, worksheet, "To-Do List");
     XLSX.writeFile(workbook, `${listName}.xlsx`);
   } else if (format === 'text') {
-    const textContent = items.map(item => formatToDoItemForTextExport(item)).join('\n');
+    const textContent = items.map(item => formatToDoItemForPlainTextShare(item)).join('\n'); // Use the shared helper
     const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8;' });
     triggerDownload(blob, `${listName}.txt`);
   }
@@ -270,7 +271,7 @@ export const generateShoppingListPlainTextForShare = (items: ShoppingListItem[],
 
 export const generateToDoListPlainTextForShare = (items: ToDoListItem[], includeFooter: boolean = true): string => {
   let content = "My To-Do List from Heggles:\n\n";
-  content += items.map(item => formatToDoItemForPlainTextShare(item)).join('\n');
+  content += items.map(item => formatToDoItemForPlainTextShare(item)).join('\n'); // Correctly calls the top-level helper
   if (includeFooter) {
     content += `\n\n${getShareFooterText(false)}`;
   }
@@ -312,13 +313,10 @@ export const generateToDoListICS = (items: ToDoListItem[]): string => {
     let dtstartStr: string;
     let dtendStr: string | null = null;
 
-    const dueDateObj = new Date(item.dueDate + 'T00:00:00'); // Use local midnight as reference
+    const dueDateObj = new Date(item.dueDate + 'T00:00:00'); 
 
     if (item.timeSettingType === 'all_day' || (!item.startTime && item.timeSettingType !== 'specific_start' && item.timeSettingType !== 'specific_start_end')) {
       dtstartStr = `DTSTART;VALUE=DATE:${formatICSDate(dueDateObj)}`;
-      // For all-day events, DTEND is typically the start of the next day if a duration is implied.
-      // Or can be omitted if it's a single day event with no specific end.
-      // For simplicity, we'll make it a single-day event.
     } else {
       let startHours = 0;
       let startMinutes = 0;
@@ -327,14 +325,13 @@ export const generateToDoListICS = (items: ToDoListItem[]): string => {
         startHours = parseInt(item.startTime.hh, 10);
         startMinutes = parseInt(item.startTime.mm, 10);
         if (item.startTime.period === 'PM' && startHours < 12) startHours += 12;
-        if (item.startTime.period === 'AM' && startHours === 12) startHours = 0; // Midnight
+        if (item.startTime.period === 'AM' && startHours === 12) startHours = 0; 
       } else if (item.timeSettingType === 'am_period') {
-        startHours = 9; // Default AM start e.g. 9 AM
+        startHours = 9; 
       } else if (item.timeSettingType === 'pm_period') {
-        startHours = 13; // Default PM start e.g. 1 PM
+        startHours = 13; 
       }
-      // Else, if specific_start without startTime, it's effectively 00:00
-
+      
       const startDate = new Date(Date.UTC(dueDateObj.getUTCFullYear(), dueDateObj.getUTCMonth(), dueDateObj.getUTCDate(), startHours, startMinutes));
       dtstartStr = `DTSTART:${formatICSDate(startDate, true)}`;
 
@@ -345,13 +342,11 @@ export const generateToDoListICS = (items: ToDoListItem[]): string => {
         if (item.endTime.period === 'AM' && endHours === 12) endHours = 0;
 
         const endDate = new Date(Date.UTC(dueDateObj.getUTCFullYear(), dueDateObj.getUTCMonth(), dueDateObj.getUTCDate(), endHours, endMinutes));
-        // If end time is before or same as start time, assume it's on the next day or adjust (simple: add 1 hr from start)
         if (endDate <= startDate) {
-             endDate.setTime(startDate.getTime() + (60 * 60 * 1000)); // Default 1 hour duration
+             endDate.setTime(startDate.getTime() + (60 * 60 * 1000)); 
         }
         dtendStr = `DTEND:${formatICSDate(endDate, true)}`;
       } else {
-        // Default duration: 1 hour if only start time is specified, or if it's just AM/PM
         const endDate = new Date(startDate.getTime() + (60 * 60 * 1000));
         dtendStr = `DTEND:${formatICSDate(endDate, true)}`;
       }
@@ -365,7 +360,6 @@ export const generateToDoListICS = (items: ToDoListItem[]): string => {
     if (dtendStr) {
       icsContent.push(dtendStr);
     }
-    // Optionally add more fields like DESCRIPTION, LOCATION, etc.
     icsContent.push('END:VEVENT');
   });
 
@@ -373,7 +367,6 @@ export const generateToDoListICS = (items: ToDoListItem[]): string => {
   return icsContent.join('\r\n');
 };
 
-// Function to trigger ICS file download
 export const downloadICSFile = (icsContent: string, filename: string = "todo_calendar.ics") => {
   if (!icsContent) return;
   const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8;' });
