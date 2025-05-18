@@ -18,8 +18,8 @@ export default function HowToPage() {
         <CardHeader>
           <CardTitle className="text-2xl">Core Concept</CardTitle>
           <CardDescription>
-            Heggles helps you capture, organize, and recall your thoughts with AI assistance.
-            Use the Dashboard for quick input and AI processing, manage your lists, and store important thoughts in the Memory Vault.
+            Heggles helps you capture, organise, and recall your thoughts with the new improved Heggle brain.
+            Use the Dashboard for quick input and 'Heggle' processing, manage your lists, and store important thoughts in the Memory Vault.
           </CardDescription>
         </CardHeader>
       </Card>
