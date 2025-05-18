@@ -210,7 +210,7 @@ export default function ToDoListPage() {
         if (!newStartTime && !newEndTime) finalTimeSettingType = 'not_set';
         else if (newStartTime && !newEndTime) finalTimeSettingType = 'specific_start';
         else if (!newStartTime && newEndTime) { // If only end time is set, treat as invalid for range
-            newEndTime = null; 
+            newEndTime = null;
             finalTimeSettingType = 'not_set';
         }
     }
@@ -268,7 +268,7 @@ export default function ToDoListPage() {
 
       if (field === 'mm' && value === '') newPoint.mm = ''; // Allow clearing
       else if (field === 'mm') newPoint.mm = value.replace(/[^0-9]/g, '').slice(0, 2);
-      
+
       return newPoint;
     });
   };
@@ -276,7 +276,7 @@ export default function ToDoListPage() {
   const displayFormattedTime = (item: ToDoListItem): string => {
     if (!item.timeSettingType || item.timeSettingType === 'not_set') return 'No time set';
     if (item.timeSettingType === 'all_day') return 'All Day';
-    
+
     const formatSinglePoint = (point: TimePoint | null | undefined) => {
         if (!point) return null;
         if (!point.period) return null; // Period is essential
@@ -393,18 +393,18 @@ export default function ToDoListPage() {
     reader.onload = (e) => {
       try {
         const csvText = e.target?.result as string;
-        const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '' && !line.trim().startsWith('#'));
+        const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '' && !line.trim().toLowerCase().startsWith('#'));
 
         if (lines.length === 0) {
-           toast({ title: "Import Failed", description: "The selected file is empty.", variant: "destructive" });
+           toast({ title: "Import Failed", description: "The selected file is empty or contains only comments.", variant: "destructive" });
            return;
         }
 
-        const headers = lines[0].split(',').map(h => h.trim());
-        const expectedHeaders = ["text", "completed", "timeSettingType", "startTime", "endTime", "dueDate"];
+        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+        const expectedHeaders = ["text", "completed", "timesettingtype", "starttime", "endtime", "duedate"]; // Use lowercase for matching
 
          if (!expectedHeaders.every(h => headers.includes(h))) {
-             toast({ title: "Import Failed", description: "Invalid CSV format. Missing required columns: " + expectedHeaders.filter(h => !headers.includes(h)).join(', '), variant: "destructive" });
+             toast({ title: "Import Failed", description: "Invalid CSV format. Missing required columns (case-insensitive): " + expectedHeaders.filter(h => !headers.includes(h)).join(', '), variant: "destructive" });
              return;
          }
 
@@ -417,20 +417,22 @@ export default function ToDoListPage() {
              if (value && value.startsWith('"') && value.endsWith('"')) {
                  value = value.substring(1, value.length - 1).replace(/""/g, '"');
              }
-             itemData[header] = value;
+             itemData[header] = value?.trim();
           });
 
-          const startTimeString = itemData['startTime'];
-          const endTimeString = itemData['endTime'];
+          const startTimeString = itemData['starttime'];
+          const endTimeString = itemData['endtime'];
+
+          const timeSettingType = (itemData['timesettingtype'] as TimeSettingType) || 'not_set';
 
           importedItems.push({
             id: crypto.randomUUID(),
             text: itemData['text'] || 'Unnamed Task',
             completed: itemData['completed']?.toLowerCase() === 'true',
-            timeSettingType: (itemData['timeSettingType'] as TimeSettingType) || 'not_set',
-            startTime: startTimeString && parse(startTimeString, 'hh:mm a', new Date()) ? { hh: format(parse(startTimeString, 'hh:mm a', new Date()), 'hh'), mm: format(parse(startTimeString, 'hh:mm a', new Date()), 'mm'), period: format(parse(startTimeString, 'hh:mm a', new Date()), 'a') as 'AM' | 'PM' } : null,
-            endTime: endTimeString && parse(endTimeString, 'hh:mm a', new Date()) ? { hh: format(parse(endTimeString, 'hh:mm a', new Date()), 'hh'), mm: format(parse(endTimeString, 'hh:mm a', new Date()), 'mm'), period: format(parse(endTimeString, 'hh:mm a', new Date()), 'a') as 'AM' | 'PM' } : null,
-            dueDate: itemData['dueDate'] && isValid(parseISO(itemData['dueDate'])) ? itemData['dueDate'] : null,
+            timeSettingType: ['not_set', 'all_day', 'am_period', 'pm_period', 'specific_start', 'specific_start_end'].includes(timeSettingType) ? timeSettingType : 'not_set',
+            startTime: startTimeString && parse(startTimeString, 'hh:mm a', new Date()) ? { hh: format(parse(startTimeString, 'hh:mm a', new Date()), 'hh'), mm: format(parse(startTimeString, 'hh:mm a', new Date()), 'mm'), period: format(parse(startTimeString, 'hh:mm a', new Date()), 'a').toUpperCase() as 'AM' | 'PM' } : null,
+            endTime: endTimeString && parse(endTimeString, 'hh:mm a', new Date()) ? { hh: format(parse(endTimeString, 'hh:mm a', new Date()), 'hh'), mm: format(parse(endTimeString, 'hh:mm a', new Date()), 'mm'), period: format(parse(endTimeString, 'hh:mm a', new Date()), 'a').toUpperCase() as 'AM' | 'PM' } : null,
+            dueDate: itemData['duedate'] && isValid(parseISO(itemData['duedate'])) ? itemData['duedate'] : null,
           });
         }
 
@@ -438,11 +440,13 @@ export default function ToDoListPage() {
         toast({ title: "To-Do List Imported", description: `${importedItems.length} tasks loaded from CSV.` });
 
       } catch (error) {
+        console.error("CSV Import error:", error);
         toast({ title: "Import Failed", description: "Could not process CSV file. Please check the format.", variant: "destructive" });
+      } finally {
+        event.target.value = ''; // Reset file input
       }
     };
     reader.readAsText(file);
-    event.target.value = ''; // Reset file input
   };
 
   const handleImportJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -474,10 +478,11 @@ export default function ToDoListPage() {
 
       } catch (error) {
         toast({ title: "Import Failed", description: "Could not parse JSON file. Please check the file content.", variant: "destructive" });
+      } finally {
+        event.target.value = ''; // Reset file input
       }
     };
     reader.readAsText(file);
-    event.target.value = ''; // Reset file input
   };
 
   const handleImportExcel = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -491,75 +496,82 @@ export default function ToDoListPage() {
         const workbook = XLSX.read(data, { type: 'binary' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const json: any[] = XLSX.utils.sheet_to_json(worksheet);
+        const json: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 }); // Read as array of arrays
 
-        const importedItems: ToDoListItem[] = [];
+        let headers: string[] = [];
         let dataStartIndex = -1;
-        if (json.length > 0) {
-           const firstRowKeys = Object.keys(json[0]).map(key => key.trim().toLowerCase());
-           if (firstRowKeys.includes('text') && firstRowKeys.includes('completed')) {
-              dataStartIndex = 0;
-           } else {
-              for (let i = 0; i < json.length; i++) {
-                 const rowKeys = Object.keys(json[i]).map(key => key.trim().toLowerCase());
-                 if (rowKeys.includes('text') && rowKeys.includes('completed')) {
-                    dataStartIndex = i;
-                    break;
-                 }
-              }
-           }
+
+        // Find header row and actual data start index
+        for(let i = 0; i < json.length; i++) {
+          const row = json[i] as any[];
+          if (row.some(cell => typeof cell === 'string' && cell.trim().toLowerCase() === 'text')) {
+            headers = row.map(cell => String(cell || '').trim().toLowerCase());
+            dataStartIndex = i + 1;
+            break;
+          }
         }
 
-        if (dataStartIndex === -1) {
-            toast({ title: "Import Failed", description: "Could not find valid task data in the Excel file. Ensure 'text' and 'completed' columns exist after any comment rows.", variant: "destructive" });
+        if (dataStartIndex === -1 || headers.length === 0) {
+            toast({ title: "Import Failed", description: "Could not find valid header row in Excel (must contain 'text').", variant: "destructive" });
             return;
         }
+        
+        const textIndex = headers.indexOf('text');
+        const completedIndex = headers.indexOf('completed');
+        const timeSettingTypeIndex = headers.indexOf('timesettingtype');
+        const startTimeIndex = headers.indexOf('starttime');
+        const endTimeIndex = headers.indexOf('endtime');
+        const dueDateIndex = headers.indexOf('duedate');
 
+        if (textIndex === -1) {
+           toast({ title: "Import Failed", description: "Excel file must contain a 'text' column.", variant: "destructive" });
+           return;
+        }
+
+
+        const importedItems: ToDoListItem[] = [];
         for (let i = dataStartIndex; i < json.length; i++) {
-            const row = json[i];
-            const text = row.text || '';
-            const completed = String(row.completed || '').toLowerCase() === 'true';
-            const timeSettingType = ['not_set', 'all_day', 'am_period', 'pm_period', 'specific_start', 'specific_start_end'].includes(row.timeSettingType as string) ? row.timeSettingType : 'not_set';
+            const row = json[i] as any[];
+            const text = String(row[textIndex] || '').trim();
+            const completed = completedIndex > -1 ? String(row[completedIndex] || '').toLowerCase() === 'true' : false;
+            const timeSettingTypeRaw = timeSettingTypeIndex > -1 ? String(row[timeSettingTypeIndex] || '').toLowerCase() : 'not_set';
+            const timeSettingType = ['not_set', 'all_day', 'am_period', 'pm_period', 'specific_start', 'specific_start_end'].includes(timeSettingTypeRaw) ? timeSettingTypeRaw : 'not_set';
 
             let startTime: TimePoint | null = null;
-            if (row.startTime) {
-               const parsedTime = parse(String(row.startTime), 'hh:mm a', new Date());
+            if (startTimeIndex > -1 && row[startTimeIndex]) {
+               const parsedTime = parse(String(row[startTimeIndex]), 'hh:mm a', new Date());
                if (isValid(parsedTime)) {
-                  startTime = { hh: format(parsedTime, 'hh'), mm: format(parsedTime, 'mm'), period: format(parsedTime, 'a') as 'AM' | 'PM' };
+                  startTime = { hh: format(parsedTime, 'hh'), mm: format(parsedTime, 'mm'), period: format(parsedTime, 'a').toUpperCase() as 'AM' | 'PM' };
                }
             }
 
              let endTime: TimePoint | null = null;
-            if (row.endTime) {
-               const parsedTime = parse(String(row.endTime), 'hh:mm a', new Date());
+            if (endTimeIndex > -1 && row[endTimeIndex]) {
+               const parsedTime = parse(String(row[endTimeIndex]), 'hh:mm a', new Date());
                if (isValid(parsedTime)) {
-                  endTime = { hh: format(parsedTime, 'hh'), mm: format(parsedTime, 'mm'), period: format(parsedTime, 'a') as 'AM' | 'PM' };
+                  endTime = { hh: format(parsedTime, 'hh'), mm: format(parsedTime, 'mm'), period: format(parsedTime, 'a').toUpperCase() as 'AM' | 'PM' };
                }
             }
 
             let dueDate: string | null = null;
-            if (row.dueDate) {
-                let dateCandidate = String(row.dueDate);
-                let parsedDate = parseISO(dateCandidate);
-                if (!isValid(parsedDate)) {
-                    parsedDate = parse(dateCandidate, 'dd/MM/yyyy', new Date());
-                     if (!isValid(parsedDate)) {
-                       parsedDate = parse(dateCandidate, 'MM/dd/yyyy', new Date());
-                     }
-                    if (!isValid(parsedDate) && typeof row.dueDate === 'number') { // Excel date serial number
-                       const excelEpoch = new Date(Date.UTC(1899, 11, 30));
-                       parsedDate = new Date(excelEpoch.getTime() + row.dueDate * 24 * 60 * 60 * 1000);
-                    }
+            if (dueDateIndex > -1 && row[dueDateIndex]) {
+                let dateCandidate = String(row[dueDateIndex]);
+                let parsedDate = parseISO(dateCandidate); // YYYY-MM-DD
+                if (!isValid(parsedDate)) parsedDate = parse(dateCandidate, 'dd/MM/yyyy', new Date()); // DD/MM/YYYY
+                if (!isValid(parsedDate)) parsedDate = parse(dateCandidate, 'MM/dd/yyyy', new Date()); // MM/DD/YYYY
+                if (!isValid(parsedDate) && typeof row[dueDateIndex] === 'number') { // Excel date serial number
+                   const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+                   parsedDate = new Date(excelEpoch.getTime() + (row[dueDateIndex] as number) * 24 * 60 * 60 * 1000);
                 }
                 if (isValid(parsedDate)) {
                     dueDate = format(parsedDate, 'yyyy-MM-dd');
                 }
             }
 
-            if (text.trim()) {
+            if (text) {
                 importedItems.push({
                     id: crypto.randomUUID(),
-                    text: text.trim(),
+                    text: text,
                     completed: completed,
                     timeSettingType: timeSettingType as TimeSettingType,
                     startTime: startTime,
@@ -573,7 +585,7 @@ export default function ToDoListPage() {
             toast({ title: "Import Warning", description: "No valid tasks could be extracted from the Excel file, or all tasks were empty.", variant: "default" });
             return;
         }
-         if (importedItems.length === 0 && json.length <= dataStartIndex) {
+        if (importedItems.length === 0 && json.length <= dataStartIndex) {
              toast({ title: "Import Failed", description: "No data rows found after headers/comments in Excel.", variant: "destructive" });
             return;
         }
@@ -583,11 +595,13 @@ export default function ToDoListPage() {
         toast({ title: "To-Do List Imported", description: `${importedItems.length} tasks loaded from Excel.` });
 
       } catch (error) {
+         console.error("Excel import error:", error);
          toast({ title: "Import Failed", description: "Could not process Excel file. Please check the format and ensure column names (text, completed, etc.) are correct.", variant: "destructive" });
+      } finally {
+        event.target.value = ''; // Reset file input
       }
     };
     reader.readAsBinaryString(file);
-    event.target.value = ''; // Reset file input
   };
 
 
@@ -644,7 +658,7 @@ export default function ToDoListPage() {
       case 'default':
       default:
         // Uses the 'items' state directly which reflects drag-and-drop or button moves
-        break; 
+        break;
     }
     return displayItems;
   }, [items, sortOrder]);
@@ -678,9 +692,14 @@ export default function ToDoListPage() {
 
       const lowerTranscript = transcript.toLowerCase();
       const endCommand = WAKE_WORDS.END_DICTATION.toLowerCase();
+      const stopCommand = WAKE_WORDS.STOP_DICTATION.toLowerCase();
 
-      if (lowerTranscript.endsWith(endCommand)) {
-        transcript = transcript.substring(0, transcript.length - endCommand.length).trim();
+      if (lowerTranscript.endsWith(endCommand) || lowerTranscript.endsWith(stopCommand)) {
+        if (lowerTranscript.endsWith(endCommand)) {
+            transcript = transcript.substring(0, transcript.length - endCommand.length).trim();
+        } else if (lowerTranscript.endsWith(stopCommand)) {
+            transcript = transcript.substring(0, transcript.length - stopCommand.length).trim();
+        }
         setNewItemText(transcript);
         if (recognitionTaskRef.current) {
           try { recognitionTaskRef.current.stop(); } catch(e) { /* ignore */ }
@@ -776,7 +795,7 @@ export default function ToDoListPage() {
     );
   }
 
-  const renderTimePointInput = (type: 'start' | 'end', timePoint: TimePoint | null) => {
+  const renderTimePointInput = (type: 'start' | 'end', _timePoint: TimePoint | null) => { // _timePoint not directly used due to currentVal
     const currentVal = type === 'start' ? currentEditorStartTime : currentEditorEndTime;
     return (
       <div className="flex items-center gap-1 p-1 border rounded-md bg-background">
@@ -791,6 +810,17 @@ export default function ToDoListPage() {
   };
 
   const taskMicButtonDisabled = taskInputMicPermission === 'unsupported' || taskInputMicPermission === 'denied';
+  const visuallyHiddenStyle: React.CSSProperties = {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: '0',
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap',
+    borderWidth: '0',
+  };
 
   return (
     <div className="space-y-8 max-w-3xl mx-auto">
@@ -817,9 +847,9 @@ export default function ToDoListPage() {
       </div>
 
       {/* Hidden file inputs for import functionality, triggered by Header */}
-      <input id="import-todo-list-csv" type="file" accept=".csv" style={{ display: 'none' }} onChange={handleImportCSV} />
-      <input id="import-todo-list-json" type="file" accept=".json" style={{ display: 'none' }} onChange={handleImportJSON} />
-      <input id="import-todo-list-excel" type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportExcel} />
+      <input id="import-todo-list-csv" type="file" accept=".csv" style={visuallyHiddenStyle} onChange={handleImportCSV} />
+      <input id="import-todo-list-json" type="file" accept=".json" style={visuallyHiddenStyle} onChange={handleImportJSON} />
+      <input id="import-todo-list-excel" type="file" accept=".xlsx,.xls" style={visuallyHiddenStyle} onChange={handleImportExcel} />
 
       <Card className="shadow-lg">
         <CardHeader>
@@ -838,11 +868,11 @@ export default function ToDoListPage() {
             <Button
               type="button"
               variant="outline"
-              size="lg"
-              className="p-2 h-10 w-10" 
+              size="icon"
+              className="p-2 h-10 w-10 shrink-0"
               onClick={triggerTaskInputMic}
               disabled={taskMicButtonDisabled && taskInputMicPermission !== 'prompt'}
-              title={taskMicButtonDisabled && taskInputMicPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForTaskInput ? "Stop voice input (or say 'Heggles end')" : "Add task using voice")}
+              title={taskMicButtonDisabled && taskInputMicPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForTaskInput ? "Stop voice input (or say 'Heggles end/stop')" : "Add task using voice")}
               aria-label="Add task using voice"
             >
               {isListeningForTaskInput ? <Mic className="h-6 w-6 text-primary animate-pulse" /> :

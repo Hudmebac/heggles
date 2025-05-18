@@ -96,26 +96,27 @@ export default function ShoppingListPage() {
     reader.onload = (e) => {
       try {
         const csvText = e.target?.result as string;
-        const lines = csvText.split(/[\\r\\n]+/).filter(line => line.trim() !== '' && !line.startsWith('#'));
+        const lines = csvText.split(/[\\r\\n]+/).filter(line => line.trim() !== '' && !line.toLowerCase().startsWith('#'));
         if (lines.length === 0) {
-           toast({ title: "Import Failed", description: "File is empty.", variant: "destructive" });
-           event.target.value = '';
+           toast({ title: "Import Failed", description: "File is empty or contains only comments.", variant: "destructive" });
            return;
         }
-        // More robust header check
         const headerRowText = lines[0].toLowerCase();
         const hasTextHeader = headerRowText.includes('text');
         const hasCompletedHeader = headerRowText.includes('completed');
 
         if (!hasTextHeader || !hasCompletedHeader) {
           toast({ title: "Import Failed", description: "CSV must contain 'text' and 'completed' columns (case-insensitive).", variant: "destructive" });
-          event.target.value = '';
           return;
         }
-        // Find actual indices
         const headerRow = lines[0].split(',').map(h => h.trim().toLowerCase());
         const textIndex = headerRow.indexOf('text');
         const completedIndex = headerRow.indexOf('completed');
+
+         if (textIndex === -1 || completedIndex === -1) {
+           toast({ title: "Import Failed", description: "Could not find 'text' or 'completed' columns in the header.", variant: "destructive" });
+           return;
+         }
 
         const importedItems: ShoppingListItem[] = lines.slice(1).map(line => {
            const values = line.split(',');
@@ -126,12 +127,12 @@ export default function ShoppingListPage() {
       } catch (error) {
         toast({ title: "Import Failed", description: "Could not parse CSV file.", variant: "destructive" });
       } finally {
-        event.target.value = ''; 
+        event.target.value = '';
       }
     };
     reader.readAsText(file);
   };
-  
+
   const handleImportJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -172,7 +173,7 @@ export default function ShoppingListPage() {
           text: String(row.text || '').trim(),
           completed: String(row.completed || '').toLowerCase() === 'true',
         })).filter(item => item.text !== '');
-        
+
         setItems(importedItems);
         toast({ title: "Shopping List Imported", description: `${importedItems.length} items loaded from Excel.` });
       } catch (error) {
@@ -215,9 +216,15 @@ export default function ShoppingListPage() {
 
       const lowerTranscript = transcript.toLowerCase();
       const endCommand = WAKE_WORDS.END_DICTATION.toLowerCase();
+      const stopCommand = WAKE_WORDS.STOP_DICTATION.toLowerCase();
 
-      if (lowerTranscript.endsWith(endCommand)) {
-        transcript = transcript.substring(0, transcript.length - endCommand.length).trim();
+
+      if (lowerTranscript.endsWith(endCommand) || lowerTranscript.endsWith(stopCommand)) {
+        if (lowerTranscript.endsWith(endCommand)) {
+            transcript = transcript.substring(0, transcript.length - endCommand.length).trim();
+        } else if (lowerTranscript.endsWith(stopCommand)) {
+            transcript = transcript.substring(0, transcript.length - stopCommand.length).trim();
+        }
         setNewItemText(transcript);
         if (recognitionRef.current) {
           try { (recognitionRef.current as any).stop(); } catch(e) { /* ignore */ }
@@ -313,6 +320,17 @@ export default function ShoppingListPage() {
   }
 
   const micButtonDisabled = micPermission === 'unsupported' || micPermission === 'denied';
+  const visuallyHiddenStyle: React.CSSProperties = {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: '0',
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap',
+    borderWidth: '0',
+  };
 
   return (
     <div className="space-y-8 max-w-2xl mx-auto">
@@ -324,9 +342,9 @@ export default function ShoppingListPage() {
       </div>
 
       {/* Hidden file inputs for import functionality, triggered by Header */}
-      <input id="import-shopping-list-csv" type="file" accept=".csv" style={{ display: 'none' }} onChange={handleImportCSV} />
-      <input id="import-shopping-list-json" type="file" accept=".json" style={{ display: 'none' }} onChange={handleImportJSON} />
-      <input id="import-shopping-list-excel" type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportExcel} />
+      <input id="import-shopping-list-csv" type="file" accept=".csv" style={visuallyHiddenStyle} onChange={handleImportCSV} />
+      <input id="import-shopping-list-json" type="file" accept=".json" style={visuallyHiddenStyle} onChange={handleImportJSON} />
+      <input id="import-shopping-list-excel" type="file" accept=".xlsx,.xls" style={visuallyHiddenStyle} onChange={handleImportExcel} />
 
 
       <Card className="shadow-lg">
@@ -346,11 +364,11 @@ export default function ShoppingListPage() {
             <Button
               type="button"
               variant="outline"
-              size="icon" 
-              className="p-2 h-10 w-10" 
+              size="icon"
+              className="p-2 h-10 w-10 shrink-0"
               onClick={triggerItemInputMic}
               disabled={micButtonDisabled && micPermission !== 'prompt'}
-              title={micButtonDisabled && micPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForItemInput ? "Stop voice input (or say 'Heggles end')" : "Add item using voice")}
+              title={micButtonDisabled && micPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForItemInput ? "Stop voice input (or say 'Heggles end/stop')" : "Add item using voice")}
               aria-label="Add item using voice"
             >
               {isListeningForItemInput ? <Mic className="h-6 w-6 text-primary animate-pulse" /> :
@@ -440,5 +458,3 @@ export default function ShoppingListPage() {
     </div>
   );
 }
-
-    
