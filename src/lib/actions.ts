@@ -17,14 +17,18 @@ export async function processTextThought(
   try {
     const transcription = rawText; 
 
-    // Perform all AI processing steps
-    const [summaryResult, keywordsResult, refinementResult, intentAnalysisResult] = await Promise.all([
+    // Step 1: Perform initial AI processing that can run in parallel
+    const [summaryResult, keywordsResult, refinementResult] = await Promise.all([
       summarizeAudio({ transcription }),
       extractKeywords({ text: transcription }),
       refineThought({ transcript: transcription }),
-      analyzeThoughtIntent({ thoughtText: refinementResult.refinedTranscript || transcription })
     ]);
     
+    // Step 2: Perform intent analysis using the refined transcript (or original if refinement fails)
+    const textForIntent = refinementResult.refinedTranscript || transcription;
+    const intentAnalysisResult = await analyzeThoughtIntent({ thoughtText: textForIntent });
+    
+    // Step 3: If it's a question, attempt to answer it
     let aiAnswerResult: AnswerQuestionOutput | undefined = undefined;
     if (intentAnalysisResult.isQuestion && intentAnalysisResult.extractedQuestion) {
       aiAnswerResult = await answerQuestionFlow({ question: intentAnalysisResult.extractedQuestion });
@@ -46,12 +50,11 @@ export async function processTextThought(
       aiSuggestedListForCreativeAction: aiAnswerResult?.suggestedListForCreativeAction,
     };
   } catch (error) {
-    console.error("Detailed error in processTextThought:", error); // Enhanced logging
-    // Ensure the error is an instance of Error to access the message property safely
+    console.error("Detailed error in processTextThought:", error); 
     const errorMessage = error instanceof Error ? error.message : "Unknown AI processing error";
     return {
         originalText: rawText,
-        summary: "Error during AI processing.", // This is what the user sees
+        summary: "Error during AI processing.",
         keywords: [],
         refinedTranscript: rawText, 
         actionItems: [`Error: ${errorMessage}`], 
@@ -84,13 +87,18 @@ export async function processRecordedAudio(
 
     const effectiveTranscription = transcription.trim() === "" ? "[No speech detected during recording]" : transcription;
 
-    const [summaryResult, keywordsResult, refinementResult, intentAnalysisResult] = await Promise.all([
+    // Step 1: Perform initial AI processing that can run in parallel
+    const [summaryResult, keywordsResult, refinementResult] = await Promise.all([
         summarizeAudio({ transcription: effectiveTranscription }),
         extractKeywords({ text: effectiveTranscription }),
         refineThought({ transcript: effectiveTranscription }),
-        analyzeThoughtIntent({ thoughtText: refinementResult.refinedTranscript || effectiveTranscription })
     ]);
 
+    // Step 2: Perform intent analysis using the refined transcript (or original if refinement fails)
+    const textForIntent = refinementResult.refinedTranscript || effectiveTranscription;
+    const intentAnalysisResult = await analyzeThoughtIntent({ thoughtText: textForIntent });
+
+    // Step 3: If it's a question, attempt to answer it
     let aiAnswerResult: AnswerQuestionOutput | undefined = undefined;
     if (intentAnalysisResult.isQuestion && intentAnalysisResult.extractedQuestion) {
       aiAnswerResult = await answerQuestionFlow({ question: intentAnalysisResult.extractedQuestion });
@@ -112,13 +120,13 @@ export async function processRecordedAudio(
       aiSuggestedListForCreativeAction: aiAnswerResult?.suggestedListForCreativeAction,
     };
   } catch (error) {
-    console.error("Detailed error in processRecordedAudio:", error); // Enhanced logging
+    console.error("Detailed error in processRecordedAudio:", error); 
     const errorMessage = error instanceof Error ? error.message : "Unknown AI processing error with recorded audio";
     return {
-        originalText: transcription, // Or effectiveTranscription
+        originalText: transcription, 
         summary: "Error during AI processing of recorded audio.",
         keywords: [],
-        refinedTranscript: transcription, // Or effectiveTranscription
+        refinedTranscript: transcription, 
         actionItems: [`Error: ${errorMessage}`],
         intentAnalysis: { 
           isQuestion: false, 
@@ -152,7 +160,7 @@ export async function pinThoughtAndSuggestCategories(
     };
   } catch (error)
     {
-    console.error("Detailed error in pinThoughtAndSuggestCategories:", error); // Enhanced logging
+    console.error("Detailed error in pinThoughtAndSuggestCategories:", error); 
     return {
       ...thought,
       categories: ["Uncategorized"], // Fallback category
@@ -171,11 +179,8 @@ export async function clarifyThoughtWithAI(
       actionItems: clarificationResult.actionItems,
     };
   } catch (error) {
-    console.error("Detailed error in clarifyThoughtWithAI:", error); // Enhanced logging
-    // Consider what to return here. Throwing might be better if the caller can handle it,
-    // or return a structured error response.
+    console.error("Detailed error in clarifyThoughtWithAI:", error); 
     const errorMessage = error instanceof Error ? error.message : "Unknown AI clarification error";
-    // For now, let's match the original behavior of throwing, but with better logging.
     throw new Error(`Failed to clarify thought with AI: ${errorMessage}`);
   }
 }
@@ -187,13 +192,12 @@ export async function answerUserQuestion(question: string): Promise<AnswerQuesti
     const result = await answerQuestionFlow({ question });
     return result;
   } catch (error) {
-    console.error("Detailed error in answerUserQuestion:", error); // Enhanced logging
+    console.error("Detailed error in answerUserQuestion:", error); 
     const errorMessage = error instanceof Error ? error.message : "Unknown error answering question";
     return { 
       answer: `Sorry, I encountered an error trying to answer the question: ${errorMessage}`,
       isCreativeRequest: false,
       isDirectionRequest: false,
-      // Ensure all fields from AnswerQuestionOutputSchema are present
       suggestedActionText: undefined,
       suggestedActionLink: undefined,
       extractedActionFromCreative: undefined,
