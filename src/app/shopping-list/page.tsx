@@ -6,7 +6,7 @@ import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
 import type { ShoppingListItem } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';import { Label } from "@/components/ui/label";
+import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ListChecks, Trash2, Edit3, PlusCircle, Save, Ban, Mic, MicOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -26,7 +26,6 @@ export default function ShoppingListPage() {
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const pauseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-
   useEffect(() => {
     setIsClient(true);
     const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -41,7 +40,6 @@ export default function ShoppingListPage() {
         clearTimeout(pauseTimeoutRef.current);
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
 
@@ -89,40 +87,9 @@ export default function ShoppingListPage() {
     setEditingItemText('');
   };
 
-  const handleExportList = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(items, null, 2));
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", "shopping-list.json");
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
-    toast({ title: "Shopping List Exported" });
-  };
-
-  const handleExportTemplate = () => {
-    const comments = "# This is a template for importing your shopping list.\\n" +
-                     "# Each row should represent a shopping list item.\\n" +
-                     "# The first column ('text') is required and should contain the item name.\\n" +
-                     "# The second column ('completed') is required and should be 'true' or 'false'.\\n";
-    const header = "text,completed\\n";
-    const csvContent = comments + header + "Example Item 1,false\\nExample Item 2,true\\n";
-    const downloadAnchorNode = document.createElement('a');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    downloadAnchorNode.setAttribute("href", url);
-    downloadAnchorNode.setAttribute("download", "shopping-list_template.csv");
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
-    URL.revokeObjectURL(url);
-    toast({ title: "Shopping List Template Exported" });
-  };
-
-  const handleImportList = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportCSV = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -140,21 +107,71 @@ export default function ShoppingListPage() {
           toast({ title: "Import Failed", description: "CSV must contain 'text' and 'completed' columns.", variant: "destructive" });
            return;
         }
-
         const importedItems: ShoppingListItem[] = lines.slice(1).map(line => {
            const values = line.split(',');
            return { id: crypto.randomUUID(), text: values[textIndex]?.trim() || '', completed: values[completedIndex]?.trim().toLowerCase() === 'true' };
         }).filter(item => item.text !== '');
         setItems(importedItems);
-        toast({ title: "Shopping List Imported", description: `${importedItems.length} items loaded.` });
-
+        toast({ title: "Shopping List Imported", description: `${importedItems.length} items loaded from CSV.` });
       } catch (error) {
         toast({ title: "Import Failed", description: "Could not parse CSV file.", variant: "destructive" });
       }
     };
     reader.readAsText(file);
-    event.target.value = ''; // Clear the input
+    event.target.value = '';
   };
+  
+  const handleImportJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const jsonText = e.target?.result as string;
+        const imported: ShoppingListItem[] = JSON.parse(jsonText);
+        if (!Array.isArray(imported) || imported.some(item => typeof item.text !== 'string' || typeof item.completed !== 'boolean')) {
+          throw new Error("Invalid JSON structure.");
+        }
+        // Assign new IDs to avoid conflicts if importing existing items
+        const newItems = imported.map(item => ({...item, id: crypto.randomUUID() }));
+        setItems(newItems);
+        toast({ title: "Shopping List Imported", description: `${newItems.length} items loaded from JSON.` });
+      } catch (error) {
+        toast({ title: "Import Failed", description: "Could not parse JSON file. Ensure it's a valid array of shopping list items.", variant: "destructive" });
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  };
+
+  const handleImportExcel = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = e.target?.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json: any[] = XLSX.utils.sheet_to_json(worksheet);
+
+        const importedItems: ShoppingListItem[] = json.map(row => ({
+          id: crypto.randomUUID(),
+          text: String(row.text || '').trim(),
+          completed: String(row.completed || '').toLowerCase() === 'true',
+        })).filter(item => item.text !== '');
+        
+        setItems(importedItems);
+        toast({ title: "Shopping List Imported", description: `${importedItems.length} items loaded from Excel.` });
+      } catch (error) {
+        toast({ title: "Import Failed", description: "Could not process Excel file.", variant: "destructive" });
+      }
+    };
+    reader.readAsBinaryString(file);
+    event.target.value = '';
+  };
+
 
   const startInputRecognition = useCallback(() => {
     const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -292,17 +309,14 @@ export default function ShoppingListPage() {
             <ListChecks className="h-10 w-10 text-primary" />
             <h1 className="text-3xl font-bold tracking-tight">Shopping List</h1>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2 mt-4 sm:mt-0 items-center"> {/* Added items-center for vertical alignment */}
-          <Button variant="outline" onClick={handleExportList} size="sm">Export List</Button>
-          <Button variant="outline" onClick={handleExportTemplate} size="sm">Export Template</Button>
-          <div className="flex items-center"> {/* Wrapper for label and input */}
-            <Button variant="outline" size="sm" asChild>
-              <Label htmlFor="import-shopping-list-file" className="cursor-pointer h-full flex items-center px-3">Import CSV</Label>
-            </Button>
-            <Input id="import-shopping-list-file" type="file" accept=".csv" className="hidden" onChange={handleImportList} />
-          </div>
-        </div>
+        {/* Import/Export buttons removed from here */}
       </div>
+
+      {/* Hidden file inputs for import functionality, triggered by Header */}
+      <Input id="import-shopping-list-csv" type="file" accept=".csv" className="hidden" onChange={handleImportCSV} />
+      <Input id="import-shopping-list-json" type="file" accept=".json" className="hidden" onChange={handleImportJSON} />
+      <Input id="import-shopping-list-excel" type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportExcel} />
+
 
       <Card className="shadow-lg">
         <CardHeader>
@@ -322,7 +336,7 @@ export default function ShoppingListPage() {
               type="button"
               variant="outline"
               size="lg"
-              className="p-2"
+              className="p-2 h-10 w-10" // Made icon button size consistent
               onClick={triggerItemInputMic}
               disabled={micButtonDisabled && micPermission !== 'prompt'}
               title={micButtonDisabled && micPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForItemInput ? "Stop voice input (or say 'Heggles end')" : "Add item using voice")}

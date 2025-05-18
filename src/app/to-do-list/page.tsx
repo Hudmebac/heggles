@@ -3,7 +3,7 @@
 
 import { useState, useEffect, FormEvent, DragEvent, useMemo, useRef, useCallback } from 'react';
 import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
-import type { ToDoListItem, TimePoint, TimeSettingType, DataFormat } from '@/lib/types'; // Added DataFormat
+import type { ToDoListItem, TimePoint, TimeSettingType } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -13,9 +13,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Label } from '@/components/ui/label';
 import { format, parseISO, isValid, isPast, isToday, isTomorrow, parse } from 'date-fns';
-import { 
-  ClipboardList, Trash2, Edit3, PlusCircle, Save, Ban, CheckSquare, Clock, 
-  ChevronUp, ChevronDown, GripVertical, CalendarIcon, AlertTriangle, Mic, MicOff 
+import {
+  ClipboardList, Trash2, Edit3, PlusCircle, Save, Ban, CheckSquare, Clock,
+  ChevronUp, ChevronDown, GripVertical, CalendarIcon, AlertTriangle, Mic, MicOff
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { LOCALSTORAGE_KEYS, WAKE_WORDS } from '@/lib/constants';
@@ -25,20 +25,19 @@ import * as XLSX from 'xlsx';
 const initialTimePoint: TimePoint = { hh: '12', mm: '00', period: 'AM' };
 
 const formatTimePointToString = (timePoint?: TimePoint | null): string | null => {
-  if (!timePoint || !timePoint.period) return null; 
+  if (!timePoint || !timePoint.period) return null;
   const hInput = timePoint.hh;
-  const mInput = timePoint.mm; 
+  const mInput = timePoint.mm;
 
   const hVal = (hInput === '' || hInput === null) ? 12 : parseInt(hInput, 10);
   const mVal = (mInput === '' || mInput === null) ? 0 : parseInt(mInput, 10);
 
   if (isNaN(hVal) || hVal < 1 || hVal > 12 || isNaN(mVal) || mVal < 0 || mVal > 59) {
      if ((hInput === '' || hInput === null) && (mInput === '' || mInput === null) && timePoint.period) {
-        return `12:00 ${timePoint.period}`; 
+        return `12:00 ${timePoint.period}`;
      }
-     return null; 
+     return null;
   }
-  
   return `${String(hVal).padStart(2, '0')}:${String(mVal).padStart(2, '0')} ${timePoint.period}`;
 };
 
@@ -48,9 +47,6 @@ export default function ToDoListPage() {
   const [newItemText, setNewItemText] = useState('');
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingItemText, setEditingItemText] = useState('');
-  
-  const [exportFormat, setExportFormat] = useState<DataFormat>('csv'); // Changed type
-  const [importFormat, setImportFormat] = useState<DataFormat>('csv'); // Changed type
 
   const [editingTimeItemId, setEditingTimeItemId] = useState<string | null>(null);
   const [currentEditorTimeSettingType, setCurrentEditorTimeSettingType] = useState<TimeSettingType>('not_set');
@@ -69,23 +65,13 @@ export default function ToDoListPage() {
   const recognitionTaskRef = useRef<SpeechRecognition | null>(null);
   const pauseTaskTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Removed page-level wake word listener states and refs
-  // const [isListeningForPageWakeWord, setIsListeningForPageWakeWord] = useState(false);
-  // const [pageWakeWordMicPermission, setPageWakeWordMicPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
-  // const pageWakeWordRecognitionRef = useRef<SpeechRecognition | null>(null);
-  // const pageWakeWordListenerShouldBeActive = useRef(true);
-
-
   useEffect(() => {
     setIsClient(true);
     const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognitionAPI) {
       setTaskInputMicPermission('unsupported');
-      // setPageWakeWordMicPermission('unsupported'); // Removed
-    } else {
-        // Permission for inline dictation mic will be requested on first click
     }
-    return () => { 
+    return () => {
       if (recognitionTaskRef.current && recognitionTaskRef.current.stop) {
         try { recognitionTaskRef.current.stop(); } catch (e) { /* ignore */ }
       }
@@ -94,8 +80,7 @@ export default function ToDoListPage() {
       }
       recognitionTaskRef.current = null;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); 
+  }, []);
 
   const handleAddItem = (e: FormEvent) => {
     e.preventDefault();
@@ -103,10 +88,10 @@ export default function ToDoListPage() {
       toast({ title: "Task cannot be empty", variant: "destructive" });
       return;
     }
-    setItems(prevItems => [...prevItems, { 
-      id: crypto.randomUUID(), 
-      text: newItemText.trim(), 
-      completed: false, 
+    setItems(prevItems => [...prevItems, {
+      id: crypto.randomUUID(),
+      text: newItemText.trim(),
+      completed: false,
       timeSettingType: 'not_set',
       startTime: null,
       endTime: null,
@@ -136,7 +121,7 @@ export default function ToDoListPage() {
     if (item.completed) return;
     setEditingItemId(item.id);
     setEditingItemText(item.text);
-    setEditingTimeItemId(null); 
+    setEditingTimeItemId(null);
   };
 
   const handleSaveEdit = () => {
@@ -160,12 +145,12 @@ export default function ToDoListPage() {
     if (!item || item.completed) return;
     setEditingTimeItemId(itemId);
     setCurrentEditorTimeSettingType(item.timeSettingType || 'not_set');
-    setCurrentEditorStartTime(item.startTime ? {...item.startTime} : null); 
-    setCurrentEditorEndTime(item.endTime ? {...item.endTime} : null);     
+    setCurrentEditorStartTime(item.startTime ? {...item.startTime} : null);
+    setCurrentEditorEndTime(item.endTime ? {...item.endTime} : null);
     setCurrentEditorDueDate(item.dueDate ? parseISO(item.dueDate) : undefined);
-    setEditingItemId(null); 
+    setEditingItemId(null);
   };
-  
+
 
   const handleSaveTimeSettings = () => {
     if (!editingTimeItemId) return;
@@ -175,35 +160,35 @@ export default function ToDoListPage() {
     let finalTimeSettingType = currentEditorTimeSettingType;
 
     if (currentEditorTimeSettingType === 'specific_start' || currentEditorTimeSettingType === 'specific_start_end') {
-        if (currentEditorStartTime) { 
+        if (currentEditorStartTime) {
             const hVal = (currentEditorStartTime.hh === '' || currentEditorStartTime.hh === null) ? 12 : parseInt(currentEditorStartTime.hh, 10);
             const mVal = (currentEditorStartTime.mm === '' || currentEditorStartTime.mm === null) ? 0 : parseInt(currentEditorStartTime.mm, 10);
 
             if (isNaN(hVal) || hVal < 1 || hVal > 12 || isNaN(mVal) || mVal < 0 || mVal > 59) {
-                 if (!( (currentEditorStartTime.hh === '' || currentEditorStartTime.hh === null) && 
+                 if (!( (currentEditorStartTime.hh === '' || currentEditorStartTime.hh === null) &&
                         (currentEditorStartTime.mm === '' || currentEditorStartTime.mm === null) &&
-                        currentEditorStartTime.period) ) { 
+                        currentEditorStartTime.period) ) {
                     toast({ title: "Invalid Start Time", description: "Start time hours (1-12) or minutes (00-59) are invalid.", variant: "destructive" });
                     return;
                  }
             }
             if (currentEditorStartTime.period) {
                  newStartTime = { hh: String(hVal).padStart(2,'0'), mm: String(mVal).padStart(2,'0'), period: currentEditorStartTime.period };
-            } else if (currentEditorStartTime.hh || currentEditorStartTime.mm) { 
+            } else if (currentEditorStartTime.hh || currentEditorStartTime.mm) {
                 toast({ title: "Missing AM/PM", description: "Please select AM or PM for the start time.", variant: "destructive" });
                 return;
-            } 
+            }
         }
         if (!newStartTime && currentEditorTimeSettingType === 'specific_start') finalTimeSettingType = 'not_set';
     }
 
     if (currentEditorTimeSettingType === 'specific_start_end') {
-        if (currentEditorEndTime) { 
+        if (currentEditorEndTime) {
             const hVal = (currentEditorEndTime.hh === '' || currentEditorEndTime.hh === null) ? 12 : parseInt(currentEditorEndTime.hh, 10);
             const mVal = (currentEditorEndTime.mm === '' || currentEditorEndTime.mm === null) ? 0 : parseInt(currentEditorEndTime.mm, 10);
 
             if (isNaN(hVal) || hVal < 1 || hVal > 12 || isNaN(mVal) || mVal < 0 || mVal > 59) {
-                 if (!( (currentEditorEndTime.hh === '' || currentEditorEndTime.hh === null) && 
+                 if (!( (currentEditorEndTime.hh === '' || currentEditorEndTime.hh === null) &&
                         (currentEditorEndTime.mm === '' || currentEditorEndTime.mm === null) &&
                         currentEditorEndTime.period) ) {
                     toast({ title: "Invalid End Time", description: "End time hours (1-12) or minutes (00-59) are invalid.", variant: "destructive" });
@@ -215,27 +200,27 @@ export default function ToDoListPage() {
             } else if (currentEditorEndTime.hh || currentEditorEndTime.mm) {
                 toast({ title: "Missing AM/PM", description: "Please select AM or PM for the end time.", variant: "destructive" });
                 return;
-            } 
+            }
         }
 
         if (!newStartTime && !newEndTime) finalTimeSettingType = 'not_set';
         else if (newStartTime && !newEndTime) finalTimeSettingType = 'specific_start';
-        
+
         if (currentEditorTimeSettingType === 'specific_start_end' && (!newStartTime || !newEndTime)) {
              if (newStartTime && !newEndTime) finalTimeSettingType = 'specific_start';
-             else if (!newStartTime && newEndTime) { newEndTime = null; finalTimeSettingType = 'not_set';} 
+             else if (!newStartTime && newEndTime) { newEndTime = null; finalTimeSettingType = 'not_set';}
              else finalTimeSettingType = 'not_set';
         }
     }
-    
+
     if (currentEditorTimeSettingType === 'am_period' && !newStartTime) newStartTime = { hh: '12', mm: '00', period: 'AM' };
     if (currentEditorTimeSettingType === 'pm_period' && !newStartTime) newStartTime = { hh: '12', mm: '00', period: 'PM' };
 
 
     setItems(items.map(item => {
       if (item.id === editingTimeItemId) {
-        return { 
-          ...item, 
+        return {
+          ...item,
           timeSettingType: finalTimeSettingType,
           startTime: (finalTimeSettingType === 'not_set' || finalTimeSettingType === 'all_day') ? null : newStartTime,
           endTime: finalTimeSettingType === 'specific_start_end' ? newEndTime : null,
@@ -247,13 +232,13 @@ export default function ToDoListPage() {
     toast({ title: "Time & Date Settings Saved" });
     setEditingTimeItemId(null);
   };
-  
+
   const handleClearTimeSettings = () => {
     if (!editingTimeItemId) return;
      setItems(items.map(item => {
       if (item.id === editingTimeItemId) {
-        return { 
-          ...item, 
+        return {
+          ...item,
           timeSettingType: 'not_set',
           startTime: null,
           endTime: null,
@@ -263,21 +248,21 @@ export default function ToDoListPage() {
       return item;
     }));
     toast({ title: "Time & Date Settings Cleared" });
-    setEditingTimeItemId(null); 
+    setEditingTimeItemId(null);
   };
 
   const handleCancelTimeEditor = () => {
     setEditingTimeItemId(null);
   };
-  
+
   const handleTempTimeChange = (type: 'start' | 'end', field: 'hh' | 'mm' | 'period', value: string) => {
     const setter = type === 'start' ? setCurrentEditorStartTime : setCurrentEditorEndTime;
     setter(prev => {
       const baseTimePoint = prev || { ...initialTimePoint };
       const newPoint = { ...baseTimePoint, [field]: value };
 
-      if (field === 'hh' && value === '') newPoint.hh = ''; 
-      if (field === 'mm' && value === '') newPoint.mm = ''; 
+      if (field === 'hh' && value === '') newPoint.hh = '';
+      if (field === 'mm' && value === '') newPoint.mm = '';
       return newPoint;
     });
   };
@@ -287,7 +272,7 @@ export default function ToDoListPage() {
     if (item.timeSettingType === 'all_day') return 'All Day';
     if (item.timeSettingType === 'am_period') return 'AM';
     if (item.timeSettingType === 'pm_period') return 'PM';
-    
+
     let displayStr = "";
     if (item.startTime) {
       const formattedStart = formatTimePointToString(item.startTime);
@@ -311,13 +296,13 @@ export default function ToDoListPage() {
     }
     return displayStr || (item.timeSettingType !== 'not_set' ? 'Time set (check details)' : 'No time set');
   };
-  
+
   const displayDueDate = (dueDate: string | null | undefined): React.ReactNode => {
     if (!dueDate) return <span className="text-muted-foreground italic">No due date</span>;
     try {
       const dateObj = parseISO(dueDate);
       if (!isValid(dateObj)) return <span className="text-red-500">Invalid date</span>;
-      
+
       const formatted = format(dateObj, 'dd/MM/yyyy');
       let classes = "font-medium";
       let icon = null;
@@ -362,7 +347,7 @@ export default function ToDoListPage() {
 
   const handleDragOver = (event: DragEvent<HTMLLIElement>) => {
     if (sortOrder !== 'default') return;
-    event.preventDefault(); 
+    event.preventDefault();
   };
 
   const handleDrop = (targetItemId: string) => {
@@ -391,161 +376,6 @@ export default function ToDoListPage() {
     setDraggedItemId(null);
   };
 
-  const handleExportTemplate = async () => {
-    if (exportFormat === 'excel') {
-      await handleExportExcelTemplate();
-    } else if (exportFormat === 'text') {
-       toast({ title: "Export Template Failed", description: "Text template export is not yet implemented.", variant: "destructive" });
-    } else { 
-    const csvContent = `text,completed,timeSettingType,startTime,endTime,dueDate
-# This is a CSV template for importing To-Do List items.
-# Each row represents a single task.
-#
-# text: The description of the task (required). Use double quotes "" around text containing commas or double quotes. Double quotes within text should be escaped by doubling them (e.g., "He said ""Hello""").
-# completed: Task completion status. Must be 'true' or 'false'.
-# timeSettingType: The type of time setting. Accepted values: 'not_set', 'all_day', 'am_period', 'pm_period', 'specific_start', 'specific_start_end'. (Optional, default 'not_set')
-# startTime: The start time of the task. Format as "hh:mm AM/PM" (e.g., "09:30 AM", "01:00 PM"). Required if timeSettingType is 'specific_start' or 'specific_start_end'. (Optional)
-# endTime: The end time of the task. Format as "hh:mm AM/PM" (e.g., "11:00 AM", "05:00 PM"). Required if timeSettingType is 'specific_start_end'. (Optional)
-# dueDate: The due date of the task. Format as "YYYY-MM-DD" (e.g., "2023-10-27"). (Optional)
-#
-# Example Rows:
-# Task 1,false,specific_start,09:00 AM,,2023-11-15
-# Buy groceries,true,not_set,,,
-# Finish report,"false",specific_start_end,"02:00 PM","05:30 PM",2023-10-31
-`;
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', 'todo-list_template.csv');
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    toast({ title: "To-Do List Template Exported", description: `A ${exportFormat.toUpperCase()} template has been downloaded.` });
-    }
-  };
-
- const handleExportExcelTemplate = () => {
-    const templateComments = [
-      ["# This is an Excel template for importing To-Do List items."],
-      ["# Each row starting from row 8 represents a single task."],
-      ["#"],
-      ["# Column Explanations:"],
-      ["# text: The description of the task (required)."],
-      ["# completed: Task completion status. Must be 'true' or 'false'."],
-      ["# timeSettingType: The type of time setting. Accepted values: 'not_set', 'all_day', 'am_period', 'pm_period', 'specific_start', 'specific_start_end'. (Optional, default 'not_set')"],
-      ["# startTime: The start time of the task. Format as 'HH:MM AM/PM' (e.g., '09:30 AM', '01:00 PM'). Required if timeSettingType is 'specific_start' or 'specific_start_end'. (Optional)"],
-      ["# endTime: The end time of the task. Format as 'HH:MM AM/PM' (e.g., '11:00 AM', '05:00 PM'). Required if timeSettingType is 'specific_start_end'. (Optional)"],
-      ["# dueDate: The due date of the task. Format as 'YYYY-MM-DD' (e.g., '2023-10-27'). (Optional)"],
-      []
-    ];
-
-    const header = ["text", "completed", "timeSettingType", "startTime", "endTime", "dueDate"];
-
-    const exampleRows = [
-      ["Task 1", "false", "specific_start", "09:00 AM", "", "2023-11-15"],
-      ["Buy groceries", "true", "not_set", "", "", ""],
-      ["Finish report", "false", "specific_start_end", "02:00 PM", "05:30 PM", "2023-10-31"]
-    ];
-
-    const worksheetData = [...templateComments, header, ...exampleRows];
-
-    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "To-Do List Template");
-
-     worksheet['!cols'] = [
-      { wch: 30 }, 
-      { wch: 10 }, 
-      { wch: 15 }, 
-      { wch: 10 }, 
-      { wch: 10 }, 
-      { wch: 12 }  
-    ];
-
-    XLSX.writeFile(workbook, "todo-list_template.xlsx");
-     toast({ title: "To-Do List Template Exported", description: `An Excel template has been downloaded.` });
- };
-
-
-
-  const handleExportList = async () => {
-    if (exportFormat === 'json') {
-       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(items, null, 2));
-       const downloadAnchorNode = document.createElement('a');
-       downloadAnchorNode.setAttribute("href", dataStr);
-       downloadAnchorNode.setAttribute("download", "todo-list.json");
-       document.body.appendChild(downloadAnchorNode); 
-       downloadAnchorNode.click();
-       downloadAnchorNode.remove();
-       toast({ title: "To-Do List Exported", description: "Your list has been downloaded as a JSON file." });
-    } else if (exportFormat === 'excel') {
-      await handleExportExcel();
-    } else if (exportFormat === 'text') {
-      toast({ title: "Export Failed", description: "Text export is not yet implemented.", variant: "destructive" });
-    } else { 
-
-    const headers = ["text", "completed", "timeSettingType", "startTime", "endTime", "dueDate"];
-    const csvRows = items.map(item => {
-      const values = [
-        `"${item.text.replace(/"/g, '""')}"`, 
-        item.completed ? 'true' : 'false',
-        item.timeSettingType || '',
-        item.startTime ? formatTimePointToString(item.startTime) || '' : '',
-        item.endTime ? formatTimePointToString(item.endTime) || '' : '',
-        item.dueDate || '',
-      ];
-      return values.join(',');
-    });
-
-    const csvContent = [headers.join(','), ...csvRows].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', 'todo-list.csv');
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    toast({ title: "To-Do List Exported", description: "Your list has been downloaded as a CSV file." });
-    }
-  };
-
-  const handleExportExcel = () => {
-    const data = items.map(item => ({
-      text: item.text,
-      completed: item.completed ? 'true' : 'false',
-      timeSettingType: item.timeSettingType || '',
-      startTime: item.startTime ? formatTimePointToString(item.startTime) || '' : '',
-      endTime: item.endTime ? formatTimePointToString(item.endTime) || '' : '',
-      dueDate: item.dueDate || '',
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "To-Do List");
-
-     worksheet['!cols'] = [
-      { wch: 30 }, 
-      { wch: 10 }, 
-      { wch: 15 }, 
-      { wch: 10 }, 
-      { wch: 10 }, 
-      { wch: 12 }  
-    ];
-
-    worksheet['!autofilter'] = { ref: "A1:F" + (data.length + 1) };
-    worksheet['!freeze'] = { xSplit: 0, ySplit: 1, topLeftCell: "A2", activePane: "bottomLeft", state: "frozen" };
-
-
-    XLSX.writeFile(workbook, "todo-list.xlsx");
-    toast({ title: "To-Do List Exported", description: "Your list has been downloaded as an Excel file." });
-  };
-
   const handleImportCSV = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -554,8 +384,8 @@ export default function ToDoListPage() {
     reader.onload = (e) => {
       try {
         const csvText = e.target?.result as string;
-        const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '' && !line.trim().startsWith('#')); 
-        
+        const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '' && !line.trim().startsWith('#'));
+
         if (lines.length === 0) {
            toast({ title: "Import Failed", description: "The selected file is empty.", variant: "destructive" });
            return;
@@ -571,12 +401,12 @@ export default function ToDoListPage() {
 
         const importedItems: ToDoListItem[] = [];
         for (let i = 1; i < lines.length; i++) {
-          const values = lines[i].split(',');
+          const values = lines[i].split(','); // This needs to be improved for CSVs with quoted commas
           const itemData: Record<string, string> = {};
           headers.forEach((header, index) => {
              let value = values[index];
              if (value && value.startsWith('"') && value.endsWith('"')) {
-                 value = value.substring(1, value.length - 1).replace(/""/g, '"'); 
+                 value = value.substring(1, value.length - 1).replace(/""/g, '"');
              }
              itemData[header] = value;
           });
@@ -585,7 +415,7 @@ export default function ToDoListPage() {
           const endTimeString = itemData['endTime'];
 
           importedItems.push({
-            id: crypto.randomUUID(), 
+            id: crypto.randomUUID(),
             text: itemData['text'] || 'Unnamed Task',
             completed: itemData['completed']?.toLowerCase() === 'true',
             timeSettingType: (itemData['timeSettingType'] as TimeSettingType) || 'not_set',
@@ -603,7 +433,7 @@ export default function ToDoListPage() {
       }
     };
     reader.readAsText(file);
-    event.target.value = ''; 
+    event.target.value = '';
   };
 
   const handleImportJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -638,7 +468,7 @@ export default function ToDoListPage() {
       }
     };
     reader.readAsText(file);
-    event.target.value = ''; 
+    event.target.value = '';
   };
 
   const handleImportExcel = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -655,12 +485,11 @@ export default function ToDoListPage() {
         const json: any[] = XLSX.utils.sheet_to_json(worksheet);
 
         const importedItems: ToDoListItem[] = [];
-
         let dataStartIndex = -1;
         if (json.length > 0) {
            const firstRowKeys = Object.keys(json[0]).map(key => key.trim().toLowerCase());
            if (firstRowKeys.includes('text') && firstRowKeys.includes('completed')) {
-              dataStartIndex = 0; 
+              dataStartIndex = 0;
            } else {
               for (let i = 0; i < json.length; i++) {
                  const rowKeys = Object.keys(json[i]).map(key => key.trim().toLowerCase());
@@ -673,12 +502,12 @@ export default function ToDoListPage() {
         }
 
         if (dataStartIndex === -1) {
-            toast({ title: "Import Failed", description: "Could not find valid task data in the Excel file.", variant: "destructive" });
+            toast({ title: "Import Failed", description: "Could not find valid task data in the Excel file. Ensure 'text' and 'completed' columns exist after any comment rows.", variant: "destructive" });
             return;
         }
 
         for (let i = dataStartIndex; i < json.length; i++) {
-             const row = json[i];
+            const row = json[i];
             const text = row.text || '';
             const completed = String(row.completed || '').toLowerCase() === 'true';
             const timeSettingType = ['not_set', 'all_day', 'am_period', 'pm_period', 'specific_start', 'specific_start_end'].includes(row.timeSettingType as string) ? row.timeSettingType : 'not_set';
@@ -688,8 +517,6 @@ export default function ToDoListPage() {
                const parsedTime = parse(String(row.startTime), 'hh:mm a', new Date());
                if (isValid(parsedTime)) {
                   startTime = { hh: format(parsedTime, 'hh'), mm: format(parsedTime, 'mm'), period: format(parsedTime, 'a') as 'AM' | 'PM' };
-               } else {
-                  console.warn("Invalid startTime in Excel import:", row.startTime);
                }
             }
 
@@ -698,35 +525,31 @@ export default function ToDoListPage() {
                const parsedTime = parse(String(row.endTime), 'hh:mm a', new Date());
                if (isValid(parsedTime)) {
                   endTime = { hh: format(parsedTime, 'hh'), mm: format(parsedTime, 'mm'), period: format(parsedTime, 'a') as 'AM' | 'PM' };
-               } else {
-                  console.warn("Invalid endTime in Excel import:", row.endTime);
                }
             }
 
             let dueDate: string | null = null;
             if (row.dueDate) {
                 let dateCandidate = String(row.dueDate);
-                let parsedDate = parseISO(dateCandidate); 
+                let parsedDate = parseISO(dateCandidate);
                 if (!isValid(parsedDate)) {
                     parsedDate = parse(dateCandidate, 'dd/MM/yyyy', new Date());
                      if (!isValid(parsedDate)) {
                        parsedDate = parse(dateCandidate, 'MM/dd/yyyy', new Date());
                      }
-                    if (!isValid(parsedDate) && typeof row.dueDate === 'number') {
-                       const excelEpoch = new Date(Date.UTC(1899, 11, 30)); 
+                    if (!isValid(parsedDate) && typeof row.dueDate === 'number') { // Excel date serial number
+                       const excelEpoch = new Date(Date.UTC(1899, 11, 30));
                        parsedDate = new Date(excelEpoch.getTime() + row.dueDate * 24 * 60 * 60 * 1000);
                     }
                 }
                 if (isValid(parsedDate)) {
                     dueDate = format(parsedDate, 'yyyy-MM-dd');
-                } else {
-                     console.warn("Invalid dueDate in Excel import:", row.dueDate);
                 }
             }
 
             if (text.trim()) {
                 importedItems.push({
-                    id: crypto.randomUUID(), 
+                    id: crypto.randomUUID(),
                     text: text.trim(),
                     completed: completed,
                     timeSettingType: timeSettingType as TimeSettingType,
@@ -737,50 +560,38 @@ export default function ToDoListPage() {
             }
         }
 
-        if (importedItems.length === 0) {
-            toast({ title: "Import Failed", description: "No valid tasks found in the Excel file.", variant: "destructive" });
+        if (importedItems.length === 0 && json.length > dataStartIndex) {
+            toast({ title: "Import Warning", description: "No valid tasks could be extracted from the Excel file, or all tasks were empty.", variant: "default" });
+            // setItems([]); // Optionally clear if no valid items found but data rows existed
             return;
         }
+         if (importedItems.length === 0 && json.length <= dataStartIndex) {
+             toast({ title: "Import Failed", description: "No data rows found after headers/comments in Excel.", variant: "destructive" });
+            return;
+        }
+
 
         setItems(importedItems);
         toast({ title: "To-Do List Imported", description: `${importedItems.length} tasks loaded from Excel.` });
 
       } catch (error) {
-         toast({ title: "Import Failed", description: "Could not process Excel file. Please check the format.", variant: "destructive" });
+         toast({ title: "Import Failed", description: "Could not process Excel file. Please check the format and ensure column names (text, completed, etc.) are correct.", variant: "destructive" });
       }
     };
     reader.readAsBinaryString(file);
-    event.target.value = ''; 
-  };
-
-  const handleImportText = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const textContent = e.target?.result as string;
-         console.log("Imported Text Data:", textContent); 
-        toast({ title: "Import Failed", description: "Text import is not yet implemented.", variant: "default" }); 
-      } catch (error) {
-        toast({ title: "Import Failed", description: "Could not process text file.", variant: "destructive" });
-      }
-    };
-    reader.readAsText(file);
-    event.target.value = ''; 
+    event.target.value = '';
   };
 
 
   const sortedItems = useMemo(() => {
-    let displayItems = [...items]; 
-    const defaultSortedItems = [...items]; 
+    let displayItems = [...items];
+    const defaultSortedItems = [...items];
 
     switch (sortOrder) {
       case 'dueDateAsc':
         displayItems.sort((a, b) => {
           if (!a.dueDate && !b.dueDate) return defaultSortedItems.findIndex(item => item.id === a.id) - defaultSortedItems.findIndex(item => item.id === b.id);
-          if (!a.dueDate) return 1; 
+          if (!a.dueDate) return 1;
           if (!b.dueDate) return -1;
           const dateDiff = new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
           if (dateDiff !== 0) return dateDiff;
@@ -808,18 +619,18 @@ export default function ToDoListPage() {
           const aHasDueDate = !!a.dueDate;
           const bHasDueDate = !!b.dueDate;
 
-          if (aHasDueDate && !bHasDueDate) return -1; 
-          if (!aHasDueDate && bHasDueDate) return 1;  
-          
-          if (aHasDueDate && bHasDueDate) { 
+          if (aHasDueDate && !bHasDueDate) return -1;
+          if (!aHasDueDate && bHasDueDate) return 1;
+
+          if (aHasDueDate && bHasDueDate) {
             const dateA = new Date(a.dueDate!).getTime();
             const dateB = new Date(b.dueDate!).getTime();
             if (dateA !== dateB) {
-              return dateA - dateB; 
+              return dateA - dateB;
             }
           }
-          const indexA = defaultSortedItems.findIndex(item => item.id === a.id); 
-          const indexB = defaultSortedItems.findIndex(item => item.id === b.id); 
+          const indexA = defaultSortedItems.findIndex(item => item.id === a.id);
+          const indexB = defaultSortedItems.findIndex(item => item.id === b.id);
           return indexA - indexB;
         });
         break;
@@ -843,7 +654,7 @@ export default function ToDoListPage() {
 
     const recognition = new SpeechRecognitionAPI();
     recognitionTaskRef.current = recognition;
-    recognition.continuous = true; 
+    recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = 'en-US';
 
@@ -856,7 +667,7 @@ export default function ToDoListPage() {
       for (let i = event.resultIndex; i < event.results.length; ++i) {
         transcript += event.results[i][0].transcript;
       }
-      
+
       const lowerTranscript = transcript.toLowerCase();
       const endCommand = WAKE_WORDS.END_DICTATION.toLowerCase();
 
@@ -872,7 +683,7 @@ export default function ToDoListPage() {
           if (recognitionTaskRef.current) {
             try { recognitionTaskRef.current.stop(); } catch(e) { /* ignore */ }
           }
-        }, 2000); 
+        }, 2000);
       }
     };
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -882,8 +693,7 @@ export default function ToDoListPage() {
       if (event.error === 'aborted') {
         console.info('Task input speech recognition aborted:', event.message);
       } else if (event.error === 'no-speech') {
-        // console.warn('Task input speech recognition: No speech detected.', event.message); // Reduced console noise
-        if (isListeningForTaskInput) { 
+        if (isListeningForTaskInput) {
           toast({ title: "No speech detected", variant: "default" });
         }
       } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
@@ -901,10 +711,9 @@ export default function ToDoListPage() {
       if (pauseTaskTimeoutRef.current) {
         clearTimeout(pauseTaskTimeoutRef.current);
       }
-      recognitionTaskRef.current = null; 
-      // pageWakeWordListenerShouldBeActive.current = true; // Removed
+      recognitionTaskRef.current = null;
     };
-    
+
     setNewItemText('');
     recognition.start();
   }, [taskInputMicPermission, toast, isListeningForTaskInput]);
@@ -944,17 +753,12 @@ export default function ToDoListPage() {
         return;
       }
     }
-    
+
     if (currentPermission === 'granted') {
-      // pageWakeWordListenerShouldBeActive.current = false; // Removed
-      // if (pageWakeWordRecognitionRef.current?.stop) { // Removed
-      //    try { pageWakeWordRecognitionRef.current.stop(); } catch(e) {/* ignore */} // Removed
-      // } // Removed
       startTaskInputRecognition();
     }
   }, [isListeningForTaskInput, taskInputMicPermission, startTaskInputRecognition, toast]);
 
-  // Removed page-level wake word listener useEffect
 
   if (!isClient) {
     return (
@@ -979,8 +783,6 @@ export default function ToDoListPage() {
   };
 
   const taskMicButtonDisabled = taskInputMicPermission === 'unsupported' || taskInputMicPermission === 'denied';
-  // const pageWakeWordStatusText = isListeningForPageWakeWord ? "Listening for 'Heggles' or 'Quartermaster'..." : (pageWakeWordMicPermission === 'granted' && pageWakeWordListenerShouldBeActive.current ? "Say 'Heggles' or 'Quartermaster' to activate input" : "Page Wake Word listener off"); // Removed
-
 
   return (
     <div className="space-y-8 max-w-3xl mx-auto">
@@ -990,7 +792,6 @@ export default function ToDoListPage() {
           <h1 className="text-3xl font-bold tracking-tight">To-Do List</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-center sm:justify-end mt-2 sm:mt-0">
-            {/* Removed pageWakeWordStatusText display */}
             <Select value={sortOrder} onValueChange={setSortOrder}>
                 <SelectTrigger className="w-full xs:w-[180px] sm:w-[200px]" aria-label="Sort tasks by">
                 <SelectValue placeholder="Sort by..." />
@@ -1004,53 +805,14 @@ export default function ToDoListPage() {
                 <SelectItem value="alphaDesc">Alphabetical (Z-A)</SelectItem>
                 </SelectContent>
             </Select>
-            <div className="flex gap-1">
-             <Select value={exportFormat} onValueChange={(value) => setExportFormat(value as DataFormat)}>
-                <SelectTrigger className="w-[100px] xs:w-[110px] h-9" aria-label="Export format">
-                   <SelectValue placeholder="Export As..." />
-                </SelectTrigger>
-                 <SelectContent>
-                   <SelectItem value="csv">CSV</SelectItem>
-                   <SelectItem value="json">JSON</SelectItem>
-                    <SelectItem value="excel">Excel</SelectItem>
-                   <SelectItem value="text">Text</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button variant="outline" onClick={handleExportList} size="sm" className="h-9">Export</Button>
-            </div>
-            <Button variant="outline" onClick={handleExportTemplate} size="sm" className="h-9">Template</Button>
-
-            <div className="flex gap-1">
-             <Select value={importFormat} onValueChange={(value) => setImportFormat(value as DataFormat)}>
-                <SelectTrigger className="w-[100px] xs:w-[110px] h-9" aria-label="Import format">
-                   <SelectValue placeholder="Import From..." />
-                </SelectTrigger>
-                 <SelectContent>
-                   <SelectItem value="csv">CSV</SelectItem>
-                   <SelectItem value="json">JSON</SelectItem>
-                   <SelectItem value="excel">Excel</SelectItem>
-                   <SelectItem value="text">Text</SelectItem>
-                </SelectContent>
-            </Select>
-            <Button variant="outline" size="sm" className="relative h-9"> 
-                <Label htmlFor="import-todo-list" className="cursor-pointer absolute inset-0 flex items-center justify-center px-3">Import</Label>
-                 <Input
-                    id="import-todo-list"
-                    type="file"
-                    accept={importFormat === 'json' ? '.json' : importFormat === 'csv' ? '.csv' : importFormat === 'excel' ? '.xlsx,.xls' : importFormat === 'text' ? '.txt' : ''}
-                    className="hidden"
-                    onChange={(e) => {
-                       if (importFormat === 'json') handleImportJSON(e);
-                       else if (importFormat === 'csv') handleImportCSV(e);
-                       else if (importFormat === 'excel') handleImportExcel(e);
-                       else if (importFormat === 'text') handleImportText(e);
-                       e.target.value = ''; 
-                    }}
-                 />
-           </Button>
-           </div>
+           {/* Import/Export buttons removed from here */}
         </div>
       </div>
+
+      {/* Hidden file inputs for import functionality, triggered by Header */}
+      <Input id="import-todo-list-csv" type="file" accept=".csv" className="hidden" onChange={handleImportCSV} />
+      <Input id="import-todo-list-json" type="file" accept=".json" className="hidden" onChange={handleImportJSON} />
+      <Input id="import-todo-list-excel" type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportExcel} />
 
       <Card className="shadow-lg">
         <CardHeader>
@@ -1069,14 +831,14 @@ export default function ToDoListPage() {
             <Button
               type="button"
               variant="outline"
-              size="lg" // Made larger
-              className="p-2" // Adjusted padding
+              size="lg"
+              className="p-2 h-10 w-10" // Made icon button size consistent
               onClick={triggerTaskInputMic}
               disabled={taskMicButtonDisabled && taskInputMicPermission !== 'prompt'}
               title={taskMicButtonDisabled && taskInputMicPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForTaskInput ? "Stop voice input (or say 'Heggles end')" : "Add task using voice")}
               aria-label="Add task using voice"
             >
-              {isListeningForTaskInput ? <Mic className="h-6 w-6 text-primary animate-pulse" /> : // Made icon larger
+              {isListeningForTaskInput ? <Mic className="h-6 w-6 text-primary animate-pulse" /> :
                (taskMicButtonDisabled ? <MicOff className="h-6 w-6 text-muted-foreground" /> : <Mic className="h-6 w-6" />)}
             </Button>
             <Button type="submit" aria-label="Add task" className="px-3 sm:px-4">
@@ -1113,7 +875,7 @@ export default function ToDoListPage() {
                       <GripVertical className="h-5 w-5 text-muted-foreground self-center shrink-0 cursor-grab" />
                     )}
                     {(item.completed || sortOrder !== 'default') && (
-                      <div className="w-5 shrink-0"></div> 
+                      <div className="w-5 shrink-0"></div>
                     )}
                     <span className="pt-1 mr-1 font-medium text-muted-foreground w-6 text-right self-start shrink-0">{(index + 1)}.</span>
                     <Checkbox
@@ -1129,7 +891,7 @@ export default function ToDoListPage() {
                           type="text"
                           value={editingItemText}
                           onChange={(e) => setEditingItemText(e.target.value)}
-                          onBlur={handleSaveEdit} 
+                          onBlur={handleSaveEdit}
                           onKeyDown={(e) => e.key === 'Enter' && handleSaveEdit()}
                           autoFocus
                           className="h-9"
@@ -1184,12 +946,12 @@ export default function ToDoListPage() {
                       )}
                     </div>
                   </div>
-                  
+
                   {!item.completed && (
-                    <div className="pl-8"> 
-                       <Button 
-                          variant="outline" 
-                          size="sm" 
+                    <div className="pl-8">
+                       <Button
+                          variant="outline"
+                          size="sm"
                           className="w-full text-xs h-8"
                           onClick={() => editingTimeItemId === item.id ? setEditingTimeItemId(null) : handleOpenTimeEditor(item.id)}
                         >
@@ -1225,7 +987,7 @@ export default function ToDoListPage() {
                               {renderTimePointInput('end', currentEditorEndTime)}
                             </div>
                           )}
-                          
+
                           <div>
                             <Label className="text-xs font-medium">Due Date</Label>
                             <Popover>
