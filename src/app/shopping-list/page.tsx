@@ -8,9 +8,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ListChecks, Trash2, Edit3, PlusCircle, Save, Ban, Mic, MicOff, Import } from 'lucide-react'; // Changed FileImport to Import
+import { ListChecks, Trash2, Edit3, PlusCircle, Save, Ban, Mic, MicOff, Import, Share2, Mail, MessageSquare } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from '@/hooks/use-toast';
-import { WAKE_WORDS, LOCALSTORAGE_KEYS } from '@/lib/constants';
+import { WAKE_WORDS, LOCALSTORAGE_KEYS, SHARE_DEFAULTS } from '@/lib/constants';
+import { generateShoppingListPlainTextForShare } from '@/lib/list-export-utils';
 import * as XLSX from 'xlsx';
 
 export default function ShoppingListPage() {
@@ -27,7 +34,6 @@ export default function ShoppingListPage() {
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const pauseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Ref for the hidden file input
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -121,22 +127,21 @@ export default function ShoppingListPage() {
         const importedItems: ShoppingListItem[] = lines.slice(1).map(line => {
            const values = line.split(',');
            const textValue = values[textIndex]?.trim() || '';
-           // Basic handling for quoted strings: remove surrounding quotes and unescape double quotes
            const cleanedText = textValue.startsWith('"') && textValue.endsWith('"') ? textValue.substring(1, textValue.length - 1).replace(/""/g, '"') : textValue;
            return { 
              id: crypto.randomUUID(), 
              text: cleanedText, 
              completed: values[completedIndex]?.trim().toLowerCase() === 'true' 
            };
-        }).filter(item => item.text !== ''); // Ensure imported items have text
+        }).filter(item => item.text !== ''); 
 
         if (importedItems.length === 0) {
             toast({ title: "Import Warning", description: "No valid items could be imported from the CSV. Check data rows.", variant: "default" });
             return;
         }
 
-        setItems(importedItems);
-        toast({ title: "Shopping List Imported", description: `${importedItems.length} items loaded from CSV.` });
+        setItems(prevItems => [...prevItems, ...importedItems]);
+        toast({ title: "Shopping List Imported", description: `${importedItems.length} items loaded from CSV and added to your list.` });
       } catch (error) {
         console.error("CSV Import Error:", error);
         toast({ title: "Import Failed", description: "Could not parse CSV file. Please check the file format and content.", variant: "destructive" });
@@ -150,14 +155,13 @@ export default function ShoppingListPage() {
     reader.onload = (e) => {
       try {
         const jsonText = e.target?.result as string;
-        const imported: ShoppingListItem[] = JSON.parse(jsonText);
-        // Validate basic structure
+        const imported: Omit<ShoppingListItem, 'id'>[] = JSON.parse(jsonText);
         if (!Array.isArray(imported) || imported.some(item => typeof item.text !== 'string' || typeof item.completed !== 'boolean')) {
           throw new Error("Invalid JSON structure. Expected an array of objects with 'text' (string) and 'completed' (boolean) properties.");
         }
-        const newItems = imported.map(item => ({...item, id: crypto.randomUUID() }));
-        setItems(newItems);
-        toast({ title: "Shopping List Imported", description: `${newItems.length} items loaded from JSON.` });
+        const newItems = imported.map(item => ({...item, id: crypto.randomUUID() } as ShoppingListItem));
+        setItems(prevItems => [...prevItems, ...newItems]);
+        toast({ title: "Shopping List Imported", description: `${newItems.length} items loaded from JSON and added to your list.` });
       } catch (error) {
         console.error("JSON Import Error:", error);
         toast({ title: "Import Failed", description: (error as Error).message || "Could not parse JSON file.", variant: "destructive" });
@@ -185,14 +189,14 @@ export default function ShoppingListPage() {
           id: crypto.randomUUID(),
           text: String(row.text || '').trim(),
           completed: String(row.completed || '').toLowerCase() === 'true',
-        })).filter(item => item.text !== ''); // Ensure imported items have text
+        })).filter(item => item.text !== ''); 
 
         if (importedItems.length === 0) {
             toast({ title: "Import Warning", description: "No valid items with text found in Excel. Ensure 'text' and 'completed' columns exist.", variant: "default" });
             return;
         }
-        setItems(importedItems);
-        toast({ title: "Shopping List Imported", description: `${importedItems.length} items loaded from Excel.` });
+        setItems(prevItems => [...prevItems, ...importedItems]);
+        toast({ title: "Shopping List Imported", description: `${importedItems.length} items loaded from Excel and added to your list.` });
       } catch (error) {
         console.error("Excel Import Error:", error);
         toast({ title: "Import Failed", description: "Could not process Excel file. Ensure 'text' and 'completed' columns exist.", variant: "destructive" });
@@ -206,9 +210,9 @@ export default function ShoppingListPage() {
     reader.onload = (e) => {
       try {
         const text = e.target?.result as string;
-        const lines = text.split(/\r?\n/).filter(line => line.trim() !== ''); // Split by new lines and remove empty ones
+        const lines = text.split(/\r?\n/).filter(line => line.trim() !== '' && !line.trim().startsWith('#'));
         if (lines.length === 0) {
-          toast({ title: "Import Failed", description: "Text file is empty or contains only whitespace.", variant: "destructive" });
+          toast({ title: "Import Failed", description: "Text file is empty or contains only comments/whitespace.", variant: "destructive" });
           return;
         }
         const importedItems: ShoppingListItem[] = lines.map(line => ({
@@ -216,8 +220,8 @@ export default function ShoppingListPage() {
           text: line.trim(),
           completed: false,
         }));
-        setItems(importedItems);
-        toast({ title: "Shopping List Imported", description: `${importedItems.length} items loaded from Text file.` });
+        setItems(prevItems => [...prevItems, ...importedItems]);
+        toast({ title: "Shopping List Imported", description: `${importedItems.length} items loaded from Text file and added to your list.` });
       } catch (error) {
         console.error("Text File Import Error:", error);
         toast({ title: "Import Failed", description: "Could not process Text file.", variant: "destructive" });
@@ -248,7 +252,6 @@ export default function ShoppingListPage() {
         toast({ title: "Unsupported File Type", description: "Please select a CSV, JSON, Excel, or TXT file.", variant: "destructive" });
       }
     } finally {
-      // Reset file input to allow selecting the same file again
       if (event.target) {
         event.target.value = '';
       }
@@ -282,6 +285,7 @@ export default function ShoppingListPage() {
       for (let i = event.resultIndex; i < event.results.length; ++i) {
         transcript += event.results[i][0].transcript;
       }
+      setNewItemText(transcript); // Update live
 
       const lowerTranscript = transcript.toLowerCase();
       const endCommand = WAKE_WORDS.END_DICTATION.toLowerCase();
@@ -289,17 +293,17 @@ export default function ShoppingListPage() {
 
 
       if (lowerTranscript.endsWith(endCommand) || lowerTranscript.endsWith(stopCommand)) {
+        let finalText = transcript;
         if (lowerTranscript.endsWith(endCommand)) {
-            transcript = transcript.substring(0, transcript.length - endCommand.length).trim();
+            finalText = transcript.substring(0, transcript.length - endCommand.length).trim();
         } else if (lowerTranscript.endsWith(stopCommand)) {
-            transcript = transcript.substring(0, transcript.length - stopCommand.length).trim();
+            finalText = transcript.substring(0, transcript.length - stopCommand.length).trim();
         }
-        setNewItemText(transcript);
+        setNewItemText(finalText);
         if (recognitionRef.current) {
           try { (recognitionRef.current as any).stop(); } catch(e) { /* ignore */ }
         }
       } else {
-        setNewItemText(transcript);
         pauseTimeoutRef.current = setTimeout(() => {
           if (recognitionRef.current) {
             try { (recognitionRef.current as any).stop(); } catch(e) { /* ignore */ }
@@ -315,7 +319,7 @@ export default function ShoppingListPage() {
         console.info('Shopping list item input speech recognition aborted.');
       } else if (event.error === 'no-speech') {
         if (isListeningForItemInput) {
-           // toast({ title: "No speech detected", variant: "default" }); // Potentially too noisy
+           // toast({ title: "No speech detected", variant: "default" }); 
         }
       } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         console.error('Shopping list item input speech recognition error:', event.error, event.message);
@@ -335,7 +339,7 @@ export default function ShoppingListPage() {
       recognitionRef.current = null;
     };
 
-    setNewItemText('');
+    setNewItemText(''); // Clear input before starting dictation
     recognition.start();
   }, [micPermission, toast, isListeningForItemInput, setNewItemText]);
 
@@ -379,6 +383,20 @@ export default function ShoppingListPage() {
     }
   }, [isListeningForItemInput, micPermission, startInputRecognition, toast]);
 
+  const handleShareViaEmail = () => {
+    const plainTextList = generateShoppingListPlainTextForShare(items);
+    const subject = SHARE_DEFAULTS.SHOPPING_LIST_EMAIL_SUBJECT;
+    const body = plainTextList;
+    const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.open(mailtoLink, '_blank');
+  };
+
+  const handleShareViaWhatsApp = () => {
+    const plainTextList = generateShoppingListPlainTextForShare(items);
+    const whatsappLink = `https://wa.me/?text=${encodeURIComponent(plainTextList)}`;
+    window.open(whatsappLink, '_blank');
+  };
+
 
   if (!isClient) {
     return (
@@ -403,19 +421,38 @@ export default function ShoppingListPage() {
 
   return (
     <div className="space-y-8 max-w-2xl mx-auto">
-      <div className="flex flex-col sm:flex-row justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-2">
         <div className="flex items-center gap-3">
             <ListChecks className="h-10 w-10 text-primary" />
             <h1 className="text-3xl font-bold tracking-tight">Shopping List</h1>
         </div>
-         <Button 
-            variant="outline" 
-            onClick={() => fileInputRef.current?.click()}
-            className="mt-4 sm:mt-0 h-10"
-            aria-label="Import shopping list items"
-          >
-            <Import className="mr-2 h-5 w-5" /> Import Items
+        <div className="flex items-center gap-2 mt-4 sm:mt-0">
+          <Button 
+              variant="outline" 
+              onClick={() => fileInputRef.current?.click()}
+              className="h-10"
+              aria-label="Import shopping list items"
+            >
+              <Import className="mr-2 h-5 w-5" /> Import Items
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="h-10" aria-label="Share shopping list">
+                <Share2 className="mr-2 h-5 w-5" /> Share List
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleShareViaEmail}>
+                <Mail className="mr-2 h-4 w-4" />
+                Share via Email
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleShareViaWhatsApp}>
+                <MessageSquare className="mr-2 h-4 w-4" />
+                Share via WhatsApp
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       <input
@@ -426,7 +463,6 @@ export default function ShoppingListPage() {
         style={visuallyHiddenStyle}
         onChange={handleFileSelectedForImport}
       />
-
 
       <Card className="shadow-lg">
         <CardHeader>
@@ -449,7 +485,7 @@ export default function ShoppingListPage() {
               className="p-2 h-10 w-10 shrink-0"
               onClick={triggerItemInputMic}
               disabled={micButtonDisabled && micPermission !== 'prompt'}
-              title={micButtonDisabled && micPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForItemInput ? "Stop voice input (or say 'Heggles end/stop')" : "Add item using voice")}
+              title={micButtonDisabled && micPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForItemInput ? `Stop voice input (or say '${WAKE_WORDS.END_DICTATION}' or '${WAKE_WORDS.STOP_DICTATION}')` : "Add item using voice")}
               aria-label="Add item using voice"
             >
               {isListeningForItemInput ? <Mic className="h-6 w-6 text-primary animate-pulse" /> :
@@ -539,5 +575,3 @@ export default function ShoppingListPage() {
     </div>
   );
 }
-
-    

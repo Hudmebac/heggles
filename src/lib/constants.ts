@@ -7,37 +7,46 @@ export const LOCALSTORAGE_KEYS = {
   SHOPPING_LIST: 'hegsync-shopping-list',
   TODO_LIST: 'hegsync-todo-list',
   THEME: 'hegsync-theme',
+  // BUFFER_TIME: 'hegsync-buffer-time', // Removed as per user request
 };
 
 export const WAKE_WORDS = {
-  // Base wake word, primarily for parsing commands from text input
-  HEGGLES_BASE: "heggles",
+  HEGGLES_BASE: "heggles", // Primary wake word
+  
+  // "heggles replay that" -> This specific phrase is handled by Brain button if input contains it.
+  // No longer a direct voice command for audio recording.
 
-  // For parsing "add X to Y list" in ThoughtInputForm if text is typed/pasted or from continuous recording
-  ADD_TO_SHOPPING_LIST_PREFIX: "heggles add", // Full command e.g., "heggles add milk to my shopping list"
-  TO_SHOPPING_LIST_SUFFIX_REGEX_PART: "to my shopping list", // For stricter matching
-  ADD_TO_TODO_LIST_PREFIX: "heggles add", // Full command e.g., "heggles add call mom to my to do list"
+  // Commands to be parsed from inputText after populating via voice or typing, then processed by Brain button.
+  HEGGLES_ADD_TO_SHOPPING_LIST_PREFIX: "heggles add", 
+  TO_SHOPPING_LIST_SUFFIX_REGEX_PART: "to my shopping list", 
+  
+  HEGGLES_ADD_TO_TODO_LIST_PREFIX: "heggles add", 
   TO_TODO_LIST_SUFFIX_REGEX_PART: "to my to do list",
 
-  // For parsing "delete X from Y list"
-  DELETE_ITEM_PREFIX: "heggles delete",
+  DELETE_ITEM_PREFIX: "heggles delete", // e.g., "heggles delete milk from my shopping list"
   FROM_SHOPPING_LIST_TRIGGER: "from my shopping list",
   FROM_TODO_LIST_TRIGGER: "from my to do list",
   ITEM_NUMBER_PREFIX: "item number ",
 
-  // Dictation control for inline mics on list pages & dashboard dictation
+  // Inline dictation control for list pages & dashboard dictation mic
   END_DICTATION: "heggles end",
   STOP_DICTATION: "heggles stop",
 
-  // New commands for Brain Button processing
+  // Specific text commands processed by Brain button (and AI intent where applicable)
   EMPTY_RECENT_THOUGHTS_COMMAND: "empty recent thoughts",
   CLEAR_SHOPPING_LIST_COMMAND: "clear shopping list",
-  COMPLETE_ALL_TASKS_COMMAND_SUFFIX_TODO: "tasks in to do list", // e.g. "complete all tasks in to do list"
-  COMPLETE_ALL_TASKS_COMMAND_SUFFIX_TODOS: "to do list tasks", // e.g. "complete all to do list tasks"
   COMPLETE_ALL_TASKS_PREFIX: "complete all",
+  COMPLETE_ALL_TASKS_COMMAND_SUFFIX_TODO: "tasks in to do list", 
+  COMPLETE_ALL_TASKS_COMMAND_SUFFIX_TODOS: "to do list tasks", 
 };
 
-// For dashboard continuous recording (header mic) -> populates inputText for Brain button
-// For list page inline dictation mics -> populates respective input fields
+// Removed RECORDING_DURATION_MS as "heggles replay that" no longer uses timed recording.
+// The manual dashboard mic is for dictation.
 
-export const RECORDING_DURATION_MS = 10000; // 10 seconds for "heggles replay that" audio snippet
+export const SHARE_DEFAULTS = {
+  SHOPPING_LIST_EMAIL_SUBJECT: "My Shopping List from Heggles",
+  TODO_LIST_EMAIL_SUBJECT: "My To-Do List from Heggles",
+  FOOTER_TEXT_PLAIN: "Thank you for using #Heggles (https://heggie.netlify.app)",
+  FOOTER_TEXT_HTML: 'Thank you for using #Heggles (<a href="https://heggie.netlify.app" target="_blank" rel="noopener noreferrer">https://heggie.netlify.app</a>)',
+  HEGGLES_APP_URL: "https://heggie.netlify.app",
+};
