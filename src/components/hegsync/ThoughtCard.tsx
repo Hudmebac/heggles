@@ -1,5 +1,5 @@
 
-"use client";
+"use client"; // This is a Client Component
 
 import { useState, useEffect } from 'react';
 import { Pin, Sparkles, MessageSquareText, Tags, CalendarDays, AlertCircle, Trash2, HelpCircle, CheckCircle, Volume2, Search, Link as LinkIcon, ListPlus, CircleHelp, BrainCircuit } from 'lucide-react';
@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useMemo } from 'react';
 import type { Thought, PinnedThought, ShoppingListItem, ToDoListItem } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -38,6 +39,10 @@ interface ThoughtCardProps {
 }
 
 export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = false }: ThoughtCardProps) {
+  const questionForGoogleSearch = useMemo(() => {
+    return thought.intentAnalysis?.extractedQuestion || thought.originalText;
+  }, [thought.intentAnalysis?.extractedQuestion, thought.originalText]);
+
   const { toast } = useToast();
   const [isSuggestActionDialogOpen, setIsSuggestActionDialogOpen] = useState(false);
   const [dialogActionDetails, setDialogActionDetails] = useState<{
@@ -76,9 +81,6 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
     return uncertaintyPhrases.some(phrase => lowerAnswer.includes(phrase));
   };
 
-  const questionForGoogleSearch = thought.intentAnalysis?.extractedQuestion || thought.originalText;
-  const shouldShowGoogleSearchLink = thought.aiAnswer && aiAnswerContainsUncertainty(thought.aiAnswer) && !thought.suggestedActionLink;
-
   useEffect(() => {
     if (thought.aiAnswer) {
       console.log(`[ThoughtCard Debug] Thought ID: ${thought.id}`);
@@ -88,9 +90,8 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
       console.log(`  Suggested Action Text: ${thought.suggestedActionText || 'None'}`);
       console.log(`  Suggested Action Link: ${thought.suggestedActionLink || 'None'}`);
       console.log(`  Contains Uncertainty: ${aiAnswerContainsUncertainty(thought.aiAnswer)}`);
-      console.log(`  Should Show Google Search Link: ${shouldShowGoogleSearchLink}`);
-    }
-  }, [thought.id, thought.aiAnswer, thought.isCreativeRequest, thought.isDirectionRequest, thought.suggestedActionText, thought.suggestedActionLink, shouldShowGoogleSearchLink]);
+    } // `shouldShowGoogleSearchLink` is derived, not state or prop
+  }, [thought.id, thought.aiAnswer, thought.isCreativeRequest, thought.isDirectionRequest, thought.suggestedActionText, thought.suggestedActionLink]);
 
 
   const handleSuggestAddToList = () => {
@@ -228,7 +229,7 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
                 </Button>
             )}
 
-            {shouldShowGoogleSearchLink && (
+            {aiAnswerContainsUncertainty(thought.aiAnswer) && questionForGoogleSearch && (
               <Button variant="outline" size="sm" asChild className="mt-2 w-full text-xs">
                 <a
                   href={`https://www.google.com/search?q=${encodeURIComponent(questionForGoogleSearch)}`}
@@ -236,7 +237,7 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
                   rel="noopener noreferrer"
                 >
                   <Search className="mr-2 h-3 w-3" />
-                  Search on Google for "{questionForGoogleSearch.length > 30 ? questionForGoogleSearch.substring(0,27) + '...' : questionForGoogleSearch}"
+                  Search on Google
                 </a>
               </Button>
             )}
