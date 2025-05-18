@@ -5,7 +5,7 @@ import { useState, useEffect, FormEvent, DragEvent, useMemo, useRef, useCallback
 import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
 import type { ToDoListItem, TimePoint, TimeSettingType } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Input } from '@/components/ui/input'; // Still used for the visible input field
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -161,20 +161,22 @@ export default function ToDoListPage() {
 
     if (currentEditorTimeSettingType === 'specific_start' || currentEditorTimeSettingType === 'specific_start_end') {
         if (currentEditorStartTime) {
-            const hVal = (currentEditorStartTime.hh === '' || currentEditorStartTime.hh === null) ? 12 : parseInt(currentEditorStartTime.hh, 10);
-            const mVal = (currentEditorStartTime.mm === '' || currentEditorStartTime.mm === null) ? 0 : parseInt(currentEditorStartTime.mm, 10);
+            let hVal = (currentEditorStartTime.hh === '' || currentEditorStartTime.hh === null) ? 12 : parseInt(currentEditorStartTime.hh, 10);
+            let mVal = (currentEditorStartTime.mm === '' || currentEditorStartTime.mm === null) ? 0 : parseInt(currentEditorStartTime.mm, 10);
 
             if (isNaN(hVal) || hVal < 1 || hVal > 12 || isNaN(mVal) || mVal < 0 || mVal > 59) {
-                 if (!( (currentEditorStartTime.hh === '' || currentEditorStartTime.hh === null) &&
-                        (currentEditorStartTime.mm === '' || currentEditorStartTime.mm === null) &&
-                        currentEditorStartTime.period) ) {
+                 if ((currentEditorStartTime.hh === '' || currentEditorStartTime.hh === null) &&
+                     (currentEditorStartTime.mm === '' || currentEditorStartTime.mm === null) &&
+                      currentEditorStartTime.period) {
+                    hVal = 12; mVal = 0; // Default to 12:00 if period is set but hh/mm are blank
+                 } else if (currentEditorStartTime.hh || currentEditorStartTime.mm) { // Only error if user input something invalid
                     toast({ title: "Invalid Start Time", description: "Start time hours (1-12) or minutes (00-59) are invalid.", variant: "destructive" });
                     return;
                  }
             }
             if (currentEditorStartTime.period) {
                  newStartTime = { hh: String(hVal).padStart(2,'0'), mm: String(mVal).padStart(2,'0'), period: currentEditorStartTime.period };
-            } else if (currentEditorStartTime.hh || currentEditorStartTime.mm) {
+            } else if (currentEditorStartTime.hh || currentEditorStartTime.mm) { // If hh or mm is set, period must be set
                 toast({ title: "Missing AM/PM", description: "Please select AM or PM for the start time.", variant: "destructive" });
                 return;
             }
@@ -184,20 +186,22 @@ export default function ToDoListPage() {
 
     if (currentEditorTimeSettingType === 'specific_start_end') {
         if (currentEditorEndTime) {
-            const hVal = (currentEditorEndTime.hh === '' || currentEditorEndTime.hh === null) ? 12 : parseInt(currentEditorEndTime.hh, 10);
-            const mVal = (currentEditorEndTime.mm === '' || currentEditorEndTime.mm === null) ? 0 : parseInt(currentEditorEndTime.mm, 10);
+            let hVal = (currentEditorEndTime.hh === '' || currentEditorEndTime.hh === null) ? 12 : parseInt(currentEditorEndTime.hh, 10);
+            let mVal = (currentEditorEndTime.mm === '' || currentEditorEndTime.mm === null) ? 0 : parseInt(currentEditorEndTime.mm, 10);
 
             if (isNaN(hVal) || hVal < 1 || hVal > 12 || isNaN(mVal) || mVal < 0 || mVal > 59) {
-                 if (!( (currentEditorEndTime.hh === '' || currentEditorEndTime.hh === null) &&
-                        (currentEditorEndTime.mm === '' || currentEditorEndTime.mm === null) &&
-                        currentEditorEndTime.period) ) {
+                 if ((currentEditorEndTime.hh === '' || currentEditorEndTime.hh === null) &&
+                     (currentEditorEndTime.mm === '' || currentEditorEndTime.mm === null) &&
+                     currentEditorEndTime.period) {
+                    hVal = 12; mVal = 0; // Default to 12:00 if period is set but hh/mm are blank
+                 } else if (currentEditorEndTime.hh || currentEditorEndTime.mm) { // Only error if user input something invalid
                     toast({ title: "Invalid End Time", description: "End time hours (1-12) or minutes (00-59) are invalid.", variant: "destructive" });
                     return;
                 }
             }
              if (currentEditorEndTime.period) {
                 newEndTime = { hh: String(hVal).padStart(2,'0'), mm: String(mVal).padStart(2,'0'), period: currentEditorEndTime.period };
-            } else if (currentEditorEndTime.hh || currentEditorEndTime.mm) {
+            } else if (currentEditorEndTime.hh || currentEditorEndTime.mm) { // If hh or mm is set, period must be set
                 toast({ title: "Missing AM/PM", description: "Please select AM or PM for the end time.", variant: "destructive" });
                 return;
             }
@@ -205,11 +209,9 @@ export default function ToDoListPage() {
 
         if (!newStartTime && !newEndTime) finalTimeSettingType = 'not_set';
         else if (newStartTime && !newEndTime) finalTimeSettingType = 'specific_start';
-
-        if (currentEditorTimeSettingType === 'specific_start_end' && (!newStartTime || !newEndTime)) {
-             if (newStartTime && !newEndTime) finalTimeSettingType = 'specific_start';
-             else if (!newStartTime && newEndTime) { newEndTime = null; finalTimeSettingType = 'not_set';}
-             else finalTimeSettingType = 'not_set';
+        else if (!newStartTime && newEndTime) { // If only end time is set, treat as invalid for range
+            newEndTime = null; 
+            finalTimeSettingType = 'not_set';
         }
     }
 
@@ -261,8 +263,12 @@ export default function ToDoListPage() {
       const baseTimePoint = prev || { ...initialTimePoint };
       const newPoint = { ...baseTimePoint, [field]: value };
 
-      if (field === 'hh' && value === '') newPoint.hh = '';
-      if (field === 'mm' && value === '') newPoint.mm = '';
+      if (field === 'hh' && value === '') newPoint.hh = ''; // Allow clearing
+      else if (field === 'hh') newPoint.hh = value.replace(/[^0-9]/g, '').slice(0, 2);
+
+      if (field === 'mm' && value === '') newPoint.mm = ''; // Allow clearing
+      else if (field === 'mm') newPoint.mm = value.replace(/[^0-9]/g, '').slice(0, 2);
+      
       return newPoint;
     });
   };
@@ -270,27 +276,30 @@ export default function ToDoListPage() {
   const displayFormattedTime = (item: ToDoListItem): string => {
     if (!item.timeSettingType || item.timeSettingType === 'not_set') return 'No time set';
     if (item.timeSettingType === 'all_day') return 'All Day';
+    
+    const formatSinglePoint = (point: TimePoint | null | undefined) => {
+        if (!point) return null;
+        if (!point.period) return null; // Period is essential
+        const hStr = point.hh || "12"; // Default to 12 if hh is empty
+        const mStr = point.mm || "00"; // Default to 00 if mm is empty
+        return `${hStr.padStart(2, '0')}:${mStr.padStart(2, '0')} ${point.period}`;
+    };
+
     if (item.timeSettingType === 'am_period') return 'AM';
     if (item.timeSettingType === 'pm_period') return 'PM';
 
     let displayStr = "";
     if (item.startTime) {
-      const formattedStart = formatTimePointToString(item.startTime);
+      const formattedStart = formatSinglePoint(item.startTime);
       if (formattedStart) displayStr += `Starts ${formattedStart}`;
       else if (item.timeSettingType === 'specific_start' || item.timeSettingType === 'specific_start_end') {
-          if(item.startTime.period && !item.startTime.hh && !item.startTime.mm) {
-             displayStr += `Starts ~${item.startTime.period}`;
-          } else {
-            displayStr += 'Invalid start time';
-          }
+           displayStr += 'Invalid start time'; // Or more specific if only period is there
       }
     }
     if (item.timeSettingType === 'specific_start_end' && item.endTime) {
-      const formattedEnd = formatTimePointToString(item.endTime);
+      const formattedEnd = formatSinglePoint(item.endTime);
        if (formattedEnd) displayStr += displayStr ? ` - Ends ${formattedEnd}` : `Ends ${formattedEnd}`;
-       else if (item.endTime.period && !item.endTime.hh && !item.endTime.mm) {
-            displayStr += displayStr ? ` - Ends ~${item.endTime.period}` : `Ends ~${item.endTime.period}`;
-       } else {
+       else {
             displayStr += displayStr ? ' - Invalid end time' : 'Invalid end time';
        }
     }
@@ -340,8 +349,8 @@ export default function ToDoListPage() {
     setItems(newItems);
   };
 
-  const handleDragStart = (id: string) => {
-    if (sortOrder !== 'default') return;
+  const handleDragStart = (e: DragEvent<HTMLLIElement>, id: string) => {
+    if (sortOrder !== 'default') { e.preventDefault(); return; }
     setDraggedItemId(id);
   };
 
@@ -419,8 +428,8 @@ export default function ToDoListPage() {
             text: itemData['text'] || 'Unnamed Task',
             completed: itemData['completed']?.toLowerCase() === 'true',
             timeSettingType: (itemData['timeSettingType'] as TimeSettingType) || 'not_set',
-            startTime: startTimeString ? (parse(startTimeString, 'hh:mm a', new Date()) ? { hh: format(parse(startTimeString, 'hh:mm a', new Date()), 'hh'), mm: format(parse(startTimeString, 'hh:mm a', new Date()), 'mm'), period: format(parse(startTimeString, 'hh:mm a', new Date()), 'a') as 'AM' | 'PM' } : null) : null,
-            endTime: endTimeString ? (parse(endTimeString, 'hh:mm a', new Date()) ? { hh: format(parse(endTimeString, 'hh:mm a', new Date()), 'hh'), mm: format(parse(endTimeString, 'hh:mm a', new Date()), 'mm'), period: format(parse(endTimeString, 'hh:mm a', new Date()), 'a') as 'AM' | 'PM' } : null) : null,
+            startTime: startTimeString && parse(startTimeString, 'hh:mm a', new Date()) ? { hh: format(parse(startTimeString, 'hh:mm a', new Date()), 'hh'), mm: format(parse(startTimeString, 'hh:mm a', new Date()), 'mm'), period: format(parse(startTimeString, 'hh:mm a', new Date()), 'a') as 'AM' | 'PM' } : null,
+            endTime: endTimeString && parse(endTimeString, 'hh:mm a', new Date()) ? { hh: format(parse(endTimeString, 'hh:mm a', new Date()), 'hh'), mm: format(parse(endTimeString, 'hh:mm a', new Date()), 'mm'), period: format(parse(endTimeString, 'hh:mm a', new Date()), 'a') as 'AM' | 'PM' } : null,
             dueDate: itemData['dueDate'] && isValid(parseISO(itemData['dueDate'])) ? itemData['dueDate'] : null,
           });
         }
@@ -433,7 +442,7 @@ export default function ToDoListPage() {
       }
     };
     reader.readAsText(file);
-    event.target.value = '';
+    event.target.value = ''; // Reset file input
   };
 
   const handleImportJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -446,7 +455,7 @@ export default function ToDoListPage() {
         const jsonText = e.target?.result as string;
         const importedItems: ToDoListItem[] = JSON.parse(jsonText);
 
-        if (!Array.isArray(importedItems) || importedItems.some(item => !item.id || typeof item.text !== 'string' || typeof item.completed !== 'boolean')) {
+        if (!Array.isArray(importedItems) || importedItems.some(item => typeof item.text !== 'string' || typeof item.completed !== 'boolean')) {
              toast({ title: "Import Failed", description: "Invalid JSON format. File does not contain a valid list of tasks.", variant: "destructive" });
              return;
         }
@@ -468,7 +477,7 @@ export default function ToDoListPage() {
       }
     };
     reader.readAsText(file);
-    event.target.value = '';
+    event.target.value = ''; // Reset file input
   };
 
   const handleImportExcel = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -562,7 +571,6 @@ export default function ToDoListPage() {
 
         if (importedItems.length === 0 && json.length > dataStartIndex) {
             toast({ title: "Import Warning", description: "No valid tasks could be extracted from the Excel file, or all tasks were empty.", variant: "default" });
-            // setItems([]); // Optionally clear if no valid items found but data rows existed
             return;
         }
          if (importedItems.length === 0 && json.length <= dataStartIndex) {
@@ -579,33 +587,33 @@ export default function ToDoListPage() {
       }
     };
     reader.readAsBinaryString(file);
-    event.target.value = '';
+    event.target.value = ''; // Reset file input
   };
 
 
   const sortedItems = useMemo(() => {
     let displayItems = [...items];
-    const defaultSortedItems = [...items];
+    const defaultSortedItems = [...items]; // Keep original order for tie-breaking
 
     switch (sortOrder) {
       case 'dueDateAsc':
         displayItems.sort((a, b) => {
-          if (!a.dueDate && !b.dueDate) return defaultSortedItems.findIndex(item => item.id === a.id) - defaultSortedItems.findIndex(item => item.id === b.id);
-          if (!a.dueDate) return 1;
-          if (!b.dueDate) return -1;
+          if (!a.dueDate && !b.dueDate) return defaultSortedItems.indexOf(a) - defaultSortedItems.indexOf(b);
+          if (!a.dueDate) return 1; // Tasks with no due date go to the end
+          if (!b.dueDate) return -1; // Tasks with no due date go to the end
           const dateDiff = new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
           if (dateDiff !== 0) return dateDiff;
-          return defaultSortedItems.findIndex(item => item.id === a.id) - defaultSortedItems.findIndex(item => item.id === b.id);
+          return defaultSortedItems.indexOf(a) - defaultSortedItems.indexOf(b); // Original order for same dates
         });
         break;
       case 'dueDateDesc':
         displayItems.sort((a, b) => {
-          if (!a.dueDate && !b.dueDate) return defaultSortedItems.findIndex(item => item.id === a.id) - defaultSortedItems.findIndex(item => item.id === b.id);
+          if (!a.dueDate && !b.dueDate) return defaultSortedItems.indexOf(a) - defaultSortedItems.indexOf(b);
           if (!a.dueDate) return 1;
           if (!b.dueDate) return -1;
           const dateDiff = new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime();
           if (dateDiff !== 0) return dateDiff;
-          return defaultSortedItems.findIndex(item => item.id === a.id) - defaultSortedItems.findIndex(item => item.id === b.id);
+          return defaultSortedItems.indexOf(a) - defaultSortedItems.indexOf(b);
         });
         break;
       case 'alphaAsc':
@@ -614,29 +622,29 @@ export default function ToDoListPage() {
       case 'alphaDesc':
         displayItems.sort((a, b) => b.text.localeCompare(a.text));
         break;
-      case 'priority':
+      case 'priority': // Higher priority: sooner due date, then original order
         displayItems.sort((a, b) => {
           const aHasDueDate = !!a.dueDate;
           const bHasDueDate = !!b.dueDate;
 
-          if (aHasDueDate && !bHasDueDate) return -1;
+          if (aHasDueDate && !bHasDueDate) return -1; // Tasks with due dates first
           if (!aHasDueDate && bHasDueDate) return 1;
 
           if (aHasDueDate && bHasDueDate) {
             const dateA = new Date(a.dueDate!).getTime();
             const dateB = new Date(b.dueDate!).getTime();
             if (dateA !== dateB) {
-              return dateA - dateB;
+              return dateA - dateB; // Earlier due dates first
             }
           }
-          const indexA = defaultSortedItems.findIndex(item => item.id === a.id);
-          const indexB = defaultSortedItems.findIndex(item => item.id === b.id);
-          return indexA - indexB;
+          // If due dates are same or both null, sort by original order
+          return defaultSortedItems.indexOf(a) - defaultSortedItems.indexOf(b);
         });
         break;
       case 'default':
       default:
-        break;
+        // Uses the 'items' state directly which reflects drag-and-drop or button moves
+        break; 
     }
     return displayItems;
   }, [items, sortOrder]);
@@ -694,7 +702,7 @@ export default function ToDoListPage() {
         console.info('Task input speech recognition aborted:', event.message);
       } else if (event.error === 'no-speech') {
         if (isListeningForTaskInput) {
-          toast({ title: "No speech detected", variant: "default" });
+          // toast({ title: "No speech detected", variant: "default" }); // Potentially too noisy
         }
       } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         console.error('Task input speech recognition error:', event.error, event.message);
@@ -805,14 +813,13 @@ export default function ToDoListPage() {
                 <SelectItem value="alphaDesc">Alphabetical (Z-A)</SelectItem>
                 </SelectContent>
             </Select>
-           {/* Import/Export buttons removed from here */}
         </div>
       </div>
 
       {/* Hidden file inputs for import functionality, triggered by Header */}
-      <Input id="import-todo-list-csv" type="file" accept=".csv" className="hidden" onChange={handleImportCSV} />
-      <Input id="import-todo-list-json" type="file" accept=".json" className="hidden" onChange={handleImportJSON} />
-      <Input id="import-todo-list-excel" type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportExcel} />
+      <input id="import-todo-list-csv" type="file" accept=".csv" style={{ display: 'none' }} onChange={handleImportCSV} />
+      <input id="import-todo-list-json" type="file" accept=".json" style={{ display: 'none' }} onChange={handleImportJSON} />
+      <input id="import-todo-list-excel" type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportExcel} />
 
       <Card className="shadow-lg">
         <CardHeader>
@@ -832,7 +839,7 @@ export default function ToDoListPage() {
               type="button"
               variant="outline"
               size="lg"
-              className="p-2 h-10 w-10" // Made icon button size consistent
+              className="p-2 h-10 w-10" 
               onClick={triggerTaskInputMic}
               disabled={taskMicButtonDisabled && taskInputMicPermission !== 'prompt'}
               title={taskMicButtonDisabled && taskInputMicPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForTaskInput ? "Stop voice input (or say 'Heggles end')" : "Add task using voice")}
@@ -841,7 +848,7 @@ export default function ToDoListPage() {
               {isListeningForTaskInput ? <Mic className="h-6 w-6 text-primary animate-pulse" /> :
                (taskMicButtonDisabled ? <MicOff className="h-6 w-6 text-muted-foreground" /> : <Mic className="h-6 w-6" />)}
             </Button>
-            <Button type="submit" aria-label="Add task" className="px-3 sm:px-4">
+            <Button type="submit" aria-label="Add task" className="px-3 sm:px-4 h-10">
               <PlusCircle className="mr-0 sm:mr-2 h-5 w-5" />
                <span className="hidden sm:inline">Add Task</span>
             </Button>
@@ -860,7 +867,7 @@ export default function ToDoListPage() {
                 <li
                   key={item.id}
                   draggable={!item.completed && sortOrder === 'default'}
-                  onDragStart={() => handleDragStart(item.id)}
+                  onDragStart={(e) => handleDragStart(e, item.id)}
                   onDragOver={handleDragOver}
                   onDrop={() => handleDrop(item.id)}
                   onDragEnd={handleDragEnd}

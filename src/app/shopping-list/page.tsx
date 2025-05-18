@@ -5,12 +5,13 @@ import { useState, useEffect, FormEvent, useRef, useCallback } from 'react';
 import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
 import type { ShoppingListItem } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Input } from '@/components/ui/input'; // Still used for the visible input field
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ListChecks, Trash2, Edit3, PlusCircle, Save, Ban, Mic, MicOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { WAKE_WORDS, LOCALSTORAGE_KEYS } from '@/lib/constants';
+import * as XLSX from 'xlsx';
 
 export default function ShoppingListPage() {
   const [items, setItems] = useLocalStorage<ShoppingListItem[]>(LOCALSTORAGE_KEYS.SHOPPING_LIST, []);
@@ -118,7 +119,7 @@ export default function ShoppingListPage() {
       }
     };
     reader.readAsText(file);
-    event.target.value = '';
+    event.target.value = ''; // Reset file input
   };
   
   const handleImportJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -141,7 +142,7 @@ export default function ShoppingListPage() {
       }
     };
     reader.readAsText(file);
-    event.target.value = '';
+    event.target.value = ''; // Reset file input
   };
 
   const handleImportExcel = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -169,7 +170,7 @@ export default function ShoppingListPage() {
       }
     };
     reader.readAsBinaryString(file);
-    event.target.value = '';
+    event.target.value = ''; // Reset file input
   };
 
 
@@ -227,7 +228,7 @@ export default function ShoppingListPage() {
         console.info('Shopping list item input speech recognition aborted:', event.message);
       } else if (event.error === 'no-speech') {
         if (isListeningForItemInput) {
-          toast({ title: "No speech detected", variant: "default" });
+          // toast({ title: "No speech detected", variant: "default" }); // Potentially too noisy
         }
       } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         console.error('Shopping list item input speech recognition error:', event.error, event.message);
@@ -309,13 +310,12 @@ export default function ShoppingListPage() {
             <ListChecks className="h-10 w-10 text-primary" />
             <h1 className="text-3xl font-bold tracking-tight">Shopping List</h1>
         </div>
-        {/* Import/Export buttons removed from here */}
       </div>
 
       {/* Hidden file inputs for import functionality, triggered by Header */}
-      <Input id="import-shopping-list-csv" type="file" accept=".csv" className="hidden" onChange={handleImportCSV} />
-      <Input id="import-shopping-list-json" type="file" accept=".json" className="hidden" onChange={handleImportJSON} />
-      <Input id="import-shopping-list-excel" type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportExcel} />
+      <input id="import-shopping-list-csv" type="file" accept=".csv" style={{ display: 'none' }} onChange={handleImportCSV} />
+      <input id="import-shopping-list-json" type="file" accept=".json" style={{ display: 'none' }} onChange={handleImportJSON} />
+      <input id="import-shopping-list-excel" type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportExcel} />
 
 
       <Card className="shadow-lg">
@@ -336,7 +336,7 @@ export default function ShoppingListPage() {
               type="button"
               variant="outline"
               size="lg"
-              className="p-2 h-10 w-10" // Made icon button size consistent
+              className="p-2 h-10 w-10" 
               onClick={triggerItemInputMic}
               disabled={micButtonDisabled && micPermission !== 'prompt'}
               title={micButtonDisabled && micPermission !== 'prompt' ? "Voice input unavailable" : (isListeningForItemInput ? "Stop voice input (or say 'Heggles end')" : "Add item using voice")}
@@ -345,7 +345,7 @@ export default function ShoppingListPage() {
               {isListeningForItemInput ? <Mic className="h-6 w-6 text-primary animate-pulse" /> :
                (micButtonDisabled ? <MicOff className="h-6 w-6 text-muted-foreground" /> : <Mic className="h-6 w-6" />)}
             </Button>
-            <Button type="submit" aria-label="Add item" className="px-3 sm:px-4">
+            <Button type="submit" aria-label="Add item" className="px-3 sm:px-4 h-10">
               <PlusCircle className="mr-0 sm:mr-2 h-5 w-5" />
               <span className="hidden sm:inline">Add Item</span>
             </Button>
