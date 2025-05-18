@@ -1,7 +1,8 @@
+
 "use client";
 
-import { useState } from 'react';
-import { Pin, Sparkles, MessageSquareText, Tags, CalendarDays, AlertCircle, Trash2, HelpCircle, CheckCircle, Volume2, Search, LinkIcon, ListPlus, CircleHelp, BrainCircuit } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Pin, Sparkles, MessageSquareText, Tags, CalendarDays, AlertCircle, Trash2, HelpCircle, CheckCircle, Volume2, Search, Link as LinkIcon, ListPlus, CircleHelp, BrainCircuit } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -66,14 +67,27 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
     const uncertaintyPhrases = [
       "i cannot answer", "i couldn't find", "not sure", "unable to determine",
       "i'm unable to answer", "i do not have enough information", "search did not yield",
-      "results were not conclusive", "i'm sorry, i can't answer", "i don't know"
+      "results were not conclusive", "i'm sorry, i can't answer", "i don't know",
+      "unable to provide an answer", "cannot provide an answer", "search results were not helpful",
+      "information not found", "could not find information", "no definitive answer",
+      "i'm sorry, i cannot", "apologies, i can't answer", "my search didn't yield a clear result"
     ];
     return uncertaintyPhrases.some(phrase => lowerAnswer.includes(phrase));
   };
 
   const questionForGoogleSearch = thought.intentAnalysis?.extractedQuestion || thought.originalText;
-  // Show Google search link if AI answer exists, is uncertain, AND no specific action link is suggested.
-  const showGoogleSearchLink = thought.aiAnswer && aiAnswerContainsUncertainty(thought.aiAnswer) && !thought.suggestedActionLink;
+  const shouldShowGoogleSearchLink = thought.aiAnswer && aiAnswerContainsUncertainty(thought.aiAnswer) && !thought.suggestedActionLink;
+
+  useEffect(() => {
+    if (thought.aiAnswer) {
+      console.log(`[ThoughtCard Debug] Thought ID: ${thought.id}`);
+      console.log(`  AI Answer: "${thought.aiAnswer}"`);
+      console.log(`  Contains Uncertainty: ${aiAnswerContainsUncertainty(thought.aiAnswer)}`);
+      console.log(`  Suggested Action Link: ${thought.suggestedActionLink || 'None'}`);
+      console.log(`  Should Show Google Search Link: ${shouldShowGoogleSearchLink}`);
+    }
+  }, [thought.id, thought.aiAnswer, thought.suggestedActionLink, shouldShowGoogleSearchLink]);
+
 
   const handleSuggestAddToList = () => {
     if (thought.aiSuggestedActionFromCreative && thought.aiSuggestedListForCreativeAction && thought.aiSuggestedListForCreativeAction !== 'none') {
@@ -107,7 +121,7 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
       }
       localStorage.setItem(listKey, JSON.stringify(currentItems));
       window.dispatchEvent(new StorageEvent('storage', { key: listKey, newValue: JSON.stringify(currentItems) }));
-      toast({ title: "Item Added", description: `"${actionText}" added to your ${listName} based on AI suggestion.` });
+      toast({ title: "Item Added", description: `\"${actionText}\" added to your ${listName} based on AI suggestion.` });
     } catch (error) {
       console.error(`Error adding suggested item to ${listName}:`, error);
       toast({ title: `Error updating ${listName}`, description: "Could not save the suggested item.", variant: "destructive" });
@@ -208,7 +222,7 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
                 </Button>
             )}
 
-            {showGoogleSearchLink && (
+            {shouldShowGoogleSearchLink && (
               <Button variant="outline" size="sm" asChild className="mt-2 w-full text-xs">
                 <a
                   href={`https://www.google.com/search?q=${encodeURIComponent(questionForGoogleSearch)}`}
@@ -224,7 +238,7 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
         )}
 
         {/* General Action Items & Intent Analysis (if not covered above) */}
-        {thought.actionItems && thought.actionItems.length > 0 && !thought.isCreativeRequest && ( // Avoid showing generic action items if specific creative task add is suggested
+        {thought.actionItems && thought.actionItems.length > 0 && !thought.isCreativeRequest && !thought.aiSuggestedActionFromCreative && (
           <div>
             <h4 className="font-semibold text-sm mb-1 text-orange-600 flex items-center">
               <AlertCircle className="mr-1.5 h-4 w-4"/> Action Items (from Refinement):
@@ -236,7 +250,7 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
             </ul>
           </div>
         )}
-         {thought.intentAnalysis?.isAction && thought.intentAnalysis.extractedAction && !thought.aiAnswer && ( // Only show if not already handled by AI answer flow
+         {thought.intentAnalysis?.isAction && thought.intentAnalysis.extractedAction && !thought.aiAnswer && !thought.aiSuggestedActionFromCreative && ( // Only show if not already handled by AI answer flow or creative suggestion
           <div>
             <h4 className="font-semibold text-sm mb-1 text-blue-600 flex items-center">
               <CheckCircle className="mr-1.5 h-4 w-4"/> Identified Action (from Intent):
