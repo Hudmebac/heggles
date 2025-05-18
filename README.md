@@ -24,7 +24,8 @@ Heggles is an intelligent tool designed to help you capture, organize, and recal
     - Manual and voice-dictated item entry (using inline mic buttons).
     - Completion tracking, editing, deletion.
     - To-Do list specific: due dates, time settings, sorting, and visual reminders.
-    - Import/Export capabilities (CSV, JSON, Excel).
+    - Import/Export capabilities (CSV, JSON, Excel, Text).
+    - Share lists via Email or WhatsApp (To-Do list also offers .ics calendar export).
 - **Thought Clarification:** Refine thought transcripts and extract action items using AI.
 - **Customizable Themes:** Light, Dark, and High-Contrast modes.
 - **Data Persistence:** Utilizes browser `localStorage` to save your thoughts, lists, and preferences.
@@ -35,8 +36,8 @@ To get started with Heggles:
 
 1.  **Clone the repository:**
     ```bash
-    git clone <repository-url>
-    cd heggles-thoughtstream
+    git clone https://github.com/Hudmebac/heggles.git
+    cd heggles
     ```
 2.  **Install dependencies:**
     ```bash
@@ -90,3 +91,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## License
 
 This project is licensed under the MIT License.
+
