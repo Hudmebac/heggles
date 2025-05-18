@@ -7,8 +7,16 @@ export interface Thought {
   keywords?: string[];
   refinedTranscript?: string;
   actionItems?: string[];
-  intentAnalysis?: IntentAnalysisOutput; // Added
-  aiAnswer?: string; // Added
+  intentAnalysis?: IntentAnalysisOutput; 
+  aiAnswer?: string; 
+  
+  // Fields for specific AI suggestions from answerQuestionFlow
+  isCreativeRequest?: boolean;
+  isDirectionRequest?: boolean;
+  suggestedActionText?: string;
+  suggestedActionLink?: string;
+  aiSuggestedActionFromCreative?: string; // If creative request also implies a task
+  aiSuggestedListForCreativeAction?: "todo" | "shopping" | "none"; // List for the creative-derived task
 }
 
 export interface PinnedThought extends Thought {
@@ -44,12 +52,10 @@ export interface ToDoListItem {
   text: string;
   completed: boolean;
   
-  // New time structure
   timeSettingType?: TimeSettingType;
   startTime?: TimePoint | null;
   endTime?: TimePoint | null;
 
-  // New due date field
   dueDate?: string | null; // Store as "YYYY-MM-DD"
 }
 
@@ -67,3 +73,4 @@ export interface IntentAnalysisOutput {
   extractedAction?: string;
   suggestedList?: "todo" | "shopping" | "none";
 }
+

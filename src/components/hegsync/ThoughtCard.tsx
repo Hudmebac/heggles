@@ -1,7 +1,7 @@
-
 "use client";
 
-import { Pin, Sparkles, MessageSquareText, Tags, CalendarDays, AlertCircle, Trash2, HelpCircle, CheckCircle, Volume2, Search } from 'lucide-react';
+import { useState } from 'react';
+import { Pin, Sparkles, MessageSquareText, Tags, CalendarDays, AlertCircle, Trash2, HelpCircle, CheckCircle, Volume2, Search, LinkIcon, ListPlus, CircleHelp, BrainCircuit } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -12,8 +12,21 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import type { Thought, PinnedThought } from '@/lib/types';
+import type { Thought, PinnedThought, ShoppingListItem, ToDoListItem } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
+import { LOCALSTORAGE_KEYS } from '@/lib/constants';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+
 
 interface ThoughtCardProps {
   thought: Thought | PinnedThought;
@@ -24,6 +37,14 @@ interface ThoughtCardProps {
 }
 
 export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = false }: ThoughtCardProps) {
+  const { toast } = useToast();
+  const [isSuggestActionDialogOpen, setIsSuggestActionDialogOpen] = useState(false);
+  const [dialogActionDetails, setDialogActionDetails] = useState<{
+    actionText: string;
+    listType: "todo" | "shopping";
+  } | null>(null);
+
+
   const timeAgo = formatDistanceToNow(new Date(thought.timestamp), { addSuffix: true });
 
   const handlePlayAnswer = (textToSpeak: string | undefined) => {
@@ -35,6 +56,7 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
       window.speechSynthesis.speak(utterance);
     } else {
       console.warn("Speech synthesis not supported in this browser.");
+      toast({title: "Text-to-Speech Not Supported", description: "Your browser does not support speech synthesis.", variant: "default"});
     }
   };
 
@@ -50,7 +72,50 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
   };
 
   const questionForGoogleSearch = thought.intentAnalysis?.extractedQuestion || thought.originalText;
-  const showGoogleSearchLink = thought.aiAnswer && aiAnswerContainsUncertainty(thought.aiAnswer);
+  // Show Google search link if AI answer exists, is uncertain, AND no specific action link is suggested.
+  const showGoogleSearchLink = thought.aiAnswer && aiAnswerContainsUncertainty(thought.aiAnswer) && !thought.suggestedActionLink;
+
+  const handleSuggestAddToList = () => {
+    if (thought.aiSuggestedActionFromCreative && thought.aiSuggestedListForCreativeAction && thought.aiSuggestedListForCreativeAction !== 'none') {
+        setDialogActionDetails({
+            actionText: thought.aiSuggestedActionFromCreative,
+            listType: thought.aiSuggestedListForCreativeAction
+        });
+      setIsSuggestActionDialogOpen(true);
+    }
+  };
+  
+  const confirmAddSuggestedItemToList = () => {
+    if (!dialogActionDetails) return;
+    const {actionText, listType} = dialogActionDetails;
+    const listKey = listType === 'shopping' ? LOCALSTORAGE_KEYS.SHOPPING_LIST : LOCALSTORAGE_KEYS.TODO_LIST;
+    const listName = listType === 'shopping' ? "Shopping List" : "To-Do List";
+    
+    try {
+      const currentItemsString = localStorage.getItem(listKey);
+      let currentItems: Array<ShoppingListItem | ToDoListItem> = currentItemsString ? JSON.parse(currentItemsString) : [];
+
+      if (listType === 'shopping') {
+        const newItem: ShoppingListItem = { id: crypto.randomUUID(), text: actionText, completed: false };
+        currentItems = [...currentItems, newItem] as ShoppingListItem[];
+      } else { // ToDo
+        const newItem: ToDoListItem = {
+          id: crypto.randomUUID(), text: actionText, completed: false,
+          timeSettingType: 'not_set', startTime: null, endTime: null, dueDate: null
+        };
+        currentItems = [...currentItems, newItem] as ToDoListItem[];
+      }
+      localStorage.setItem(listKey, JSON.stringify(currentItems));
+      window.dispatchEvent(new StorageEvent('storage', { key: listKey, newValue: JSON.stringify(currentItems) }));
+      toast({ title: "Item Added", description: `"${actionText}" added to your ${listName} based on AI suggestion.` });
+    } catch (error) {
+      console.error(`Error adding suggested item to ${listName}:`, error);
+      toast({ title: `Error updating ${listName}`, description: "Could not save the suggested item.", variant: "destructive" });
+    }
+    setIsSuggestActionDialogOpen(false);
+    setDialogActionDetails(null);
+  };
+
 
   return (
     <Card className="shadow-md hover:shadow-lg transition-shadow duration-200 flex flex-col h-full">
@@ -100,11 +165,16 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
             <p className="text-sm text-muted-foreground p-2 bg-primary/10 rounded-md whitespace-pre-wrap">{thought.refinedTranscript}</p>
           </div>
         )}
-         {thought.intentAnalysis?.isQuestion && thought.intentAnalysis.extractedQuestion && thought.aiAnswer && (
+        
+        {/* AI Answer / Tool Suggestion Section */}
+        {thought.aiAnswer && (
           <div className="space-y-1">
             <h4 className="font-semibold text-sm text-green-600 flex items-center justify-between">
               <span className="flex items-center">
-                <HelpCircle className="mr-1.5 h-4 w-4"/> AI Answered Question:
+                {thought.isCreativeRequest && <BrainCircuit className="mr-1.5 h-4 w-4"/>}
+                {thought.isDirectionRequest && <CircleHelp className="mr-1.5 h-4 w-4"/>}
+                {!thought.isCreativeRequest && !thought.isDirectionRequest && <HelpCircle className="mr-1.5 h-4 w-4"/>}
+                AI Response:
               </span>
               <Button
                 variant="ghost"
@@ -116,15 +186,30 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
                 <Volume2 className="h-4 w-4" />
               </Button>
             </h4>
-            <p className="text-sm text-muted-foreground italic p-1">Q: {thought.intentAnalysis.extractedQuestion}</p>
+            {thought.intentAnalysis?.isQuestion && thought.intentAnalysis.extractedQuestion && !thought.isCreativeRequest && !thought.isDirectionRequest && (
+                 <p className="text-sm text-muted-foreground italic p-1">Q: {thought.intentAnalysis.extractedQuestion}</p>
+            )}
             <p className="text-sm text-green-700 bg-green-50 p-2 rounded-md">{thought.aiAnswer}</p>
+            
+            {thought.suggestedActionLink && thought.suggestedActionText && (
+              <Button variant="outline" size="sm" asChild className="mt-2 w-full text-xs">
+                <a href={thought.suggestedActionLink} target="_blank" rel="noopener noreferrer">
+                  <LinkIcon className="mr-2 h-3 w-3" />
+                  {thought.suggestedActionText}
+                </a>
+              </Button>
+            )}
+
+            {/* Additional action from creative request */}
+            {thought.isCreativeRequest && thought.aiSuggestedActionFromCreative && thought.aiSuggestedListForCreativeAction && thought.aiSuggestedListForCreativeAction !== 'none' && (
+                 <Button variant="outline" size="sm" onClick={handleSuggestAddToList} className="mt-2 w-full text-xs border-dashed border-primary text-primary hover:bg-primary/10">
+                    <ListPlus className="mr-2 h-3 w-3"/>
+                    Also add task: "{thought.aiSuggestedActionFromCreative.length > 20 ? thought.aiSuggestedActionFromCreative.substring(0,17) + '...' : thought.aiSuggestedActionFromCreative}" to {thought.aiSuggestedListForCreativeAction}?
+                </Button>
+            )}
+
             {showGoogleSearchLink && (
-              <Button
-                variant="outline"
-                size="sm"
-                asChild
-                className="mt-2 w-full text-xs"
-              >
+              <Button variant="outline" size="sm" asChild className="mt-2 w-full text-xs">
                 <a
                   href={`https://www.google.com/search?q=${encodeURIComponent(questionForGoogleSearch)}`}
                   target="_blank"
@@ -137,7 +222,9 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
             )}
           </div>
         )}
-        {thought.actionItems && thought.actionItems.length > 0 && (
+
+        {/* General Action Items & Intent Analysis (if not covered above) */}
+        {thought.actionItems && thought.actionItems.length > 0 && !thought.isCreativeRequest && ( // Avoid showing generic action items if specific creative task add is suggested
           <div>
             <h4 className="font-semibold text-sm mb-1 text-orange-600 flex items-center">
               <AlertCircle className="mr-1.5 h-4 w-4"/> Action Items (from Refinement):
@@ -149,7 +236,7 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
             </ul>
           </div>
         )}
-         {thought.intentAnalysis?.isAction && thought.intentAnalysis.extractedAction && (
+         {thought.intentAnalysis?.isAction && thought.intentAnalysis.extractedAction && !thought.aiAnswer && ( // Only show if not already handled by AI answer flow
           <div>
             <h4 className="font-semibold text-sm mb-1 text-blue-600 flex items-center">
               <CheckCircle className="mr-1.5 h-4 w-4"/> Identified Action (from Intent):
@@ -162,6 +249,7 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
             </p>
           </div>
         )}
+
         {thought.keywords && thought.keywords.length > 0 && (
           <div>
             <h4 className="font-semibold text-sm mb-1 flex items-center">
@@ -195,7 +283,23 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
           {thought.refinedTranscript ? "View/Re-Clarify" : "Clarify with AI"}
         </Button>
       </CardFooter>
+
+      {dialogActionDetails && (
+        <AlertDialog open={isSuggestActionDialogOpen} onOpenChange={setIsSuggestActionDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>AI Suggestion</AlertDialogTitle>
+              <AlertDialogDescription>
+                The AI also suggests adding the task "<strong>{dialogActionDetails.actionText}</strong>" to your {dialogActionDetails.listType} list. Would you like to add it?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => {setIsSuggestActionDialogOpen(false); setDialogActionDetails(null);}}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmAddSuggestedItemToList}>Add to List</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </Card>
   );
 }
-
