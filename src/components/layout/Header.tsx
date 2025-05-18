@@ -74,8 +74,15 @@ export function Header() {
       });
       return;
     }
+    // Construct the ID for the hidden file input element
     const inputId = `import-${listType}-list-${format}`;
-    document.getElementById(inputId)?.click();
+    const fileInput = document.getElementById(inputId);
+    if (fileInput) {
+      fileInput.click();
+    } else {
+      console.error(`File input element with ID '${inputId}' not found.`);
+      toast({ title: "Import Error", description: "Could not initiate file selection.", variant: "destructive"});
+    }
   };
 
 
