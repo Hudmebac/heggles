@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { LOCALSTORAGE_KEYS, WAKE_WORDS, SHARE_DEFAULTS } from '@/lib/constants';
-import { generateToDoListPlainTextForShare, generateToDoListICS, downloadICSFile } from '@/lib/list-export-utils';
+import { generateToDoListPlainTextForShare, generateToDoListICS, downloadICSFile, getShareFooterText } from '@/lib/list-export-utils';
 import { cn } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 
@@ -82,8 +82,8 @@ export default function ToDoListPage() {
       setTaskInputMicPermission('unsupported');
     }
     return () => {
-      if (recognitionTaskRef.current && recognitionTaskRef.current.stop) {
-        try { recognitionTaskRef.current.stop(); } catch (e) { /* ignore */ }
+      if (recognitionTaskRef.current && (recognitionTaskRef.current as any).stop) {
+        try { (recognitionTaskRef.current as any).stop(); } catch (e) { /* ignore */ }
       }
       if (pauseTaskTimeoutRef.current) {
         clearTimeout(pauseTaskTimeoutRef.current);
@@ -177,8 +177,8 @@ export default function ToDoListPage() {
             if (currentEditorStartTime.period && (isNaN(hVal) || hVal < 1 || hVal > 12 || isNaN(mVal) || mVal < 0 || mVal > 59)) {
                  if ((currentEditorStartTime.hh === '' || currentEditorStartTime.hh === null) &&
                      (currentEditorStartTime.mm === '' || currentEditorStartTime.mm === null)) {
-                    hVal = 12; mVal = 0; 
-                 } else if (currentEditorStartTime.hh || currentEditorStartTime.mm) { 
+                    hVal = 12; mVal = 0;
+                 } else if (currentEditorStartTime.hh || currentEditorStartTime.mm) {
                     toast({ title: "Invalid Start Time", description: "Start time hours (1-12) or minutes (00-59) are invalid.", variant: "destructive" });
                     return;
                  }
@@ -202,15 +202,15 @@ export default function ToDoListPage() {
             if (currentEditorEndTime.period && (isNaN(hVal) || hVal < 1 || hVal > 12 || isNaN(mVal) || mVal < 0 || mVal > 59)) {
                  if ((currentEditorEndTime.hh === '' || currentEditorEndTime.hh === null) &&
                      (currentEditorEndTime.mm === '' || currentEditorEndTime.mm === null)) {
-                    hVal = 12; mVal = 0; 
-                 } else if (currentEditorEndTime.hh || currentEditorEndTime.mm) { 
+                    hVal = 12; mVal = 0;
+                 } else if (currentEditorEndTime.hh || currentEditorEndTime.mm) {
                     toast({ title: "Invalid End Time", description: "End time hours (1-12) or minutes (00-59) are invalid.", variant: "destructive" });
                     return;
                 }
             }
              if (currentEditorEndTime.period) {
                 newEndTime = { hh: String(hVal).padStart(2,'0'), mm: String(mVal).padStart(2,'0'), period: currentEditorEndTime.period };
-            } else if (currentEditorEndTime.hh || currentEditorEndTime.mm) { 
+            } else if (currentEditorEndTime.hh || currentEditorEndTime.mm) {
                 toast({ title: "Missing AM/PM", description: "Please select AM or PM for the end time.", variant: "destructive" });
                 return;
             }
@@ -223,7 +223,7 @@ export default function ToDoListPage() {
              return;
         }
     }
-    
+
     // Handle AM/PM period selections
     if (currentEditorTimeSettingType === 'am_period' && !newStartTime) newStartTime = { hh: '09', mm: '00', period: 'AM' }; // Default to 9 AM
     if (currentEditorTimeSettingType === 'pm_period' && !newStartTime) newStartTime = { hh: '01', mm: '00', period: 'PM' }; // Default to 1 PM
@@ -272,12 +272,12 @@ export default function ToDoListPage() {
       const baseTimePoint = prev || { ...initialTimePoint, period: type === 'start' ? 'AM' : 'PM' }; // Default period if new
       const newPoint = { ...baseTimePoint, [field]: value };
 
-      if (field === 'hh' && value === '') newPoint.hh = ''; 
+      if (field === 'hh' && value === '') newPoint.hh = '';
       else if (field === 'hh') newPoint.hh = value.replace(/[^0-9]/g, '').slice(0, 2);
 
-      if (field === 'mm' && value === '') newPoint.mm = ''; 
+      if (field === 'mm' && value === '') newPoint.mm = '';
       else if (field === 'mm') newPoint.mm = value.replace(/[^0-9]/g, '').slice(0, 2);
-      
+
       // Ensure period is set if hh or mm has a value for specific times
       if ((newPoint.hh || newPoint.mm) && !newPoint.period) {
           newPoint.period = type === 'start' ? 'AM' : 'PM'; // Default to AM for start, PM for end if needed
@@ -300,8 +300,8 @@ export default function ToDoListPage() {
         }
         if (!point.period || point.hh === null || point.mm === null) return 'Invalid time';
 
-        const hStr = point.hh || "12"; 
-        const mStr = point.mm || "00"; 
+        const hStr = point.hh || "12";
+        const mStr = point.mm || "00";
         return `${hStr.padStart(2, '0')}:${mStr.padStart(2, '0')} ${point.period}`;
     };
 
@@ -313,7 +313,7 @@ export default function ToDoListPage() {
       const formattedStart = formatSinglePoint(item.startTime);
       if (formattedStart) displayStr += `Starts ${formattedStart}`;
       else if (item.timeSettingType === 'specific_start' || item.timeSettingType === 'specific_start_end') {
-           displayStr += 'Invalid start time'; 
+           displayStr += 'Invalid start time';
       }
     }
     if (item.timeSettingType === 'specific_start_end' && item.endTime) {
@@ -326,7 +326,7 @@ export default function ToDoListPage() {
         // If range selected but no end time
         displayStr += displayStr ? ' - (End time not set)' : '(End time not set)';
     }
-    
+
     return displayStr || (item.timeSettingType !== 'not_set' ? 'Time set (check details)' : 'No time set');
   };
 
@@ -423,13 +423,13 @@ export default function ToDoListPage() {
         }
 
         const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-        const expectedHeaders = ["text", "completed", "timesettingtype", "starttime", "endtime", "duedate"]; 
+        const expectedHeaders = ["text", "completed", "timesettingtype", "starttime", "endtime", "duedate"];
 
          if (!expectedHeaders.every(h => headers.includes(h))) {
              toast({ title: "Import Failed", description: "Invalid CSV format. Missing required columns (case-insensitive): " + expectedHeaders.filter(h => !headers.includes(h)).join(', '), variant: "destructive" });
              return;
          }
-         
+
          if (lines.length <=1) {
            toast({ title: "Import Failed", description: "No data rows found after header in CSV.", variant: "destructive" });
            return;
@@ -438,7 +438,7 @@ export default function ToDoListPage() {
 
         const importedItems: ToDoListItem[] = [];
         for (let i = 1; i < lines.length; i++) {
-          const values = lines[i].split(','); 
+          const values = lines[i].split(',');
           const itemData: Record<string, string> = {};
           headers.forEach((header, index) => {
              let value = values[index];
@@ -452,27 +452,27 @@ export default function ToDoListPage() {
           const endTimeString = itemData['endtime'];
 
           const timeSettingType = (itemData['timesettingtype'] as TimeSettingType) || 'not_set';
-          
+
           let parsedStartTime: TimePoint | null = null;
           if (startTimeString) {
             const parsedTime = parse(startTimeString, 'hh:mm a', new Date());
             if (isValid(parsedTime)) {
-              parsedStartTime = { 
-                hh: format(parsedTime, 'hh'), 
-                mm: format(parsedTime, 'mm'), 
-                period: format(parsedTime, 'a').toUpperCase() as 'AM' | 'PM' 
+              parsedStartTime = {
+                hh: format(parsedTime, 'hh'),
+                mm: format(parsedTime, 'mm'),
+                period: format(parsedTime, 'a').toUpperCase() as 'AM' | 'PM'
               };
             }
           }
-          
+
           let parsedEndTime: TimePoint | null = null;
            if (endTimeString) {
             const parsedTime = parse(endTimeString, 'hh:mm a', new Date());
             if (isValid(parsedTime)) {
-              parsedEndTime = { 
-                hh: format(parsedTime, 'hh'), 
-                mm: format(parsedTime, 'mm'), 
-                period: format(parsedTime, 'a').toUpperCase() as 'AM' | 'PM' 
+              parsedEndTime = {
+                hh: format(parsedTime, 'hh'),
+                mm: format(parsedTime, 'mm'),
+                period: format(parsedTime, 'a').toUpperCase() as 'AM' | 'PM'
               };
             }
           }
@@ -487,7 +487,7 @@ export default function ToDoListPage() {
             dueDate: itemData['duedate'] && isValid(parseISO(itemData['duedate'])) ? itemData['duedate'] : null,
           });
         }
-        
+
         if (importedItems.length === 0) {
             toast({ title: "Import Warning", description: "No valid tasks could be imported from the CSV. Check data rows.", variant: "default" });
             return;
@@ -519,7 +519,7 @@ export default function ToDoListPage() {
         const itemsWithNewIds = importedItemsRaw.map(item => {
           if (typeof item.text !== 'string' || typeof item.completed !== 'boolean') {
             console.warn("Skipping invalid item in JSON import:", item);
-            return null; 
+            return null;
           }
           return {
             ...item,
@@ -528,7 +528,7 @@ export default function ToDoListPage() {
             endTime: item.endTime && typeof item.endTime === 'object' && item.endTime !== null && 'hh' in item.endTime && 'mm' in item.endTime && 'period' in item.endTime ? {...item.endTime} as TimePoint : null,
             dueDate: item.dueDate && isValid(parseISO(item.dueDate)) ? item.dueDate : null,
             timeSettingType: ['not_set', 'all_day', 'am_period', 'pm_period', 'specific_start', 'specific_start_end'].includes(item.timeSettingType as string) ? item.timeSettingType : 'not_set',
-        }}).filter(Boolean) as ToDoListItem[]; 
+        }}).filter(Boolean) as ToDoListItem[];
 
         if (itemsWithNewIds.length === 0 && importedItemsRaw.length > 0) {
              toast({ title: "Import Warning", description: "No valid tasks could be imported from the JSON. Check item structure (requires 'text' and 'completed').", variant: "default" });
@@ -557,7 +557,7 @@ export default function ToDoListPage() {
         const workbook = XLSX.read(data, { type: 'binary' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const json: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 }); 
+        const json: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
         let headers: string[] = [];
         let dataStartIndex = -1;
@@ -575,7 +575,7 @@ export default function ToDoListPage() {
             toast({ title: "Import Failed", description: "Could not find valid header row in Excel (must contain 'text').", variant: "destructive" });
             return;
         }
-        
+
         const textIndex = headers.indexOf('text');
         const completedIndex = headers.indexOf('completed');
         const timeSettingTypeIndex = headers.indexOf('timesettingtype');
@@ -615,10 +615,10 @@ export default function ToDoListPage() {
             let dueDate: string | null = null;
             if (dueDateIndex > -1 && row[dueDateIndex]) {
                 let dateCandidate = String(row[dueDateIndex]);
-                let parsedDate = parseISO(dateCandidate); 
-                if (!isValid(parsedDate)) parsedDate = parse(dateCandidate, 'dd/MM/yyyy', new Date()); 
-                if (!isValid(parsedDate)) parsedDate = parse(dateCandidate, 'MM/dd/yyyy', new Date()); 
-                if (!isValid(parsedDate) && typeof row[dueDateIndex] === 'number') { 
+                let parsedDate = parseISO(dateCandidate);
+                if (!isValid(parsedDate)) parsedDate = parse(dateCandidate, 'dd/MM/yyyy', new Date());
+                if (!isValid(parsedDate)) parsedDate = parse(dateCandidate, 'MM/dd/yyyy', new Date());
+                if (!isValid(parsedDate) && typeof row[dueDateIndex] === 'number') {
                    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
                    parsedDate = new Date(excelEpoch.getTime() + (row[dueDateIndex] as number) * 24 * 60 * 60 * 1000);
                 }
@@ -719,17 +719,17 @@ export default function ToDoListPage() {
 
   const sortedItems = useMemo(() => {
     let displayItems = [...items];
-    const defaultSortedItems = [...items]; 
+    const defaultSortedItems = [...items];
 
     switch (sortOrder) {
       case 'dueDateAsc':
         displayItems.sort((a, b) => {
           if (!a.dueDate && !b.dueDate) return defaultSortedItems.indexOf(a) - defaultSortedItems.indexOf(b);
-          if (!a.dueDate) return 1; 
-          if (!b.dueDate) return -1; 
+          if (!a.dueDate) return 1;
+          if (!b.dueDate) return -1;
           const dateDiff = new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
           if (dateDiff !== 0) return dateDiff;
-          return defaultSortedItems.indexOf(a) - defaultSortedItems.indexOf(b); 
+          return defaultSortedItems.indexOf(a) - defaultSortedItems.indexOf(b);
         });
         break;
       case 'dueDateDesc':
@@ -748,7 +748,7 @@ export default function ToDoListPage() {
       case 'alphaDesc':
         displayItems.sort((a, b) => b.text.localeCompare(a.text));
         break;
-      case 'priority': 
+      case 'priority':
         displayItems.sort((a, b) => {
           const aHasDueDate = !!a.dueDate;
           const bHasDueDate = !!b.dueDate;
@@ -756,14 +756,14 @@ export default function ToDoListPage() {
           if (a.completed && !b.completed) return 1; // Completed tasks to bottom
           if (!a.completed && b.completed) return -1;
 
-          if (aHasDueDate && !bHasDueDate) return -1; 
+          if (aHasDueDate && !bHasDueDate) return -1;
           if (!aHasDueDate && bHasDueDate) return 1;
 
           if (aHasDueDate && bHasDueDate) {
             const dateA = new Date(a.dueDate!).getTime();
             const dateB = new Date(b.dueDate!).getTime();
             if (dateA !== dateB) {
-              return dateA - dateB; 
+              return dateA - dateB;
             }
           }
           // Fallback to original order if dates are same or no dates, or completion is same
@@ -782,8 +782,8 @@ export default function ToDoListPage() {
     const SpeechRecognitionAPI = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognitionAPI || taskInputMicPermission !== 'granted') return;
 
-    if (recognitionTaskRef.current && recognitionTaskRef.current.stop) {
-      try { recognitionTaskRef.current.stop(); } catch(e) { /* ignore */ }
+    if (recognitionTaskRef.current && (recognitionTaskRef.current as any).stop) {
+      try { (recognitionTaskRef.current as any).stop(); } catch(e) { /* ignore */ }
     }
     if (pauseTaskTimeoutRef.current) {
       clearTimeout(pauseTaskTimeoutRef.current);
@@ -819,12 +819,12 @@ export default function ToDoListPage() {
         }
         setNewItemText(finalText);
         if (recognitionTaskRef.current) {
-          try { recognitionTaskRef.current.stop(); } catch(e) { /* ignore */ }
+          try { (recognitionTaskRef.current as any).stop(); } catch(e) { /* ignore */ }
         }
       } else {
         pauseTaskTimeoutRef.current = setTimeout(() => {
           if (recognitionTaskRef.current) {
-            try { recognitionTaskRef.current.stop(); } catch(e) { /* ignore */ }
+            try { (recognitionTaskRef.current as any).stop(); } catch(e) { /* ignore */ }
           }
         }, 2000);
       }
@@ -865,7 +865,7 @@ export default function ToDoListPage() {
   const triggerTaskInputMic = useCallback(async () => {
     if (isListeningForTaskInput) {
       if (recognitionTaskRef.current?.stop) {
-         try { recognitionTaskRef.current.stop(); } catch(e) {/* ignore */}
+         try { (recognitionTaskRef.current as any).stop(); } catch(e) {/* ignore */}
       }
        if (pauseTaskTimeoutRef.current) {
         clearTimeout(pauseTaskTimeoutRef.current);
@@ -903,10 +903,10 @@ export default function ToDoListPage() {
   }, [isListeningForTaskInput, taskInputMicPermission, startTaskInputRecognition, toast]);
 
   const handleShareToDoViaEmail = () => {
-    const plainTextList = generateToDoListPlainTextForShare(items);
+    const plainTextList = generateToDoListPlainTextForShare(items, false); // Get list without default footer
     const subject = SHARE_DEFAULTS.TODO_LIST_EMAIL_SUBJECT;
-    const body = plainTextList;
-    const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const emailBody = `${plainTextList}\n\nFor calendar integration of tasks with due dates, you can download an .ics file from the Heggles app (To-Do List > Share List > Download Calendar).\n\n${getShareFooterText(false)}`;
+    const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
     window.open(mailtoLink, '_blank');
   };
 
@@ -915,7 +915,7 @@ export default function ToDoListPage() {
     const whatsappLink = `https://wa.me/?text=${encodeURIComponent(plainTextList)}`;
     window.open(whatsappLink, '_blank');
   };
-  
+
   const handleDownloadCalendarFile = () => {
     const icsContent = generateToDoListICS(items);
     if (icsContent) {
@@ -935,7 +935,7 @@ export default function ToDoListPage() {
     );
   }
 
-  const renderTimePointInput = (type: 'start' | 'end', _timePoint: TimePoint | null) => { 
+  const renderTimePointInput = (type: 'start' | 'end', _timePoint: TimePoint | null) => {
     const currentVal = type === 'start' ? currentEditorStartTime : currentEditorEndTime;
     return (
       <div className="flex items-center gap-1 p-1 border rounded-md bg-background">
@@ -970,8 +970,8 @@ export default function ToDoListPage() {
           <h1 className="text-3xl font-bold tracking-tight">To-Do List</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-center sm:justify-end mt-2 sm:mt-0">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => fileInputRef.current?.click()}
               className="h-10"
               aria-label="Import to-do tasks"
