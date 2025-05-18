@@ -70,7 +70,8 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
       "results were not conclusive", "i'm sorry, i can't answer", "i don't know",
       "unable to provide an answer", "cannot provide an answer", "search results were not helpful",
       "information not found", "could not find information", "no definitive answer",
-      "i'm sorry, i cannot", "apologies, i can't answer", "my search didn't yield a clear result"
+      "i'm sorry, i cannot", "apologies, i can't answer", "my search didn't yield a clear result",
+      "my web search for that topic was not conclusive", "my search for that topic was not conclusive"
     ];
     return uncertaintyPhrases.some(phrase => lowerAnswer.includes(phrase));
   };
@@ -82,11 +83,14 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
     if (thought.aiAnswer) {
       console.log(`[ThoughtCard Debug] Thought ID: ${thought.id}`);
       console.log(`  AI Answer: "${thought.aiAnswer}"`);
-      console.log(`  Contains Uncertainty: ${aiAnswerContainsUncertainty(thought.aiAnswer)}`);
+      console.log(`  IsCreativeRequest: ${thought.isCreativeRequest}`);
+      console.log(`  IsDirectionRequest: ${thought.isDirectionRequest}`);
+      console.log(`  Suggested Action Text: ${thought.suggestedActionText || 'None'}`);
       console.log(`  Suggested Action Link: ${thought.suggestedActionLink || 'None'}`);
+      console.log(`  Contains Uncertainty: ${aiAnswerContainsUncertainty(thought.aiAnswer)}`);
       console.log(`  Should Show Google Search Link: ${shouldShowGoogleSearchLink}`);
     }
-  }, [thought.id, thought.aiAnswer, thought.suggestedActionLink, shouldShowGoogleSearchLink]);
+  }, [thought.id, thought.aiAnswer, thought.isCreativeRequest, thought.isDirectionRequest, thought.suggestedActionText, thought.suggestedActionLink, shouldShowGoogleSearchLink]);
 
 
   const handleSuggestAddToList = () => {
@@ -186,7 +190,7 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
             <h4 className="font-semibold text-sm text-green-600 flex items-center justify-between">
               <span className="flex items-center">
                 {thought.isCreativeRequest && <BrainCircuit className="mr-1.5 h-4 w-4"/>}
-                {thought.isDirectionRequest && <CircleHelp className="mr-1.5 h-4 w-4"/>}
+                {thought.isDirectionRequest && <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-map-pinned mr-1.5 h-4 w-4"><path d="M18 8c0 4.5-6 9-6 9s-6-4.5-6-9a6 6 0 0 1 12 0Z"/><circle cx="12" cy="8" r="2"/><path d="M8.835 14H5a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1h-3.835"/></svg>}
                 {!thought.isCreativeRequest && !thought.isDirectionRequest && <HelpCircle className="mr-1.5 h-4 w-4"/>}
                 AI Response:
               </span>
@@ -208,7 +212,9 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
             {thought.suggestedActionLink && thought.suggestedActionText && (
               <Button variant="outline" size="sm" asChild className="mt-2 w-full text-xs">
                 <a href={thought.suggestedActionLink} target="_blank" rel="noopener noreferrer">
-                  <LinkIcon className="mr-2 h-3 w-3" />
+                  {thought.isCreativeRequest && <BrainCircuit className="mr-2 h-3 w-3"/>}
+                  {thought.isDirectionRequest && <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-map-pinned mr-2 h-3 w-3"><path d="M18 8c0 4.5-6 9-6 9s-6-4.5-6-9a6 6 0 0 1 12 0Z"/><circle cx="12" cy="8" r="2"/><path d="M8.835 14H5a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1h-3.835"/></svg>}
+                  {!thought.isCreativeRequest && !thought.isDirectionRequest && <LinkIcon className="mr-2 h-3 w-3" />}
                   {thought.suggestedActionText}
                 </a>
               </Button>

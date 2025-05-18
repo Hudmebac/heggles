@@ -57,26 +57,27 @@ Analyze the question based on the following categories:
     - Do NOT set 'isAction' (from general intent analysis) to true if 'isCreativeRequest' is true.
 
 2.  **Navigation/Direction Request**:
-    If the question is primarily a request for navigation or directions (e.g., 'how do I get to the library?', 'directions to downtown from my current location'):
+    If the question is primarily a request for navigation or directions (e.g., 'how do I get to the library?', 'directions to downtown from my current location', 'what's the best route to the airport?'):
     - Set 'isDirectionRequest' to true.
     - Set 'suggestedActionText' to 'Get Directions on Google Maps'.
-    - Try to formulate a specific Google Maps query link if possible (e.g., 'https://maps.google.com/?q=directions+to+LIBRARY_NAME_IF_MENTIONED'). If specific locations aren't clear from the question, use a generic link: 'https://maps.google.com/'.
-    - Set 'suggestedActionLink' to this Google Maps link.
-    - Your main 'answer' field should be a brief acknowledgement, e.g., 'I can help you find that on Google Maps.'
-    - Do NOT set 'isAction' to true if 'isDirectionRequest' is true.
+    - For 'suggestedActionLink', try to formulate a specific Google Maps query link if possible (e.g., if the question mentions "the library", use 'https://maps.google.com/?q=directions+to+the+library'). If specific locations aren't clear or easily extractable, use a generic link: 'https://maps.google.com/'.
+    - Your main 'answer' field should be a brief acknowledgement, e.g., 'I can help you find that on Google Maps.' or 'For directions, Google Maps would be best.'
+    - Do NOT set 'isAction' (from general intent analysis) to true if 'isDirectionRequest' is true.
 
 3.  **Factual Question / Other**:
     For all other types of questions:
     - First, try to answer the question directly using your own knowledge. Set 'isCreativeRequest' and 'isDirectionRequest' to false or omit them.
     - If, and only if, you determine that your internal knowledge is insufficient to provide a satisfactory answer (e.g., the question is about very recent events, specific real-time data, or obscure facts you might not know), then you MAY use the 'performWebSearchTool' to gather external information.
     - If you use the web search tool:
-        - Clearly indicate in your 'answer' if the search results were helpful or not.
+        - Clearly indicate in your 'answer' if the search results were helpful or not (e.g., "Based on a web search...", "My search didn't yield a clear result, but...").
         - Synthesize the information from the search results to form your 'answer'.
-        - If the search results are inconclusive or do not provide an answer, state that in your 'answer'.
+        - If the search results are inconclusive or do not provide an answer, state that in your 'answer' (e.g., "I'm sorry, I couldn't find a definitive answer to that question even after searching." or "My web search for that topic was not conclusive.").
     - If you cannot answer the question even after considering a web search, politely state that in your 'answer' (e.g., "I'm sorry, I couldn't find a definitive answer to that question.").
 
 Provide only the answer text and other fields as per the JSON schema.
 The 'answer' field should always be populated with a direct response, an acknowledgement, or a statement about search results/inability to answer.
+Ensure 'suggestedActionText' and 'suggestedActionLink' are populated if 'isCreativeRequest' or 'isDirectionRequest' is true.
+If 'isCreativeRequest' is true and a task is implied, ensure 'extractedActionFromCreative' and 'suggestedListForCreativeAction' are populated.
 `,
 });
 
@@ -91,4 +92,3 @@ const answerQuestionFlow = ai.defineFlow(
     return output!;
   }
 );
-
