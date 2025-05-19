@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocalStorage } from '@/lib/hooks/useLocalStorage';
 import type { Thought, PinnedThought } from '@/lib/types';
 import { ThoughtInputForm, type ThoughtInputFormHandle } from '@/components/hegsync/ThoughtInputForm';
-import { RecentThoughtsList } from '@/components/hegsync/RecentThoughtsList';
+import { RecentThoughtsList } from '@/components/hegsync/RecentThoughtsList'; // Added Lightbulb for icon
 import { ThoughtClarifierDialog } from '@/components/hegsync/ThoughtClarifierDialog';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
@@ -94,7 +94,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
       <div className="flex items-center justify-between mb-6 gap-2">
         <div className="flex items-center gap-3">
          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
@@ -124,15 +124,14 @@ export default function DashboardPage() {
 
       <Separator />
 
-      <div>
-        <h2 className="text-2xl font-semibold mb-4">Recent Thoughts</h2>
+      <div className="flex items-center mb-4 justify-center">
+        </div>
         <RecentThoughtsList
           thoughts={recalledThoughts}
           onPinThought={handlePinThought}
           onClarifyThought={handleClarifyThought}
           onDeleteThought={handleDeleteRecalledThought}
         />
-      </div>
 
       {clarifyingThought && (
         <ThoughtClarifierDialog

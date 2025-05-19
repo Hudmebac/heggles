@@ -837,9 +837,8 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
       <>
         <Card className="w-full shadow-lg">
           <CardHeader>
-            <CardTitle className="text-xl">Input & Recall</CardTitle>
             <CardDescription>
-              Use the header microphone for continuous recording, or the microphone below for dictation into the text area. Click the <Brain aria-hidden="true" className="inline-block h-3.5 w-3.5 align-middle"/> icon to process the text.
+              Use the microphone below for dictation into the text area. Click the <Brain aria-hidden="true" className="inline-block h-3.5 w-3.5 align-middle"/> icon to process the text. When AI has Answered this will be presented below
             </CardDescription>
              <div className="text-xs text-muted-foreground pt-1 min-h-[1.25rem] flex items-center">
                 {getMicStatusText()}

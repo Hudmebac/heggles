@@ -3,10 +3,9 @@
 
 import { useState, useMemo } from 'react';
 import type { Thought } from '@/lib/types';
-import { ThoughtCard } from './ThoughtCard';
+import { ThoughtCard } from './ThoughtCard';import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { Search, ListCollapse } from 'lucide-react';
-
+import { Lightbulb } from 'lucide-react';
 interface RecentThoughtsListProps {
   thoughts: Thought[];
   onPinThought: (thought: Thought) => void;
@@ -37,19 +36,20 @@ export function RecentThoughtsList({ thoughts, onPinThought, onClarifyThought, o
   }
   
   return (
-    <div className="space-y-6">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+    <>
+ <div className="relative flex-grow">
+ <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
         <Input
           type="search"
           placeholder="Search thoughts..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="pl-10 w-full"
+
         />
       </div>
       {filteredThoughts.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 space-y-6">
           {filteredThoughts.map(thought => (
             <ThoughtCard
               key={thought.id}
@@ -60,6 +60,7 @@ export function RecentThoughtsList({ thoughts, onPinThought, onClarifyThought, o
             />
           ))}
         </div>
+
       ) : (
         <div className="text-center py-10">
           <Search className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
@@ -67,6 +68,6 @@ export function RecentThoughtsList({ thoughts, onPinThought, onClarifyThought, o
           <p className="text-muted-foreground">Try a different search term.</p>
         </div>
       )}
-    </div>
+    </>
   );
 }
