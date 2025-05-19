@@ -30,6 +30,24 @@ import {
 } from '@/components/ui/alert-dialog';
 
 
+const aiAnswerContainsUncertainty = (answer: string | undefined): boolean => {
+  if (!answer) return false;
+  const lowerAnswer = answer.toLowerCase();
+  const uncertaintyPhrases = [
+    "i cannot answer", "i couldn't find", "not sure", "unable to determine",
+    "i'm unable to answer", "i do not have enough information", "search did not yield",
+    "results were not conclusive", "i'm sorry, i can't answer", "i don't know",
+    "unable to provide an answer", "cannot provide an answer", "search results were not helpful",
+    "information not found", "could not find information", "no definitive answer",
+    "i'm sorry, i cannot", "apologies, i can't answer", "my search didn't yield a clear result",
+    "my web search for that topic was not conclusive", "my search for that topic was not conclusive"
+  ];
+  return uncertaintyPhrases.some(phrase => lowerAnswer.includes(phrase));
+};
+
+
+
+
 interface ThoughtCardProps {
   thought: Thought | PinnedThought;
   onPin: (thought: Thought) => void;
@@ -40,7 +58,13 @@ interface ThoughtCardProps {
 
 export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = false }: ThoughtCardProps) {
   const questionForGoogleSearch = useMemo(() => {
-    return thought.intentAnalysis?.extractedQuestion || thought.originalText;
+    // If the AI answer indicates uncertainty and there's a question extracted, use that.
+    // Otherwise, if there's a refined transcript that looks like a question, use that.
+    // As a fallback, use the original text if it seems like a question (simple heuristic: ends with '?').
+    if (aiAnswerContainsUncertainty(thought.aiAnswer) && thought.intentAnalysis?.extractedQuestion) return thought.intentAnalysis.extractedQuestion;
+    if (thought.refinedTranscript && thought.refinedTranscript.trim().endsWith('?')) return thought.refinedTranscript.trim();
+    if (thought.originalText.trim().endsWith('?')) return thought.originalText.trim();
+    return null; // Don't show search link if no clear question is found
   }, [thought.intentAnalysis?.extractedQuestion, thought.originalText]);
 
   const { toast } = useToast();
@@ -64,21 +88,6 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
       console.warn("Speech synthesis not supported in this browser.");
       toast({title: "Text-to-Speech Not Supported", description: "Your browser does not support speech synthesis.", variant: "default"});
     }
-  };
-
-  const aiAnswerContainsUncertainty = (answer: string | undefined): boolean => {
-    if (!answer) return false;
-    const lowerAnswer = answer.toLowerCase();
-    const uncertaintyPhrases = [
-      "i cannot answer", "i couldn't find", "not sure", "unable to determine",
-      "i'm unable to answer", "i do not have enough information", "search did not yield",
-      "results were not conclusive", "i'm sorry, i can't answer", "i don't know",
-      "unable to provide an answer", "cannot provide an answer", "search results were not helpful",
-      "information not found", "could not find information", "no definitive answer",
-      "i'm sorry, i cannot", "apologies, i can't answer", "my search didn't yield a clear result",
-      "my web search for that topic was not conclusive", "my search for that topic was not conclusive"
-    ];
-    return uncertaintyPhrases.some(phrase => lowerAnswer.includes(phrase));
   };
 
   useEffect(() => {
@@ -164,12 +173,6 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
         </div>
       </CardHeader>
       <CardContent className="space-y-3 flex-grow">
-        <div>
-          <h4 className="font-semibold text-sm mb-1">Original Text:</h4>
-          <p className="text-sm text-muted-foreground max-h-24 overflow-y-auto p-2 bg-secondary/30 rounded-md whitespace-pre-wrap">
-            {thought.originalText}
-          </p>
-        </div>
         {thought.summary && (
           <div>
             <h4 className="font-semibold text-sm mb-1">AI Summary:</h4>

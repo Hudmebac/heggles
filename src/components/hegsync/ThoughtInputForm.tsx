@@ -792,9 +792,16 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
     
 
     const getDashboardDictationButtonIcon = () => {
-        if (isDashboardDictationActive) return <Radio className="h-6 w-6 text-red-500 animate-pulse" />;
-        if (isBrowserUnsupported || hasMicPermission === false) return <MicOff className="h-6 w-6 text-muted-foreground" />;
-        return <Mic className="h-6 w-6" />;
+ if (isDashboardDictationActive) {
+ return <Radio className="h-12 w-12 text-blue-500 animate-pulse" />; // Blue when working, doubled size
+ }
+ if (isBrowserUnsupported || hasMicPermission === false || isLoading || isCapturingAudioForSnippet || isCapturingAudioForLongRecording || isExternallyLongRecording) {
+ // Grey when not selectable (browser unsupported, permission denied, system busy with other audio/loading)
+ return <MicOff className="h-12 w-12 text-gray-500" />; // Grey, doubled size
+ }
+ // Green when can be selected (browser supported, permission granted, system not busy)
+ return <Mic className="h-12 w-12 text-green-500" />; // Green, doubled size
+
     };
     
     const getMicStatusText = (): React.ReactNode => {
@@ -871,7 +878,7 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
                   disabled={isBrowserUnsupported || hasMicPermission === false || isLoading || isCapturingAudioForSnippet || isCapturingAudioForLongRecording || isExternallyLongRecording}
                   size="icon"
                   variant="outline"
-                  aria-label={isDashboardDictationActive ? "Stop dictation" : "Dictate thought into text area"}
+ aria-label={isDashboardDictationActive ? "Stop dictation" : "Dictate thought into text area"}
                   title={isDashboardDictationActive ? "Stop dictation (or say 'Heggles end/stop' or pause)" : "Dictate thought into text area"}
                 >
                   {getDashboardDictationButtonIcon()}
@@ -882,10 +889,19 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
                   disabled={isLoading || isCapturingAudioForSnippet || isCapturingAudioForLongRecording || !inputText.trim() || isExternallyLongRecording || isDashboardDictationActive}
                   size="icon"
                   variant="outline"
-                  aria-label="Process text from input area with AI"
+ aria-label="Process text from input area with AI"
                   title="Process text from input area with AI"
                 >
-                  {(isLoading && !isAlertDialogOpen && inputText.trim()) ? <Loader2 className="h-6 w-6 animate-spin" /> : <Brain className="h-6 w-6" />}
+                  {/* Blue when working (isLoading AND no alert dialog open, indicating processing) */}
+ {isLoading && !isAlertDialogOpen && inputText.trim() ? ( // Blue when working, doubled size
+ <Loader2 className="h-12 w-12 animate-spin text-blue-500" />
+                  ) : /* Green when can be selected (not loading, input text exists, not busy) */ !isLoading &&
+                    inputText.trim() &&
+                    !isCapturingAudioForSnippet &&
+                    !isCapturingAudioForLongRecording &&
+                    !isExternallyLongRecording &&
+                    !isDashboardDictationActive ? (<Brain className="h-12 w-12 text-green-500" /> ) : ( <Brain className="h-12 w-12 text-gray-500" />) }
+
                 </Button>
               </div>
             </div>
@@ -897,8 +913,13 @@ export const ThoughtInputForm = forwardRef<ThoughtInputFormHandle, ThoughtInputF
             open={isAlertDialogOpen}
             onOpenChange={(open) => {
               setIsAlertDialogOpen(open);
-              if (!open) { 
+              if (!open) {
                 if (!confirmedDialogActionRef.current && alertDialogConfig.dataToRecallOnCancel) {
+                  // If suggestion was declined and dataToRecallOnCancel exists (meaning it was AI suggestion of some sort),
+                  // treat it as a general question/thought if it wasn't a list add suggestion.
+                  // If it WAS a list add suggestion that was declined, the full original thought is in dataToRecallOnCancel
+                  // and will be processed as a general thought/question.
+                  // onThoughtRecalled({ id: crypto.randomUUID(), timestamp: Date.now(), ...alertDialogConfig.dataToRecallOnCancel }); // Moved this inside the if below
                   onThoughtRecalled({ id: crypto.randomUUID(), timestamp: Date.now(), ...alertDialogConfig.dataToRecallOnCancel });
                   toast({ title: "Suggestion Declined", description: "Original thought captured in Recent Thoughts." });
                 }
