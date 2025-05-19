@@ -3,7 +3,7 @@
 
 import { useState, useMemo } from 'react';
 import type { Thought } from '@/lib/types';
-import { ThoughtCard } from './ThoughtCard';import { Search } from 'lucide-react';
+import { ThoughtCard } from './ThoughtCard';import { ListCollapse, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Lightbulb } from 'lucide-react';
 interface RecentThoughtsListProps {
