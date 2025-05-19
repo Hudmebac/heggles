@@ -80,18 +80,22 @@ export function Header() {
               <span className="hidden sm:inline">Memory Vault</span>
             </Link>
           </Button>
-          <Button variant="ghost" asChild className="px-2 sm:px-3">
-            <Link href="/shopping-list" className="flex items-center">
-              <ListChecks className="h-5 w-5 sm:mr-1 md:mr-2" />
-              <span className="hidden sm:inline">Shopping</span>
-            </Link>
-          </Button>
-          <Button variant="ghost" asChild className="px-2 sm:px-3">
-            <Link href="/to-do-list" className="flex items-center">
-              <ClipboardList className="h-5 w-5 sm:mr-1 md:mr-2" />
-              <span className="hidden sm:inline">To-Do</span>
-            </Link>
-          </Button>
+
+ <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="flex items-center px-2 sm:px-3">
+                <ListChecks className="h-5 w-5 sm:mr-1 md:mr-2" />
+                <span className="hidden sm:inline">Lists</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem asChild>
+                <Link href="/shopping-list">Shopping List</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/to-do-list">To-Do List</Link>
+              </DropdownMenuItem>            </DropdownMenuContent>
+          </DropdownMenu>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
