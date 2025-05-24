@@ -40,6 +40,7 @@ interface ThoughtCardProps {
 export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = false }: ThoughtCardProps) {
   const { toast } = useToast();
   const [isSuggestActionDialogOpen, setIsSuggestActionDialogOpen] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [dialogActionDetails, setDialogActionDetails] = useState<{
     actionText: string;
     listType: "todo" | "shopping";
@@ -49,15 +50,51 @@ export function ThoughtCard({ thought, onPin, onClarify, onDelete, isPinned = fa
   const timeAgo = formatDistanceToNow(new Date(thought.timestamp), { addSuffix: true });
 
   const handlePlayAnswer = (textToSpeak: string | undefined) => {
+    console.log('handlePlayAnswer called');
+    console.log('Speech Synthesis Status:', {
+      speaking: window.speechSynthesis.speaking,
+      paused: window.speechSynthesis.paused,
+      isSpeaking: isSpeaking,
+    });
+    console.log('Initial state:', {
+      speaking: window.speechSynthesis.speaking,
+      paused: window.speechSynthesis.paused,
+      isSpeaking: isSpeaking,
+    });
+
+
     if (!textToSpeak) return;
 
     if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel(); // Cancel any ongoing speech
-      const utterance = new SpeechSynthesisUtterance(textToSpeak);
-      window.speechSynthesis.speak(utterance);
+      if (window.speechSynthesis.paused) {
+        // If paused, clicking should cancel and restart
+ console.log('Paused, cancelling and restarting...');
+        window.speechSynthesis.cancel();
+        setIsSpeaking(false);
+      } else if (window.speechSynthesis.speaking) {
+        console.log('Speaking, pausing...');
+        // If speaking, clicking should cancel
+        window.speechSynthesis.cancel();
+        setIsSpeaking(false);
+      } else {
+        console.log('Not speaking or paused, starting new speech...');
+        window.speechSynthesis.cancel(); // Cancel any ongoing speech
+        // Remove markdown characters
+        const cleanText = textToSpeak.replace(/[*#]/g, ''); // Clean text for speaking
+        const utterance = new SpeechSynthesisUtterance(cleanText); // Create new utterance
+        utterance.onend = () => { console.log('Speech ended'); setIsSpeaking(false); }; // Handle speech end
+        utterance.onerror = (event) => { console.error('Speech error:', event); setIsSpeaking(false); }; // Handle speech error
+        window.speechSynthesis.speak(utterance); // Speak the utterance
+        setIsSpeaking(true);
+        console.log('After pause:', {
+          speaking: window.speechSynthesis.speaking,
+          paused: window.speechSynthesis.paused,
+          isSpeaking: isSpeaking, // Note: isSpeaking might not reflect the state change immediately here
+        });
+      }
     } else {
       console.warn("Speech synthesis not supported in this browser.");
-      toast({title: "Text-to-Speech Not Supported", description: "Your browser does not support speech synthesis.", variant: "default"});
+      toast({ title: "Text-to-Speech Not Supported", description: "Your browser does not support speech synthesis.", variant: "default" });
     }
   };
 
