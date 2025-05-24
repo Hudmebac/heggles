@@ -1,4 +1,3 @@
-
 "use client"; 
 
 import Link from 'next/link';
@@ -10,8 +9,13 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuSeparator,
+  DropdownMenuLabel
 } from '@/components/ui/dropdown-menu';
-import { BrainCircuit, ListChecks, HelpCircle, Archive, LayoutDashboard, FileUp } from 'lucide-react';
+import { BrainCircuit, ListChecks, HelpCircle, Archive, LayoutDashboard, Settings, FileUp, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { LOCALSTORAGE_KEYS } from '@/lib/constants';
 import type { ShoppingListItem, ToDoListItem } from '@/lib/types';
@@ -68,7 +72,7 @@ export function Header() {
           <Button variant="ghost" asChild className="px-2 sm:px-3">
             <Link href="/" className="flex items-center">
               <LayoutDashboard className="h-5 w-5 sm:mr-1 md:mr-2" />
-              <span className="hidden sm:inline">Dashboard</span>
+              <span className="hidden sm:inline">Ask Mr Heggles</span>
             </Link>
           </Button>
 
