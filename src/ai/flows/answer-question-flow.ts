@@ -16,12 +16,12 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import {performWebSearchTool} from '@/ai/tools/search-tool';
 
-export const AnswerQuestionInputSchema = z.object({
+const AnswerQuestionInputSchema = z.object({
   question: z.string().describe('The question to be answered.'),
 });
 export type AnswerQuestionInput = z.infer<typeof AnswerQuestionInputSchema>;
 
-export const AnswerQuestionOutputSchema = z.object({
+const AnswerQuestionOutputSchema = z.object({
   answer: z.string().describe('The AI-generated answer to the question or an acknowledgement if a specific tool is suggested.'),
   isCreativeRequest: z.boolean().optional().describe("True if the question is primarily a creative task (e.g., write a poem, design an app blueprint)."),
   isDirectionRequest: z.boolean().optional().describe("True if the question is primarily a request for directions or locations."),
@@ -34,7 +34,6 @@ export const AnswerQuestionOutputSchema = z.object({
     url: z.string().url().describe("The URL for the action.")
   })).optional().describe("A list of suggested action items (e.g., search links) if the primary question cannot be answered directly."),
 });
-
 export type AnswerQuestionOutput = z.infer<typeof AnswerQuestionOutputSchema>;
 
 export async function answerQuestion(input: AnswerQuestionInput): Promise<AnswerQuestionOutput> {
@@ -177,5 +176,3 @@ const answerQuestionFlow = ai.defineFlow(
     return finalOutput;
   }
 );
-
-    
