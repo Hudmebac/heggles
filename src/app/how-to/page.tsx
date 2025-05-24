@@ -4,9 +4,62 @@
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Brain, Mic, Radio, ListChecks, ClipboardList, Archive, Pin, Sparkles, HelpCircle, Volume2, PlayCircle, StopCircle } from 'lucide-react';
+import { Brain, Mic, Radio, ListChecks, ClipboardList, Archive, Pin, Sparkles, HelpCircle, Volume2, FileUp, Download } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useToast } from '@/hooks/use-toast';
+import { LOCALSTORAGE_KEYS } from '@/lib/constants';
+import type { ShoppingListItem, ToDoListItem } from '@/lib/types';
+import {
+  downloadShoppingListTemplate,
+  exportShoppingList,
+  downloadToDoListTemplate,
+  exportToDoList
+} from '@/lib/list-export-utils';
 
 export default function HowToPage() {
+  const { toast } = useToast();
+
+  const handleDownloadTemplate = (listType: 'shopping' | 'todo', format: 'csv' | 'excel' | 'json' | 'text') => {
+    if (listType === 'shopping') {
+      downloadShoppingListTemplate(format);
+    } else {
+      downloadToDoListTemplate(format);
+    }
+    toast({ title: `${listType === 'shopping' ? 'Shopping' : 'To-Do'} List Template Downloaded`, description: `Format: ${format.toUpperCase()}` });
+  };
+
+  const handleExport = (listType: 'shopping' | 'todo', format: 'csv' | 'json' | 'excel' | 'text') => {
+    const key = listType === 'shopping' ? LOCALSTORAGE_KEYS.SHOPPING_LIST : LOCALSTORAGE_KEYS.TODO_LIST;
+    try {
+      const itemsString = localStorage.getItem(key);
+      const items = itemsString ? JSON.parse(itemsString) : [];
+      if (items.length === 0) {
+        toast({ title: "List is Empty", description: `Cannot export an empty ${listType === 'shopping' ? 'Shopping' : 'To-Do'} list.`, variant: "default" });
+        return;
+      }
+      if (listType === 'shopping') {
+        exportShoppingList(items as ShoppingListItem[], format);
+      } else {
+        exportToDoList(items as ToDoListItem[], format);
+      }
+      toast({ title: `${listType === 'shopping' ? 'Shopping' : 'To-Do'} List Exported`, description: `Format: ${format.toUpperCase()}` });
+    } catch (error) {
+      toast({ title: "Export Error", description: `Could not export ${listType === 'shopping' ? 'Shopping' : 'To-Do'} list.`, variant: "destructive" });
+      console.error("Export error:", error);
+    }
+  };
+
   return (
     <div className="space-y-8 max-w-3xl mx-auto">
       <div className="flex items-center gap-3 mb-8">
@@ -26,7 +79,12 @@ export default function HowToPage() {
 
       <Accordion type="single" collapsible className="w-full">
         <AccordionItem value="item-1">
-          <AccordionTrigger className="text-xl font-semibold">Dashboard Usage</AccordionTrigger>
+          <AccordionTrigger className="text-xl font-semibold">
+            <span className="flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-layout-dashboard mr-2"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7"height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+              Dashboard Usage
+            </span>
+          </AccordionTrigger>
           <AccordionContent className="space-y-4 pt-2 text-muted-foreground">
             <p>The Dashboard is your central hub for inputting thoughts. All voice input methods populate the "Input & Recall" text area, which is then processed by clicking the <Brain className="inline-block h-4 w-4 mx-0.5 align-middle" /> button.</p>
             <div>
@@ -65,7 +123,7 @@ export default function HowToPage() {
             <div>
               <h4 className="font-semibold text-foreground mb-1">Recent Thoughts:</h4>
               <ul className="list-disc pl-5 space-y-1">
-                <li>Processed thoughts appear here.</li>
+                <li>Processed thoughts appear here. Max 15 shown.</li>
                 <li>Each thought card shows the original text, AI summary, keywords, and any AI-identified actions or answers.</li>
                 <li><Pin className="inline-block h-4 w-4 mx-0.5 align-middle" />: Pin a thought to save it to your Memory Vault.</li>
                 <li><Sparkles className="inline-block h-4 w-4 mx-0.5 align-middle" />: Clarify a thought with AI to refine its transcript and identify action items.</li>
@@ -78,13 +136,14 @@ export default function HowToPage() {
         <AccordionItem value="item-2">
           <AccordionTrigger>
             <span className="text-xl font-semibold flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-terminal mr-2"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
               Key Text Commands (for the
               <Brain className="h-5 w-5 mx-1.5" />
               Button)
             </span>
           </AccordionTrigger>
           <AccordionContent className="space-y-2 pt-2 text-muted-foreground">
-            <p>Type these commands into the "Input & Recall" text area (or get them there via continuous recording or in-card dictation) and then click the <Brain className="inline-block h-4 w-4 mx-0.5 align-middle" /> button.</p>
+            <p>Type these commands into the "Input & Recall" text area on the Dashboard and then click the <Brain className="inline-block h-4 w-4 mx-0.5 align-middle" /> button.</p>
             <ul className="list-disc pl-5 space-y-1">
               <li><code>heggles replay that</code> - Initiates a 10-second live audio recording & transcription, then processes the result with AI.</li>
               <li><code>heggles add [item name] to my shopping list</code> - Adds the item to your shopping list (will ask for confirmation).</li>
@@ -95,7 +154,7 @@ export default function HowToPage() {
               <li><code>heggles delete item number [X] from my to do list</code> - Deletes by number (confirmation).</li>
               <li><code>empty recent thoughts</code> - Clears all thoughts from the "Recent Thoughts" list on the dashboard (confirmation).</li>
               <li><code>clear shopping list</code> - Removes all items from your shopping list (confirmation).</li>
-              <li><code>complete all tasks in to do list</code> (or <code>complete all to do list tasks</code>) - Marks all tasks in your to-do list as complete (confirmation).</li>
+              <li><code>complete all tasks in to do list</code> (or <code>complete all to do list</code>) - Marks all tasks in your to-do list as complete (confirmation).</li>
             </ul>
             <p className="mt-2"><strong>Note:</strong> For list additions/deletions, the AI might also suggest these actions if you type a more general thought and process it. You'll always be asked for confirmation.</p>
           </AccordionContent>
@@ -104,7 +163,6 @@ export default function HowToPage() {
         <AccordionItem value="item-3">
           <AccordionTrigger>
             <span className="text-xl font-semibold flex items-center">
-              List Management (
               <ListChecks className="h-5 w-5 mx-1.5" />
               Shopping &amp;
               <ClipboardList className="h-5 w-5 mx-1.5" />
@@ -121,7 +179,7 @@ export default function HowToPage() {
                 <li>Mark items as complete.</li>
                 <li>Edit item text.</li>
                 <li>Delete items.</li>
-                <li>Import/Export your lists (CSV, JSON, Excel, Text). Import buttons are on the list pages, Export is in the header.</li>
+                <li>Import items via the "Import" button on each list page (supports CSV, JSON, Excel, Text).</li>
               </ul>
             </div>
             <div>
@@ -131,7 +189,7 @@ export default function HowToPage() {
                 <li>Reorder tasks using drag-and-drop or move buttons (when "Default Order" sort is active).</li>
                 <li>Sort tasks by due date, alphabetically, or by priority.</li>
                 <li>Visual reminders for overdue or upcoming tasks.</li>
-                <li>Share list via Email or WhatsApp (To-Do list also offers .ics calendar export).</li>
+                <li>Share list via Email or WhatsApp. Includes an option to download an .ics calendar file for tasks with due dates.</li>
               </ul>
             </div>
              <div>
@@ -146,8 +204,7 @@ export default function HowToPage() {
         <AccordionItem value="item-4">
           <AccordionTrigger>
             <span className="text-xl font-semibold flex items-center">
-              Memory Vault (
-              <Archive className="h-5 w-5 mx-1.5" />)
+              <Archive className="h-5 w-5 mx-1.5" />Memory Vault
             </span>
           </AccordionTrigger>
           <AccordionContent className="space-y-2 pt-2 text-muted-foreground">
@@ -163,21 +220,91 @@ export default function HowToPage() {
         </AccordionItem>
 
          <AccordionItem value="item-5">
-          <AccordionTrigger className="text-xl font-semibold">AI Features & Clarification</AccordionTrigger>
+          <AccordionTrigger className="text-xl font-semibold">
+            <span className="flex items-center">
+                <Sparkles className="h-5 w-5 mx-1.5" /> AI Features & Clarification
+            </span>
+            </AccordionTrigger>
           <AccordionContent className="space-y-2 pt-2 text-muted-foreground">
-            <p>Heggles uses AI to enhance your thoughts (when processed by the <Brain className="inline-block h-4 w-4 align-middle mx-0.5"/> button):</p>
+            <p>Heggles uses AI to enhance your thoughts when processed by the <Brain className="inline-block h-4 w-4 align-middle mx-0.5"/> button on the Dashboard:</p>
             <ul className="list-disc pl-5 space-y-1">
                 <li><strong>Summarization & Keywords:</strong> Automatically generated for processed thoughts.</li>
-                <li><strong>Refinement:</strong> The "Clarify" option (<Sparkles className="inline-block h-4 w-4 mx-0.5 align-middle" />) refines transcripts and extracts potential action items.</li>
+                <li><strong>Refinement:</strong> The "Clarify" option (<Sparkles className="inline-block h-4 w-4 mx-0.5 align-middle" />) on a thought card refines its transcript and identifies potential action items.</li>
                 <li><strong>Intent Analysis:</strong> The AI tries to understand if your thought is a question or implies an action.
                     <ul className="list-circle pl-5 space-y-0.5 mt-1">
-                        <li>If it's a question, the AI attempts to answer it (answer displayed in the thought card with a <Volume2 className="inline-block h-4 w-4 mx-0.5 align-middle" /> play button).</li>
-                        <li>If it suggests an action for a list (or a system command like "clear shopping list"), you'll be prompted to confirm before the action is taken.</li>
+                        <li>If it's a question, the AI attempts to answer it (answer displayed in the thought card with a <Volume2 className="inline-block h-4 w-4 mx-0.5 align-middle" /> play button). If the AI can't answer, it might suggest searching on Google or exploring in Google AI Studio.</li>
+                        <li>If it's a request for directions, it will suggest opening Google Maps.</li>
+                        <li>If it's a creative request (e.g., "write a poem"), it will suggest using Google AI Studio.</li>
+                        <li>If it suggests an action for a list (e.g., "add milk to shopping list") or a system command (e.g., "clear shopping list"), you'll be prompted to confirm before the action is taken.</li>
                     </ul>
                 </li>
             </ul>
           </AccordionContent>
         </AccordionItem>
+
+        <AccordionItem value="item-6">
+          <AccordionTrigger>
+            <span className="text-xl font-semibold flex items-center">
+              <FileUp className="h-5 w-5 mx-1.5" /> Exporting Your Data
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="space-y-4 pt-2 text-muted-foreground">
+            <p>You can export your Shopping List and To-Do List data in various formats. You can also download templates to help with importing data.</p>
+            <div className="flex justify-center">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="h-10" aria-label="Export Data or Download Templates">
+                    <FileUp className="mr-2 h-5 w-5" /> Export / Download Templates
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="center" className="w-56">
+                  <DropdownMenuLabel>Shopping List</DropdownMenuLabel>
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>Download Template</DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      <DropdownMenuItem onClick={() => handleDownloadTemplate('shopping', 'csv')}>CSV</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleDownloadTemplate('shopping', 'json')}>JSON</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleDownloadTemplate('shopping', 'excel')}>Excel</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleDownloadTemplate('shopping', 'text')}>Text (.txt)</DropdownMenuItem>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>Export List</DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      <DropdownMenuItem onClick={() => handleExport('shopping', 'csv')}>CSV</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExport('shopping', 'json')}>JSON</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExport('shopping', 'excel')}>Excel</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExport('shopping', 'text')}>Text (.txt)</DropdownMenuItem>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                  
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>To-Do List</DropdownMenuLabel>
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>Download Template</DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      <DropdownMenuItem onClick={() => handleDownloadTemplate('todo', 'csv')}>CSV</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleDownloadTemplate('todo', 'json')}>JSON</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleDownloadTemplate('todo', 'excel')}>Excel</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleDownloadTemplate('todo', 'text')}>Text (.txt)</DropdownMenuItem>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>Export List</DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      <DropdownMenuItem onClick={() => handleExport('todo', 'csv')}>CSV</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExport('todo', 'json')}>JSON</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExport('todo', 'excel')}>Excel</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExport('todo', 'text')}>Text (.txt)</DropdownMenuItem>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <p className="text-sm">Importing data can be done directly on the <Link href="/shopping-list" className="text-primary hover:underline">Shopping List</Link> or <Link href="/to-do-list" className="text-primary hover:underline">To-Do List</Link> pages using their respective "Import" buttons.</p>
+          </AccordionContent>
+        </AccordionItem>
+
       </Accordion>
     </div>
   );
