@@ -1,4 +1,3 @@
-
 export interface Thought {
   id: string;
   timestamp: number;
@@ -6,10 +5,10 @@ export interface Thought {
   summary?: string;
   keywords?: string[];
   refinedTranscript?: string;
-  actionItems?: string[];
-  intentAnalysis?: IntentAnalysisOutput; 
-  aiAnswer?: string; 
-  
+  actionItems?: Array<{ title: string; url: string }>; // Updated to match AnswerQuestionOutput
+  intentAnalysis?: IntentAnalysisOutput;
+  aiAnswer?: string;
+
   // Fields for specific AI suggestions from answerQuestionFlow
   isCreativeRequest?: boolean;
   isDirectionRequest?: boolean;
@@ -33,12 +32,12 @@ export interface ShoppingListItem {
 }
 
 // ToDoListItem Related Types
-export type TimeSettingType = 
-  | 'not_set' 
-  | 'all_day' 
-  | 'am_period' 
-  | 'pm_period' 
-  | 'specific_start' 
+export type TimeSettingType =
+  | 'not_set'
+  | 'all_day'
+  | 'am_period'
+  | 'pm_period'
+  | 'specific_start'
   | 'specific_start_end';
 
 export interface TimePoint {
@@ -51,7 +50,7 @@ export interface ToDoListItem {
   id: string;
   text: string;
   completed: boolean;
-  
+
   timeSettingType?: TimeSettingType;
   startTime?: TimePoint | null;
   endTime?: TimePoint | null;
@@ -74,3 +73,34 @@ export interface IntentAnalysisOutput {
   suggestedList?: "todo" | "shopping" | "none";
 }
 
+// Corresponds to the output of answerQuestionFlow
+export interface AnswerQuestionOutput {
+  answer: string;
+  isCreativeRequest?: boolean;
+  isDirectionRequest?: boolean;
+  suggestedActionText?: string;
+  suggestedActionLink?: string;
+  extractedActionFromCreative?: string;
+  suggestedListForCreativeAction?: "todo" | "shopping" | "none";
+  actionItems?: Array<{ title: string; url: string }>;
+}
+
+// Added for Helper Flow
+export interface ConversationTurn {
+  id: string;
+  speaker: 'user' | 'ai';
+  text: string;
+  suggestions?: string[];
+}
+
+export interface HelperFlowInput {
+  initialQuestion: string;
+  history: Array<{ question: string; answer: 'yes' | 'no' }>;
+}
+
+export interface HelperFlowOutput {
+  nextQuestion?: string;
+  suggestions?: string[];
+  finalAnswer?: string;
+  isConversationOver?: boolean;
+}

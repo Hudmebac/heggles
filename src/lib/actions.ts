@@ -39,7 +39,7 @@ export async function processTextThought(
       summary: summaryResult.summary,
       keywords: keywordsResult.keywords,
       refinedTranscript: refinementResult.refinedTranscript,
-      actionItems: refinementResult.actionItems, 
+      actionItems: aiAnswerResult?.actionItems || refinementResult.actionItems, 
       intentAnalysis: intentAnalysisResult,    
       aiAnswer: aiAnswerResult?.answer,
       isCreativeRequest: aiAnswerResult?.isCreativeRequest,
@@ -52,12 +52,18 @@ export async function processTextThought(
   } catch (error) {
     console.error("Detailed error in processTextThought:", error); 
     const errorMessage = error instanceof Error ? error.message : "Unknown AI processing error";
+    const encodedQuery = encodeURIComponent(rawText);
     return {
         originalText: rawText,
         summary: "Error during AI processing.",
         keywords: [],
         refinedTranscript: rawText, 
-        actionItems: [`Error: ${errorMessage}`], 
+        actionItems: [
+          { title: "Google Search", url: `https://www.google.com/search?q=${encodedQuery}` },
+          { title: "Google AI Studio", url: `https://aistudio.google.com/explore/prompt?text=${encodedQuery}` },
+          { title: "ChatGPT", url: `https://chat.openai.com/?q=${encodedQuery}` },
+          { title: "Microsoft Copilot", url: `https://copilot.microsoft.com/?q=${encodedQuery}` },
+        ], 
         intentAnalysis: { 
           isQuestion: false, 
           isAction: false, 
@@ -65,7 +71,7 @@ export async function processTextThought(
           extractedAction: undefined, 
           suggestedList: undefined 
         },
-        aiAnswer: undefined,
+        aiAnswer: `Sorry, an error occurred: ${errorMessage}. You can try the search links above.`,
         isCreativeRequest: false,
         isDirectionRequest: false,
         suggestedActionText: undefined,
@@ -109,7 +115,7 @@ export async function processRecordedAudio(
       summary: summaryResult.summary,
       keywords: keywordsResult.keywords,
       refinedTranscript: refinementResult.refinedTranscript,
-      actionItems: refinementResult.actionItems,
+      actionItems: aiAnswerResult?.actionItems || refinementResult.actionItems, 
       intentAnalysis: intentAnalysisResult,
       aiAnswer: aiAnswerResult?.answer,
       isCreativeRequest: aiAnswerResult?.isCreativeRequest,
@@ -122,12 +128,18 @@ export async function processRecordedAudio(
   } catch (error) {
     console.error("Detailed error in processRecordedAudio:", error); 
     const errorMessage = error instanceof Error ? error.message : "Unknown AI processing error with recorded audio";
+    const encodedQuery = encodeURIComponent(transcription);
     return {
         originalText: transcription, 
         summary: "Error during AI processing of recorded audio.",
         keywords: [],
         refinedTranscript: transcription, 
-        actionItems: [`Error: ${errorMessage}`],
+        actionItems: [
+          { title: "Google Search", url: `https://www.google.com/search?q=${encodedQuery}` },
+          { title: "Google AI Studio", url: `https://aistudio.google.com/explore/prompt?text=${encodedQuery}` },
+          { title: "ChatGPT", url: `https://chat.openai.com/?q=${encodedQuery}` },
+          { title: "Microsoft Copilot", url: `https://copilot.microsoft.com/?q=${encodedQuery}` },
+        ],
         intentAnalysis: { 
           isQuestion: false, 
           isAction: false, 
@@ -135,7 +147,7 @@ export async function processRecordedAudio(
           extractedAction: undefined, 
           suggestedList: undefined 
         },
-        aiAnswer: undefined,
+        aiAnswer: `Sorry, an error occurred: ${errorMessage}. You can try the search links above.`,
         isCreativeRequest: false,
         isDirectionRequest: false,
         suggestedActionText: undefined,
@@ -194,6 +206,7 @@ export async function answerUserQuestion(question: string): Promise<AnswerQuesti
   } catch (error) {
     console.error("Detailed error in answerUserQuestion:", error); 
     const errorMessage = error instanceof Error ? error.message : "Unknown error answering question";
+    const encodedQuery = encodeURIComponent(question);
     return { 
       answer: `Sorry, I encountered an error trying to answer the question: ${errorMessage}`,
       isCreativeRequest: false,
@@ -202,7 +215,12 @@ export async function answerUserQuestion(question: string): Promise<AnswerQuesti
       suggestedActionLink: undefined,
       extractedActionFromCreative: undefined,
       suggestedListForCreativeAction: undefined,
+      actionItems: [
+        { title: "Google Search", url: `https://www.google.com/search?q=${encodedQuery}` },
+        { title: "Google AI Studio", url: `https://aistudio.google.com/explore/prompt?text=${encodedQuery}` },
+        { title: "ChatGPT", url: `https://chat.openai.com/?q=${encodedQuery}` },
+        { title: "Microsoft Copilot", url: `https://copilot.microsoft.com/?q=${encodedQuery}` },
+      ],
     };
   }
 }
-
