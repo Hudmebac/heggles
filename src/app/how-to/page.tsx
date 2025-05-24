@@ -1,10 +1,9 @@
-
 // src/app/how-to/page.tsx
 "use client";
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Brain, Mic, Radio, ListChecks, ClipboardList, Archive, Pin, Sparkles, HelpCircle, Volume2, FileUp, Download } from 'lucide-react';
+import { Brain, Mic, Radio, ListChecks, ClipboardList, Archive, Pin, Sparkles, HelpCircle, Volume2, FileUp, Download, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -26,6 +25,7 @@ import {
   downloadToDoListTemplate,
   exportToDoList
 } from '@/lib/list-export-utils';
+import Link from 'next/link'; // Added import for Link
 
 export default function HowToPage() {
   const { toast } = useToast();
@@ -81,19 +81,19 @@ export default function HowToPage() {
         <AccordionItem value="item-1">
           <AccordionTrigger className="text-xl font-semibold">
             <span className="flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-layout-dashboard mr-2"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7"height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-layout-dashboard mr-2"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
               Dashboard Usage
             </span>
           </AccordionTrigger>
           <AccordionContent className="space-y-4 pt-2 text-muted-foreground">
-            <p>The Dashboard is your central hub for inputting thoughts. All voice input methods populate the "Input & Recall" text area, which is then processed by clicking the <Brain className="inline-block h-4 w-4 mx-0.5 align-middle" /> button.</p>
+            <p>The Dashboard is your central hub for inputting thoughts. All voice input methods populate the "Input & Recall" text area, which is then processed by clicking the <Brain aria-hidden="true" className="inline-block h-3.5 w-3.5 align-middle text-primary"/> button.</p>
             <div>
               <h4 className="font-semibold text-foreground mb-1">Continuous Voice Recording (Header Microphone):</h4>
               <ul className="list-disc pl-5 space-y-1">
                 <li>Click the <Mic className="inline-block h-4 w-4 mx-0.5 align-middle" /> icon in the header to start continuous voice recording.</li>
                 <li>The icon will change to a pulsing <Radio className="inline-block h-4 w-4 mx-0.5 align-middle text-red-500" />.</li>
                 <li>Speak your thoughts. When you're done, click the <Radio className="inline-block h-4 w-4 mx-0.5 align-middle text-red-500" /> icon again to stop.</li>
-                <li>Your transcribed speech will appear in the "Input & Recall" text area. Click the <Brain className="inline-block h-4 w-4 mx-0.5 align-middle" /> button to process it.</li>
+                <li>Your transcribed speech will appear in the "Input & Recall" text area. Click the <Brain aria-hidden="true" className="inline-block h-4 w-4 mx-0.5 align-middle text-primary"/> button to process it.</li>
               </ul>
             </div>
              <div>
@@ -103,14 +103,14 @@ export default function HowToPage() {
                 <li>The icon will change to a pulsing <Radio className="inline-block h-4 w-4 mx-0.5 align-middle text-red-500" />.</li>
                 <li>Dictate your thought. The text will appear live in the input area.</li>
                 <li>To stop dictation, click the <Radio className="inline-block h-4 w-4 mx-0.5 align-middle text-red-500" /> icon again, say "Heggles end" or "Heggles stop", or pause speaking for 2 seconds.</li>
-                <li>Once dictation is complete, click the <Brain className="inline-block h-4 w-4 mx-0.5 align-middle" /> button to process the text.</li>
+                <li>Once dictation is complete, click the <Brain aria-hidden="true" className="inline-block h-4 w-4 mx-0.5 align-middle text-primary"/> button to process the text.</li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold text-foreground mb-1">Text Input & AI Processing:</h4>
               <ul className="list-disc pl-5 space-y-1">
                 <li>You can directly type or paste text into the "Input & Recall" text area.</li>
-                <li>Once your text (typed, from continuous recording, or from in-card dictation) is in the text area, click the <Brain className="inline-block h-4 w-4 mx-0.5 align-middle" /> icon button.</li>
+                <li>Once your text (typed, from continuous recording, or from in-card dictation) is in the text area, click the <Brain aria-hidden="true" className="inline-block h-4 w-4 mx-0.5 align-middle text-primary"/> icon button.</li>
                 <li>Heggles will process this text:
                   <ul className="list-circle pl-5 space-y-0.5 mt-1">
                     <li>If it recognizes a command (see "Text Commands" below), it will ask for confirmation and then perform the action.</li>
@@ -134,16 +134,16 @@ export default function HowToPage() {
         </AccordionItem>
 
         <AccordionItem value="item-2">
-          <AccordionTrigger>
-            <span className="text-xl font-semibold flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-terminal mr-2"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
+          <AccordionTrigger className="text-xl font-semibold">
+            <span className="flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-terminal mr-2"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
               Key Text Commands (for the
-              <Brain className="h-5 w-5 mx-1.5" />
+              <Brain aria-hidden="true" className="h-5 w-5 mx-1.5 text-primary" />
               Button)
             </span>
           </AccordionTrigger>
           <AccordionContent className="space-y-2 pt-2 text-muted-foreground">
-            <p>Type these commands into the "Input & Recall" text area on the Dashboard and then click the <Brain className="inline-block h-4 w-4 mx-0.5 align-middle" /> button.</p>
+            <p>Type these commands into the "Input & Recall" text area on the Dashboard and then click the <Brain aria-hidden="true" className="inline-block h-4 w-4 mx-0.5 align-middle text-primary"/> button.</p>
             <ul className="list-disc pl-5 space-y-1">
               <li><code>heggles replay that</code> - Initiates a 10-second live audio recording & transcription, then processes the result with AI.</li>
               <li><code>heggles add [item name] to my shopping list</code> - Adds the item to your shopping list (will ask for confirmation).</li>
@@ -161,12 +161,12 @@ export default function HowToPage() {
         </AccordionItem>
 
         <AccordionItem value="item-3">
-          <AccordionTrigger>
-            <span className="text-xl font-semibold flex items-center">
+          <AccordionTrigger className="text-xl font-semibold">
+            <span className="flex items-center">
               <ListChecks className="h-5 w-5 mx-1.5" />
               Shopping &amp;
               <ClipboardList className="h-5 w-5 mx-1.5" />
-              To-Do)
+              To-Do Lists
             </span>
           </AccordionTrigger>
           <AccordionContent className="space-y-4 pt-2 text-muted-foreground">
@@ -202,8 +202,8 @@ export default function HowToPage() {
         </AccordionItem>
 
         <AccordionItem value="item-4">
-          <AccordionTrigger>
-            <span className="text-xl font-semibold flex items-center">
+          <AccordionTrigger className="text-xl font-semibold">
+            <span className="flex items-center">
               <Archive className="h-5 w-5 mx-1.5" />Memory Vault
             </span>
           </AccordionTrigger>
@@ -226,7 +226,7 @@ export default function HowToPage() {
             </span>
             </AccordionTrigger>
           <AccordionContent className="space-y-2 pt-2 text-muted-foreground">
-            <p>Heggles uses AI to enhance your thoughts when processed by the <Brain className="inline-block h-4 w-4 align-middle mx-0.5"/> button on the Dashboard:</p>
+            <p>Heggles uses AI to enhance your thoughts when processed by the <Brain aria-hidden="true" className="inline-block h-4 w-4 align-middle mx-0.5 text-primary"/> button on the Dashboard:</p>
             <ul className="list-disc pl-5 space-y-1">
                 <li><strong>Summarization & Keywords:</strong> Automatically generated for processed thoughts.</li>
                 <li><strong>Refinement:</strong> The "Clarify" option (<Sparkles className="inline-block h-4 w-4 mx-0.5 align-middle" />) on a thought card refines its transcript and identifies potential action items.</li>
@@ -243,8 +243,8 @@ export default function HowToPage() {
         </AccordionItem>
 
         <AccordionItem value="item-6">
-          <AccordionTrigger>
-            <span className="text-xl font-semibold flex items-center">
+          <AccordionTrigger className="text-xl font-semibold">
+            <span className="flex items-center">
               <FileUp className="h-5 w-5 mx-1.5" /> Exporting Your Data
             </span>
           </AccordionTrigger>
@@ -254,7 +254,7 @@ export default function HowToPage() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="h-10" aria-label="Export Data or Download Templates">
-                    <FileUp className="mr-2 h-5 w-5" /> Export / Download Templates
+                    <Download className="mr-2 h-5 w-5" /> Export / Download Templates
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="center" className="w-56">
