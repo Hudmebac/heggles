@@ -65,7 +65,7 @@ export function Header() {
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <Link href="/" className="flex items-center gap-2 text-xl font-bold">
           <BrainCircuit className="h-7 w-7 text-primary" />
-          Heggles
+          Mr. Heggles
         </Link>
         <nav className="flex items-center gap-0.5 md:gap-1">
           <Button variant="ghost" asChild className="px-2 sm:px-3">
@@ -74,13 +74,7 @@ export function Header() {
               <span className="hidden sm:inline">Dashboard</span>
             </Link>
           </Button>
-          <Button variant="ghost" asChild className="px-2 sm:px-3">
-            <Link href="/memory-vault" className="flex items-center">
-              <Archive className="h-5 w-5 sm:mr-1 md:mr-2" />
-              <span className="hidden sm:inline">Memory Vault</span>
-            </Link>
-          </Button>
-
+          
  <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="flex items-center px-2 sm:px-3">
@@ -89,6 +83,9 @@ export function Header() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem asChild>
+                <Link href="/memory-vault">Memory Vault</Link>
+              </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link href="/shopping-list">Shopping List</Link>
               </DropdownMenuItem>

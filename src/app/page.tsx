@@ -97,23 +97,9 @@ export default function DashboardPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-6 gap-2">
         <div className="flex items-center gap-3">
-         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+         <h1 className="text-3xl font-bold tracking-tight">Mr. Heggles</h1>
         </div>
-        <Button
-          variant="ghost"
-          size="lg" 
-          className="p-2 h-14 w-14 rounded-full" 
-          onClick={handleToggleLongRecording}
-          title={isLongRecording ? "Stop Continuous Recording" : "Start Continuous Recording (Mic)"}
-        >
-          {isLongRecording ? (
-            <Radio className="h-10 w-10 text-red-500 animate-pulse" />
-          ) : (
-            <Mic className="h-10 w-10 text-primary" />
-          )}
-        </Button>
       </div>
-      
       <ThoughtInputForm 
         ref={thoughtInputFormRef}
         onThoughtRecalled={handleThoughtRecalled} 
