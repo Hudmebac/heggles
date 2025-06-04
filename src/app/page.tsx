@@ -97,8 +97,7 @@ export default function DashboardPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-6 gap-2">
         <div className="flex items-center gap-3">
-         <h1 className="text-3xl font-bold tracking-tight">Mr. Heggles</h1>
-        </div>
+          </div>
       </div>
       <ThoughtInputForm 
         ref={thoughtInputFormRef}

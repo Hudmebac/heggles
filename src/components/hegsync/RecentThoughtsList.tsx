@@ -4,7 +4,7 @@
 import { useState, useMemo } from 'react';
 import type { Thought } from '@/lib/types';
 import { ThoughtCard } from './ThoughtCard';import { Search } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { Input } from '@/components/ui/input';import { ListCollapse } from 'lucide-react';
 import { Lightbulb } from 'lucide-react';
 interface RecentThoughtsListProps {
   thoughts: Thought[];
